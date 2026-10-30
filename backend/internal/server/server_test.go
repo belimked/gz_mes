@@ -302,3 +302,25 @@ func TestListProjectsSearchAndPaging(t *testing.T) {
 		t.Fatalf("size over max: want 400, got %d", code)
 	}
 }
+
+func TestCreateProjectUnknownFactory(t *testing.T) {
+	e := newEnv(t)
+	admin := e.login("admin", "admin-pass")
+	var er api.Error
+	if code := e.do("POST", "/projects", admin, api.ProjectCreate{FactoryId: 999999, Code: "X", FullName: "X"}, &er); code != 400 || er.Code != "invalid_factory" {
+		t.Fatalf("unknown factory: want 400 invalid_factory, got %d %q", code, er.Code)
+	}
+}
+
+func TestEnsureDefaultFactory(t *testing.T) {
+	e := newEnv(t)
+	if created, err := e.st.EnsureDefaultFactory(context.Background()); err != nil || created {
+		t.Fatalf("factories exist: created=%v err=%v", created, err)
+	}
+	if _, err := pool.Exec(context.Background(), "TRUNCATE factory CASCADE"); err != nil {
+		t.Fatal(err)
+	}
+	if created, err := e.st.EnsureDefaultFactory(context.Background()); err != nil || !created {
+		t.Fatalf("empty: created=%v err=%v", created, err)
+	}
+}

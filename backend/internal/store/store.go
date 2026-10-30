@@ -19,6 +19,8 @@ import (
 var (
 	ErrNotFound = errors.New("not found")
 	ErrConflict = errors.New("conflict")
+	// ErrBadRef means a referenced row (e.g. factory) does not exist.
+	ErrBadRef = errors.New("bad reference")
 )
 
 // Store wraps a pgx pool.
@@ -103,6 +105,20 @@ func (s *Store) EnsureAdmin(ctx context.Context, username, password string) (boo
 		return false, errors.New("no users exist: set ADMIN_PASSWORD to bootstrap the first admin")
 	}
 	_, err := s.CreateUser(ctx, username, "管理员", password, true)
+	return err == nil, err
+}
+
+// EnsureDefaultFactory creates an "own" factory when none exists, so a fresh
+// install is usable right away. It returns true if one was created.
+func (s *Store) EnsureDefaultFactory(ctx context.Context) (bool, error) {
+	var n int
+	if err := s.db.QueryRow(ctx, "SELECT count(*) FROM factory").Scan(&n); err != nil {
+		return false, err
+	}
+	if n > 0 {
+		return false, nil
+	}
+	_, err := s.CreateFactory(ctx, "F01", "本厂", "own")
 	return err == nil, err
 }
 
@@ -319,6 +335,9 @@ func mapErr(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		return ErrConflict
+	}
+	if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+		return ErrBadRef
 	}
 	return err
 }

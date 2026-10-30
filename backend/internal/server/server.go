@@ -250,6 +250,9 @@ func (s *Server) CreateProject(ctx context.Context, req api.CreateProjectRequest
 	if errors.Is(err, store.ErrConflict) {
 		return api.CreateProject409JSONResponse(apiErr("duplicate_code", "项目编号已存在")), nil
 	}
+	if errors.Is(err, store.ErrBadRef) {
+		return api.CreateProject400JSONResponse{ErrorJSONResponse: apiErr("invalid_factory", "厂区不存在")}, nil
+	}
 	if err != nil {
 		return nil, err
 	}

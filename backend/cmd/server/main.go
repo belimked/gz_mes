@@ -55,6 +55,11 @@ func run() error {
 	if created {
 		slog.Info("bootstrapped admin user", "username", cfg.AdminUsername)
 	}
+	if created, err := st.EnsureDefaultFactory(ctx); err != nil {
+		return err
+	} else if created {
+		slog.Info("bootstrapped default factory")
+	}
 
 	h, err := server.New(st, auth.NewTokens(cfg.JWTSecret, 12*time.Hour), version).Handler()
 	if err != nil {
