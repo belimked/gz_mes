@@ -1,0 +1,13 @@
+# local only
+.tmp/
+docs/
+.env
+*.local
+
+# build / deps
+node_modules/
+dist/
+bin/
+coverage/
+frontend/test-results/
+frontend/playwright-report/

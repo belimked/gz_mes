@@ -1,0 +1,244 @@
+openapi: 3.0.3
+info:
+  title: GZ MES API
+  version: 0.1.0
+  description: |
+    Single source of truth for the backend (Go, oapi-codegen) and the frontend
+    (TypeScript types via openapi-typescript, demo-mode mocks).
+    Timestamps are RFC3339 strings.
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      security: []
+      tags: [system]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+
+  /auth/login:
+    post:
+      operationId: login
+      security: []
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      responses:
+        "200":
+          description: Current user and visible menus
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MeResponse" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /factories:
+    get:
+      operationId: listFactories
+      tags: [system]
+      description: Factories visible to the current user.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Factory" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [sale]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+        - { name: keyword, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProjectPage" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createProject
+      tags: [sale]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProjectCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /projects/{id}/confirm:
+    post:
+      operationId: confirmProject
+      tags: [sale]
+      description: Confirming locks the project against further edits.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, example: invalid_credentials }
+        message: { type: string }
+
+    Health:
+      type: object
+      required: [status, version]
+      properties:
+        status: { type: string, example: ok }
+        version: { type: string }
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 1 }
+        password: { type: string, minLength: 1 }
+
+    LoginResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token: { type: string }
+        user: { $ref: "#/components/schemas/User" }
+
+    User:
+      type: object
+      required: [id, username, displayName, isAdmin]
+      properties:
+        id: { type: integer, format: int64 }
+        username: { type: string }
+        displayName: { type: string }
+        isAdmin: { type: boolean }
+
+    MenuItem:
+      type: object
+      required: [id, title, path]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        path: { type: string, description: "Frontend route path, e.g. /sale/projects" }
+        icon: { type: string }
+        children:
+          type: array
+          items: { $ref: "#/components/schemas/MenuItem" }
+
+    MeResponse:
+      type: object
+      required: [user, menus]
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+        menus:
+          type: array
+          items: { $ref: "#/components/schemas/MenuItem" }
+
+    Factory:
+      type: object
+      required: [id, code, name, kind]
+      properties:
+        id: { type: integer, format: int64 }
+        code: { type: string }
+        name: { type: string }
+        kind:
+          type: string
+          enum: [own, outsource]
+
+    ProjectKind:
+      type: string
+      enum: [online, offline]
+
+    Project:
+      type: object
+      required: [id, factoryId, code, fullName, shortName, address, kind, confirmed, createdBy, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        factoryId: { type: integer, format: int64 }
+        code: { type: string }
+        fullName: { type: string }
+        shortName: { type: string }
+        address: { type: string }
+        kind: { $ref: "#/components/schemas/ProjectKind" }
+        confirmed: { type: boolean }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    ProjectCreate:
+      type: object
+      required: [factoryId, code, fullName]
+      properties:
+        factoryId: { type: integer, format: int64 }
+        code: { type: string, minLength: 1, maxLength: 64 }
+        fullName: { type: string, minLength: 1, maxLength: 200 }
+        shortName: { type: string, maxLength: 100 }
+        address: { type: string, maxLength: 300 }
+        kind: { $ref: "#/components/schemas/ProjectKind" }
+
+    ProjectPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Project" }
+        total: { type: integer, format: int64 }
