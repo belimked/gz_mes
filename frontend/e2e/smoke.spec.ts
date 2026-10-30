@@ -43,3 +43,16 @@ test('wrong password shows an error', async ({ page }) => {
   await expect(page.getByText('用户名或密码错误')).toBeVisible()
   await expect(page).toHaveURL(/\/login/)
 })
+
+test('every login style renders a working form', async ({ page }) => {
+  for (const style of ['split', 'card', 'dark', 'industrial', 'minimal']) {
+    await page.goto(`/login?style=${style}`)
+    await expect(page.getByTestId('login-style-switcher')).toBeVisible()
+    await expect(page.getByTestId('username')).toBeVisible()
+    await expect(page.getByTestId('login-submit')).toBeEnabled()
+  }
+  await page.getByTestId('username').fill(user)
+  await page.getByTestId('password').fill(password)
+  await page.getByTestId('login-submit').click()
+  await expect(page.getByTestId('side-menu')).toBeVisible()
+})
