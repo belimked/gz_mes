@@ -8,6 +8,11 @@ import CardLogin from './login/CardLogin.vue'
 import DarkLogin from './login/DarkLogin.vue'
 import IndustrialLogin from './login/IndustrialLogin.vue'
 import MinimalLogin from './login/MinimalLogin.vue'
+import AuroraLogin from './login/AuroraLogin.vue'
+import TwinLogin from './login/TwinLogin.vue'
+import FlowLogin from './login/FlowLogin.vue'
+import BentoLogin from './login/BentoLogin.vue'
+import HoloLogin from './login/HoloLogin.vue'
 
 const views: Record<LoginStyle, Component> = {
   split: SplitLogin,
@@ -15,6 +20,11 @@ const views: Record<LoginStyle, Component> = {
   dark: DarkLogin,
   industrial: IndustrialLogin,
   minimal: MinimalLogin,
+  aurora: AuroraLogin,
+  twin: TwinLogin,
+  flow: FlowLogin,
+  bento: BentoLogin,
+  holo: HoloLogin,
 }
 
 const route = useRoute()

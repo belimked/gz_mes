@@ -195,3 +195,10 @@ function quickLogin(username: string, password: string) {
   text-align: center;
 }
 </style>
+
+<style scoped>
+/* Dark themes: the inner <input> must not paint a second background inside the affix wrapper. */
+.login-form.dark :deep(.ant-input-affix-wrapper .ant-input) {
+  background: transparent;
+}
+</style>

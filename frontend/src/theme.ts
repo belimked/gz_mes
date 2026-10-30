@@ -21,6 +21,11 @@ export const loginStyles = [
   { key: 'dark', label: '深色科技' },
   { key: 'industrial', label: '工业橙' },
   { key: 'minimal', label: '极简白' },
+  { key: 'aurora', label: '极光玻璃' },
+  { key: 'twin', label: '数字孪生' },
+  { key: 'flow', label: '粒子数据流' },
+  { key: 'bento', label: 'Bento 网格' },
+  { key: 'holo', label: '全息线框' },
 ] as const
 export type LoginStyle = (typeof loginStyles)[number]['key']
 export const isLoginStyle = (s: unknown): s is LoginStyle => loginStyles.some((x) => x.key === s)
