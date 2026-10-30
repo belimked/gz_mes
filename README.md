@@ -2,7 +2,7 @@
 
 铝单板工厂生产执行系统（MES）：销售合同 → 生产批次 → 排程 → 面积表/标签 → 工序扫描 → 发货 → 对账。
 
-- **在线演示**：<https://gz-mes-demo.pages.dev>（纯前端演示，数据为虚构，仅保存在浏览器；账号 `admin / admin123`、`waixie / demo123`）
+- **在线演示**：<https://gzmes.saulxj.ggff.net>（备用 <https://gz-mes-demo.pages.dev>）（纯前端演示，数据为虚构，仅保存在浏览器；账号 `admin / admin123`、`waixie / demo123`）
 - 后端：Go（chi + oapi-codegen + pgx + goose），PostgreSQL 16
 - 前端：Vue 3 + Vite + TypeScript + Ant Design Vue
 - 接口契约：[`api/openapi.yaml`](api/openapi.yaml) 是唯一来源，Go 服务端接口与前端 TS 类型均由它生成

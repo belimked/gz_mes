@@ -1,6 +1,6 @@
 name: Demo (Cloudflare Pages)
 
-# main  -> https://gz-mes-demo.pages.dev
+# main  -> https://gzmes.saulxj.ggff.net (also https://gz-mes-demo.pages.dev)
 # PRs   -> per-branch preview URL (same-repo PRs only; forks get no secrets)
 on:
   push:
