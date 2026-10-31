@@ -291,6 +291,119 @@ export function seedScans(batches: S['Batch'][], labels: S['Label'][], jobList: 
   })
 }
 
+export function seedHandovers(batches: S['Batch'][], labels: S['Label'][], scans: S['Scan'][], jobList: S['Job'][]) {
+  const job = jobList.find((j) => j.code === '20')!
+  const scanned = new Set(scans.filter((s) => s.jobId === job.id).map((s) => s.labelId))
+  const handovers: S['Handover'][] = []
+  const handoverLabels: { handoverId: number; labelId: number; jobId: number }[] = []
+  let id = Math.max(0, ...scans.map((s) => s.id)) + 1
+  for (const batch of batches.filter((b) => b.status === 'in_production' || b.status === 'done')) {
+    const rows = labels.filter(
+      (l) => l.batchId === batch.id && !l.cancelled && scanned.has(l.id) && jobList.some((j) => j.id === l.lastJobId && j.seq >= job.seq),
+    )
+    if (!rows.length) continue
+    const received = batch.status === 'done'
+    const handoverId = id++
+    handovers.push({
+      id: handoverId,
+      handoverNo: `JJ20261020${String(handovers.length + 1).padStart(4, '0')}`,
+      factoryId: batch.factoryId,
+      batchId: batch.id,
+      lotNo: batch.lotNo,
+      projectName: batch.projectName,
+      jobId: job.id,
+      jobCode: job.code,
+      jobName: job.name,
+      qty: rows.length,
+      area: Number(rows.reduce((sum, l) => sum + l.pieceArea, 0).toFixed(4)),
+      remark: '',
+      packedBy: '演示管理员',
+      packedAt: '2026-10-20T08:00:00.000Z',
+      received,
+      receivedBy: received ? '演示管理员' : null,
+      receivedAt: received ? '2026-10-21T08:00:00.000Z' : null,
+    })
+    handoverLabels.push(...rows.map((l) => ({ handoverId, labelId: l.id, jobId: job.id })))
+  }
+  return { handovers, handoverLabels }
+}
+
+export function seedDeliveryNotes(batches: S['Batch'][], labels: S['Label'][], contracts: S['Contract'][]) {
+  const notes: S['DeliveryNote'][] = []
+  const noteLabels: { noteId: number; labelId: number }[] = []
+  let id = Math.max(0, ...labels.map((l) => l.id)) + 1
+  for (const batch of batches.filter((b) => b.status === 'done')) {
+    const rows = labels.filter((l) => l.batchId === batch.id && !l.cancelled)
+    const contract = contracts.find((c) => c.id === batch.contractId)!
+    const noteId = id++
+    notes.push({
+      id: noteId,
+      noteNo: `FH20261025${String(notes.length + 1).padStart(4, '0')}`,
+      factoryId: batch.factoryId,
+      batchId: batch.id,
+      lotNo: batch.lotNo,
+      projectName: batch.projectName,
+      customerId: contract.customerId,
+      customerName: contract.customerName,
+      contractNo: contract.contractNo,
+      deliveryBatch: '第1车',
+      qty: rows.length,
+      area: Number(rows.reduce((sum, l) => sum + l.pieceArea, 0).toFixed(4)),
+      logisticsCompany: '演示物流',
+      plateNo: '粤A·12345',
+      driver: '张师傅',
+      driverPhone: '',
+      deliveredAt: '2026-10-25',
+      remark: '',
+      accounted: false,
+      accountId: null,
+      createdBy: '演示管理员',
+      createdAt: '2026-10-25T08:00:00.000Z',
+    })
+    noteLabels.push(...rows.map((l) => ({ noteId, labelId: l.id })))
+  }
+  return { notes, noteLabels }
+}
+
+export function seedDeliverAccounts(notes: S['DeliveryNote'][]) {
+  const accounts: S['DeliverAccount'][] = []
+  const grouped = new Map<number, S['DeliveryNote'][]>()
+  for (const note of notes) grouped.set(note.customerId, [...(grouped.get(note.customerId) ?? []), note])
+  const id = Math.max(0, ...notes.map((n) => n.id)) + 1
+  const rows = grouped.values().next().value
+  if (rows) {
+    const selected = rows.slice(0, 2)
+    const first = selected[0]!
+    const totalArea = Number(selected.reduce((sum, n) => sum + n.area, 0).toFixed(4))
+    const accountId = id
+    accounts.push({
+      id: accountId,
+      accountNo: `DZ20261028${String(accounts.length + 1).padStart(4, '0')}`,
+      factoryId: first.factoryId,
+      customerId: first.customerId,
+      customerName: first.customerName,
+      noteCount: selected.length,
+      totalQty: selected.reduce((sum, n) => sum + n.qty, 0),
+      totalArea,
+      unitPrice: 180,
+      extraAmount: 200,
+      extraRemark: '运费',
+      amount: Math.round((totalArea * 180 + 200) * 100) / 100,
+      status: 'confirmed',
+      remark: '',
+      createdBy: '演示管理员',
+      createdAt: '2026-10-28T08:00:00.000Z',
+      confirmedBy: '演示管理员',
+      confirmedAt: '2026-10-28T09:00:00.000Z',
+    })
+    for (const note of selected) {
+      note.accounted = true
+      note.accountId = accountId
+    }
+  }
+  return accounts
+}
+
 export function seedProjects(): S['Project'][] {
   return [
     {

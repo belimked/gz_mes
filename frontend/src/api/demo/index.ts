@@ -9,6 +9,9 @@ import {
   seedBatches,
   seedContracts,
   seedCustomers,
+  seedHandovers,
+  seedDeliveryNotes,
+  seedDeliverAccounts,
   seedLabels,
   seedProjects,
   seedScans,
@@ -19,8 +22,14 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 4
+  version: 5
   nextId: number
+  docSeq: Record<string, number>
+  handovers: S['Handover'][]
+  handoverLabels: { handoverId: number; labelId: number; jobId: number }[]
+  deliveryNotes: S['DeliveryNote'][]
+  deliveryNoteLabels: { noteId: number; labelId: number }[]
+  deliverAccounts: S['DeliverAccount'][]
   projects: S['Project'][]
   customers: S['Customer'][]
   contracts: S['Contract'][]
@@ -49,10 +58,32 @@ function fresh(): DemoDB {
   const batchItems = seedBatchItems(batches)
   const labels = seedLabels(batches, batchItems)
   const scans = seedScans(batches, labels, jobs)
+  const { handovers, handoverLabels } = seedHandovers(batches, labels, scans, jobs)
+  const { notes: deliveryNotes, noteLabels: deliveryNoteLabels } = seedDeliveryNotes(batches, labels, contracts)
+  let nextId =
+    Math.max(
+      ...[...projects, ...customers, ...contracts, ...batches, ...batchItems, ...labels, ...scans, ...handovers].map((item) => item.id),
+    ) + 1
+  for (const note of deliveryNotes) {
+    const oldId = note.id
+    note.id = nextId++
+    for (const link of deliveryNoteLabels) if (link.noteId === oldId) link.noteId = note.id
+  }
+  const deliverAccounts = seedDeliverAccounts(deliveryNotes)
+  for (const account of deliverAccounts) {
+    const oldId = account.id
+    account.id = nextId++
+    for (const note of deliveryNotes) if (note.accountId === oldId) note.accountId = account.id
+  }
   return {
-    version: 4,
-    nextId:
-      Math.max(...[...projects, ...customers, ...contracts, ...batches, ...batchItems, ...labels, ...scans].map((item) => item.id)) + 1,
+    version: 5,
+    nextId,
+    docSeq: {},
+    handovers,
+    handoverLabels,
+    deliveryNotes,
+    deliveryNoteLabels,
+    deliverAccounts,
     projects,
     customers,
     contracts,
@@ -68,12 +99,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 4) return parsed
+      if (parsed?.version === 5) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 4) memory = fresh()
+  if (memory?.version !== 5) memory = fresh()
   return memory
 }
 
@@ -160,6 +191,19 @@ function progress(db: DemoDB, batch: S['Batch']): S['BatchProgress'] {
 
 const validPage = (page: number, size: number) => Number.isInteger(page) && page >= 1 && Number.isInteger(size) && size >= 1 && size <= 200
 const validId = (value: string | null) => value === null || (/^-?\d+$/.test(value) && Number.isSafeInteger(Number(value)))
+function nextDocNo(db: DemoDB, prefix: string) {
+  const day = new Date().toISOString().slice(0, 10).replaceAll('-', '')
+  const key = prefix + day
+  db.docSeq[key] = (db.docSeq[key] ?? 0) + 1
+  return `${key}${String(db.docSeq[key]).padStart(4, '0')}`
+}
+
+const docCodes = (value: unknown): string[] | null =>
+  Array.isArray(value) && value.length > 0 && value.every((code) => typeof code === 'string' && str(code))
+    ? [...new Set(value.map((code: string) => code.trim()))]
+    : null
+const docArea = (labels: S['Label'][]) => Number(labels.reduce((sum, label) => sum + label.pieceArea, 0).toFixed(4))
+
 const dateStart = (value: string) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return NaN
   const ms = Date.parse(`${value}T00:00:00Z`)
@@ -698,6 +742,272 @@ export async function demoFetch(req: Request): Promise<Response> {
     batch.updatedAt = scannedAt
     save(db)
     return json(201, { scan, label, progress: progress(db, batch) })
+  }
+
+  if (route === 'GET /handovers' || route === 'GET /delivery-notes' || route === 'GET /deliver-accounts') {
+    const page = Number(url.searchParams.get('page') ?? 1)
+    const size = Number(url.searchParams.get('size') ?? 20)
+    if (!validPage(page, size)) return fail(400, 'invalid_request', 'page/size 参数不合法')
+    const ids =
+      route === 'GET /deliver-accounts' ? ['customerId'] : route === 'GET /handovers' ? ['batchId', 'jobId'] : ['batchId', 'customerId']
+    if (ids.some((key) => !validId(url.searchParams.get(key)))) return fail(400, 'invalid_request', '筛选参数不合法')
+    const kw = (url.searchParams.get('keyword') ?? '').trim().toLowerCase()
+    const matches = (values: string[]) => !kw || values.some((value) => value.toLowerCase().includes(kw))
+    const filterId = (key: string, value: number) => url.searchParams.get(key) === null || value === Number(url.searchParams.get(key))
+    if (route === 'GET /handovers') {
+      const received = url.searchParams.get('received')
+      if (received !== null && !['true', 'false'].includes(received)) return fail(400, 'invalid_request', '接收参数不合法')
+      const all = db.handovers
+        .filter((h) => inScope(u, h.factoryId) && filterId('batchId', h.batchId) && filterId('jobId', h.jobId))
+        .filter((h) => received === null || h.received === (received === 'true'))
+        .filter((h) => matches([h.handoverNo, h.lotNo, h.projectName]))
+        .sort((a, b) => b.packedAt.localeCompare(a.packedAt) || b.id - a.id)
+      return json(200, { items: all.slice((page - 1) * size, page * size), total: all.length })
+    }
+    if (route === 'GET /delivery-notes') {
+      const accounted = url.searchParams.get('accounted')
+      if (accounted !== null && !['true', 'false'].includes(accounted)) return fail(400, 'invalid_request', '对账参数不合法')
+      const begin = url.searchParams.get('beginDate')
+      const end = url.searchParams.get('endDate')
+      if (
+        (begin !== null && Number.isNaN(dateStart(begin))) ||
+        (end !== null && Number.isNaN(dateStart(end))) ||
+        (begin && end && begin > end)
+      )
+        return fail(400, 'invalid_request', '日期范围无效')
+      const all = db.deliveryNotes
+        .filter((n) => inScope(u, n.factoryId) && filterId('batchId', n.batchId) && filterId('customerId', n.customerId))
+        .filter((n) => accounted === null || n.accounted === (accounted === 'true'))
+        .filter((n) => (!begin || n.deliveredAt >= begin) && (!end || n.deliveredAt <= end))
+        .filter((n) => matches([n.noteNo, n.lotNo, n.projectName, n.plateNo]))
+        .sort((a, b) => b.deliveredAt.localeCompare(a.deliveredAt) || b.id - a.id)
+      return json(200, { items: all.slice((page - 1) * size, page * size), total: all.length })
+    }
+    const status = url.searchParams.get('status')
+    if (status !== null && status !== 'draft' && status !== 'confirmed') return fail(400, 'invalid_request', '状态参数不合法')
+    const all = db.deliverAccounts
+      .filter((a) => inScope(u, a.factoryId) && filterId('customerId', a.customerId))
+      .filter((a) => status === null || a.status === status)
+      .filter((a) => matches([a.accountNo, a.customerName]))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id)
+    return json(200, { items: all.slice((page - 1) * size, page * size), total: all.length })
+  }
+
+  if (route === 'POST /handovers' || route === 'POST /delivery-notes') {
+    const b = await body(req)
+    const codes = docCodes(b?.barCodes)
+    const isHandover = route === 'POST /handovers'
+    if (
+      !b ||
+      !Number.isSafeInteger(b.batchId) ||
+      !codes ||
+      (isHandover ? !str(b.jobCode) : typeof b.deliveredAt !== 'string' || Number.isNaN(dateStart(b.deliveredAt)))
+    )
+      return fail(400, 'invalid_request', isHandover ? '条码和工序不能为空' : '条码和发货日期不能为空')
+    const batch = db.batches.find((x) => x.id === b.batchId && inScope(u, x.factoryId))
+    if (!batch) return fail(404, 'not_found', '批次不存在')
+    const job = isHandover ? jobs.find((x) => x.code === str(b.jobCode)) : jobs.find((x) => x.code === '55')
+    if (!job) return fail(400, 'invalid_job', '工序代码不存在')
+    const labels: S['Label'][] = []
+    for (const code of codes) {
+      const label = db.labels.find((l) => l.barCode === code)
+      if (!label || label.batchId !== batch.id || label.cancelled)
+        return fail(400, 'invalid_reference', `条码不存在/不属于该批次/已作废: ${code}`)
+      labels.push(label)
+    }
+    labels.sort((a, b) => a.id - b.id)
+    for (const label of labels) {
+      if (!db.scans.some((s) => s.labelId === label.id && s.jobId === job.id))
+        return fail(409, 'not_scanned', `${isHandover ? '有标签尚未在该工序扫描' : '有标签尚未完成成品装架'}: ${label.barCode}`)
+    }
+    for (const label of labels) {
+      if (isHandover && db.handoverLabels.some((link) => link.labelId === label.id && link.jobId === job.id))
+        return fail(409, 'label_in_handover', `标签已在其他交接单: ${label.barCode}`)
+      if (!isHandover && db.deliveryNoteLabels.some((link) => link.labelId === label.id))
+        return fail(409, 'label_delivered', `标签已发货: ${label.barCode}`)
+    }
+    const now = new Date().toISOString()
+    if (isHandover) {
+      const h: S['Handover'] = {
+        id: db.nextId++,
+        handoverNo: nextDocNo(db, 'JJ'),
+        factoryId: batch.factoryId,
+        batchId: batch.id,
+        lotNo: batch.lotNo,
+        projectName: batch.projectName,
+        jobId: job.id,
+        jobCode: job.code,
+        jobName: job.name,
+        qty: labels.length,
+        area: docArea(labels),
+        remark: str(b.remark),
+        packedBy: u.displayName,
+        packedAt: now,
+        received: false,
+        receivedBy: null,
+        receivedAt: null,
+      }
+      db.handovers.push(h)
+      db.handoverLabels.push(...labels.map((l) => ({ handoverId: h.id, labelId: l.id, jobId: job.id })))
+      save(db)
+      return json(201, { ...h, labels })
+    }
+    const contract = db.contracts.find((c) => c.id === batch.contractId)!
+    const n: S['DeliveryNote'] = {
+      id: db.nextId++,
+      noteNo: nextDocNo(db, 'FH'),
+      factoryId: batch.factoryId,
+      batchId: batch.id,
+      lotNo: batch.lotNo,
+      projectName: batch.projectName,
+      customerId: contract.customerId,
+      customerName: contract.customerName,
+      contractNo: contract.contractNo,
+      deliveryBatch: str(b.deliveryBatch),
+      qty: labels.length,
+      area: docArea(labels),
+      logisticsCompany: str(b.logisticsCompany),
+      plateNo: str(b.plateNo),
+      driver: str(b.driver),
+      driverPhone: str(b.driverPhone),
+      deliveredAt: b.deliveredAt as string,
+      remark: str(b.remark),
+      accounted: false,
+      accountId: null,
+      createdBy: u.displayName,
+      createdAt: now,
+    }
+    db.deliveryNotes.push(n)
+    db.deliveryNoteLabels.push(...labels.map((l) => ({ noteId: n.id, labelId: l.id })))
+    const job60 = jobs.find((j) => j.code === '60')!
+    for (const label of labels) {
+      if (db.scans.some((s) => s.labelId === label.id && s.jobId === job60.id)) continue
+      db.scans.push({
+        id: db.nextId++,
+        labelId: label.id,
+        barCode: label.barCode,
+        batchId: batch.id,
+        lotNo: batch.lotNo,
+        pieceNo: label.pieceNo,
+        pieceIndex: label.pieceIndex,
+        jobId: job60.id,
+        jobName: job60.name,
+        scannedBy: u.displayName,
+        scannedAt: now,
+        device: 'delivery',
+      })
+      label.lastJobId = job60.id
+      label.lastJobName = job60.name
+      label.lastScannedAt = now
+    }
+    if (batch.status === 'pending' || batch.status === 'scheduled') batch.status = 'in_production'
+    const shipped = new Set(db.scans.filter((s) => s.batchId === batch.id && s.jobId === job60.id).map((s) => s.labelId))
+    if (db.labels.filter((l) => l.batchId === batch.id && !l.cancelled).every((l) => shipped.has(l.id))) batch.status = 'done'
+    batch.updatedAt = now
+    save(db)
+    return json(201, { ...n, labels })
+  }
+
+  if (route === 'POST /deliver-accounts') {
+    const b = await body(req)
+    if (
+      !b ||
+      !Number.isSafeInteger(b.customerId) ||
+      !Array.isArray(b.deliveryNoteIds) ||
+      !b.deliveryNoteIds.length ||
+      !b.deliveryNoteIds.every((id: unknown) => Number.isSafeInteger(id)) ||
+      typeof b.unitPrice !== 'number' ||
+      !Number.isFinite(b.unitPrice) ||
+      b.unitPrice < 0 ||
+      (b.extraAmount !== undefined && (typeof b.extraAmount !== 'number' || !Number.isFinite(b.extraAmount)))
+    )
+      return fail(400, 'invalid_request', '发货单不能为空且单价不能为负')
+    const customer = db.customers.find((c) => c.id === b.customerId && inScope(u, c.factoryId))
+    if (!customer) return fail(400, 'invalid_reference', '客户不存在或无权访问')
+    const ids = [...new Set(b.deliveryNoteIds as number[])]
+    const notes: S['DeliveryNote'][] = []
+    for (const id of ids.sort((a, b) => a - b)) {
+      const note = db.deliveryNotes.find((n) => n.id === id && inScope(u, n.factoryId))
+      if (!note) return fail(400, 'invalid_reference', '发货单不存在')
+      notes.push(note)
+    }
+    for (const note of notes) {
+      if (note.customerId !== customer.id) return fail(400, 'invalid_reference', '发货单不属于该客户')
+      if (note.accounted) return fail(409, 'note_accounted', `发货单已对账: ${note.noteNo}`)
+    }
+    const totalArea = Number(notes.reduce((sum, n) => sum + n.area, 0).toFixed(4))
+    const extraAmount = (b.extraAmount ?? 0) as number
+    const a: S['DeliverAccount'] = {
+      id: db.nextId++,
+      accountNo: nextDocNo(db, 'DZ'),
+      factoryId: customer.factoryId,
+      customerId: customer.id,
+      customerName: customer.name,
+      noteCount: notes.length,
+      totalQty: notes.reduce((sum, n) => sum + n.qty, 0),
+      totalArea,
+      unitPrice: b.unitPrice,
+      extraAmount,
+      extraRemark: str(b.extraRemark),
+      amount: Math.round((totalArea * b.unitPrice + extraAmount) * 100) / 100,
+      status: 'draft',
+      remark: str(b.remark),
+      createdBy: u.displayName,
+      createdAt: new Date().toISOString(),
+      confirmedBy: null,
+      confirmedAt: null,
+    }
+    db.deliverAccounts.push(a)
+    for (const note of notes) {
+      note.accounted = true
+      note.accountId = a.id
+    }
+    save(db)
+    return json(201, { ...a, notes })
+  }
+
+  const docRoute = /^(GET|POST) \/(handovers|delivery-notes|deliver-accounts)\/(\d+)(?:\/(receive|confirm))?$/.exec(route)
+  if (docRoute) {
+    const [, method, kind, rawId, action] = docRoute
+    const id = Number(rawId)
+    if (kind === 'handovers') {
+      const h = db.handovers.find((x) => x.id === id && inScope(u, x.factoryId))
+      if (!h) return fail(404, 'not_found', '交接单不存在')
+      if (method === 'GET' && !action)
+        return json(200, {
+          ...h,
+          labels: db.handoverLabels.filter((x) => x.handoverId === id).map((x) => db.labels.find((l) => l.id === x.labelId)!),
+        })
+      if (method === 'POST' && action === 'receive') {
+        if (h.received) return fail(409, 'already_received', '交接单已接收')
+        h.received = true
+        h.receivedBy = u.displayName
+        h.receivedAt = new Date().toISOString()
+        save(db)
+        return json(200, h)
+      }
+    } else if (kind === 'delivery-notes') {
+      const n = db.deliveryNotes.find((x) => x.id === id && inScope(u, x.factoryId))
+      if (!n) return fail(404, 'not_found', '发货单不存在')
+      if (method === 'GET' && !action)
+        return json(200, {
+          ...n,
+          labels: db.deliveryNoteLabels.filter((x) => x.noteId === id).map((x) => db.labels.find((l) => l.id === x.labelId)!),
+        })
+    } else {
+      const a = db.deliverAccounts.find((x) => x.id === id && inScope(u, x.factoryId))
+      if (!a) return fail(404, 'not_found', '对账单不存在')
+      if (method === 'GET' && !action)
+        return json(200, { ...a, notes: db.deliveryNotes.filter((n) => n.accountId === id).sort((x, y) => x.id - y.id) })
+      if (method === 'POST' && action === 'confirm') {
+        if (a.status === 'confirmed') return fail(409, 'already_confirmed', '对账单已确认')
+        a.status = 'confirmed'
+        a.confirmedBy = u.displayName
+        a.confirmedAt = new Date().toISOString()
+        save(db)
+        return json(200, a)
+      }
+    }
   }
 
   const batchRoute = /^(GET|PUT) \/batches\/(\d+)(?:\/(schedule|items))?$/.exec(route)

@@ -7,10 +7,7 @@ const placeholder = () => import('@/views/Placeholder.vue')
 const planned: [string, string][] = [
   ['system/factories', '厂区管理'],
   ['system/users', '用户管理'],
-  ['production/handovers', '交接单管理'],
-  ['delivery/notes', '发货查询'],
   ['finance/batch-valuation', '工程批次对账'],
-  ['finance/deliver-accounts', '发货对账查询'],
 ]
 
 const children: RouteRecordRaw[] = [
@@ -50,6 +47,24 @@ const children: RouteRecordRaw[] = [
     name: 'scan',
     component: () => import('@/views/production/Scan.vue'),
     meta: { title: '扫码报工', group: '生产管理' },
+  },
+  {
+    path: 'production/handovers',
+    name: 'handovers',
+    component: () => import('@/views/production/Handovers.vue'),
+    meta: { title: '交接单管理', group: '生产管理' },
+  },
+  {
+    path: 'delivery/notes',
+    name: 'delivery-notes',
+    component: () => import('@/views/delivery/Notes.vue'),
+    meta: { title: '发货查询', group: '发货管理' },
+  },
+  {
+    path: 'finance/deliver-accounts',
+    name: 'deliver-accounts',
+    component: () => import('@/views/finance/DeliverAccounts.vue'),
+    meta: { title: '发货对账查询', group: '财务管理' },
   },
   ...planned.map(([path, title]): RouteRecordRaw => ({ path, component: placeholder, meta: { title } })),
 ]

@@ -383,6 +383,151 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/handovers': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['listHandovers']
+    put?: never
+    /**
+     * @description Packs labels that have passed the given job into a handover sheet (交接单). Every barcode must belong
+     *     to the batch, be active, have a scan at that job, and not already sit on another handover for the
+     *     same job (409 label_in_handover). Handover numbers are generated (JJ + yyyyMMdd + 4-digit seq).
+     */
+    post: operations['createHandover']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/handovers/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['getHandover']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/handovers/{id}/receive': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** @description Marks the sheet as received by the next station. 409 already_received. */
+    post: operations['receiveHandover']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/delivery-notes': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['listDeliveryNotes']
+    put?: never
+    /**
+     * @description Ships labels. Each barcode must belong to the batch, be active, have passed 成品装架 (job 55) and not be
+     *     on another note (409 label_delivered). Creating the note records a 发货对账 (job 60) scan for every
+     *     label, so a batch whose labels are all shipped becomes done. Note numbers: FH + yyyyMMdd + 4-digit seq.
+     */
+    post: operations['createDeliveryNote']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/delivery-notes/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['getDeliveryNote']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/deliver-accounts': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['listDeliverAccounts']
+    put?: never
+    /**
+     * @description Builds a customer statement (发货对账单) from delivery notes. All notes must belong to the customer
+     *     and not be on another account (409 note_accounted). amount = round(totalArea × unitPrice + extraAmount, 2).
+     *     Account numbers: DZ + yyyyMMdd + 4-digit seq. Created in draft.
+     */
+    post: operations['createDeliverAccount']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/deliver-accounts/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['getDeliverAccount']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/deliver-accounts/{id}/confirm': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** @description draft → confirmed. 409 already_confirmed. */
+    post: operations['confirmDeliverAccount']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -936,6 +1081,164 @@ export interface components {
       scan: components['schemas']['Scan']
       label: components['schemas']['Label']
       progress: components['schemas']['BatchProgress']
+    }
+    Handover: {
+      /** Format: int64 */
+      id: number
+      handoverNo: string
+      /** Format: int64 */
+      factoryId: number
+      /** Format: int64 */
+      batchId: number
+      lotNo: string
+      projectName: string
+      /** Format: int64 */
+      jobId: number
+      jobCode: string
+      jobName: string
+      /** @description Label count */
+      qty: number
+      /**
+       * Format: double
+       * @description Σ pieceArea
+       */
+      area: number
+      remark: string
+      packedBy: string
+      /** Format: date-time */
+      packedAt: string
+      received: boolean
+      receivedBy?: string | null
+      /** Format: date-time */
+      receivedAt?: string | null
+    }
+    HandoverDetail: components['schemas']['Handover'] & {
+      labels: components['schemas']['Label'][]
+    }
+    HandoverPage: {
+      items: components['schemas']['Handover'][]
+      /** Format: int64 */
+      total: number
+    }
+    HandoverCreate: {
+      /** Format: int64 */
+      batchId: number
+      jobCode: string
+      barCodes: string[]
+      remark?: string
+    }
+    DeliveryNote: {
+      /** Format: int64 */
+      id: number
+      noteNo: string
+      /** Format: int64 */
+      factoryId: number
+      /** Format: int64 */
+      batchId: number
+      lotNo: string
+      projectName: string
+      /** Format: int64 */
+      customerId: number
+      customerName: string
+      contractNo: string
+      /** @description 发货批次（第几车） */
+      deliveryBatch: string
+      qty: number
+      /** Format: double */
+      area: number
+      logisticsCompany: string
+      plateNo: string
+      driver: string
+      driverPhone: string
+      /** Format: date */
+      deliveredAt: string
+      remark: string
+      accounted: boolean
+      /** Format: int64 */
+      accountId?: number | null
+      createdBy: string
+      /** Format: date-time */
+      createdAt: string
+    }
+    DeliveryNoteDetail: components['schemas']['DeliveryNote'] & {
+      labels: components['schemas']['Label'][]
+    }
+    DeliveryNotePage: {
+      items: components['schemas']['DeliveryNote'][]
+      /** Format: int64 */
+      total: number
+    }
+    DeliveryNoteCreate: {
+      /** Format: int64 */
+      batchId: number
+      barCodes: string[]
+      deliveryBatch?: string
+      logisticsCompany?: string
+      plateNo?: string
+      driver?: string
+      driverPhone?: string
+      /** Format: date */
+      deliveredAt: string
+      remark?: string
+    }
+    /** @enum {string} */
+    AccountStatus: 'draft' | 'confirmed'
+    DeliverAccount: {
+      /** Format: int64 */
+      id: number
+      accountNo: string
+      /** Format: int64 */
+      factoryId: number
+      /** Format: int64 */
+      customerId: number
+      customerName: string
+      noteCount: number
+      totalQty: number
+      /** Format: double */
+      totalArea: number
+      /**
+       * Format: double
+       * @description 元/m²
+       */
+      unitPrice: number
+      /**
+       * Format: double
+       * @description 运费等附加
+       */
+      extraAmount: number
+      extraRemark: string
+      /** Format: double */
+      amount: number
+      status: components['schemas']['AccountStatus']
+      remark: string
+      createdBy: string
+      /** Format: date-time */
+      createdAt: string
+      confirmedBy?: string | null
+      /** Format: date-time */
+      confirmedAt?: string | null
+    }
+    DeliverAccountDetail: components['schemas']['DeliverAccount'] & {
+      notes: components['schemas']['DeliveryNote'][]
+    }
+    DeliverAccountPage: {
+      items: components['schemas']['DeliverAccount'][]
+      /** Format: int64 */
+      total: number
+    }
+    DeliverAccountCreate: {
+      /** Format: int64 */
+      customerId: number
+      deliveryNoteIds: number[]
+      /** Format: double */
+      unitPrice: number
+      /**
+       * Format: double
+       * @default 0
+       */
+      extraAmount: number
+      extraRemark?: string
+      remark?: string
     }
   }
   responses: {
@@ -1687,6 +1990,304 @@ export interface operations {
         }
       }
       400: components['responses']['Error']
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  listHandovers: {
+    parameters: {
+      query?: {
+        page?: number
+        size?: number
+        batchId?: number
+        jobId?: number
+        received?: boolean
+        /** @description Matches handoverNo / lotNo / projectName */
+        keyword?: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HandoverPage']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+    }
+  }
+  createHandover: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['HandoverCreate']
+      }
+    }
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HandoverDetail']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  getHandover: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HandoverDetail']
+        }
+      }
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+    }
+  }
+  receiveHandover: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Handover']
+        }
+      }
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  listDeliveryNotes: {
+    parameters: {
+      query?: {
+        page?: number
+        size?: number
+        batchId?: number
+        customerId?: number
+        /** @description Matches noteNo / lotNo / projectName / plateNo */
+        keyword?: string
+        /** @description Already on a deliver account */
+        accounted?: boolean
+        beginDate?: string
+        endDate?: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DeliveryNotePage']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+    }
+  }
+  createDeliveryNote: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DeliveryNoteCreate']
+      }
+    }
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DeliveryNoteDetail']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  getDeliveryNote: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DeliveryNoteDetail']
+        }
+      }
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+    }
+  }
+  listDeliverAccounts: {
+    parameters: {
+      query?: {
+        page?: number
+        size?: number
+        customerId?: number
+        status?: components['schemas']['AccountStatus']
+        /** @description Matches accountNo / customerName */
+        keyword?: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DeliverAccountPage']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+    }
+  }
+  createDeliverAccount: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DeliverAccountCreate']
+      }
+    }
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DeliverAccountDetail']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  getDeliverAccount: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DeliverAccountDetail']
+        }
+      }
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+    }
+  }
+  confirmDeliverAccount: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DeliverAccount']
+        }
+      }
       401: components['responses']['Error']
       404: components['responses']['Error']
       409: components['responses']['Error']
