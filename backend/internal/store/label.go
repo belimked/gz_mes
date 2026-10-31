@@ -295,7 +295,7 @@ func (s *Store) Scan(ctx context.Context, sc auth.Scope, barCode, jobCode string
 	if err != nil {
 		return nil, nil, nil, mapErr(err)
 	}
-	_, err = tx.Exec(ctx, `UPDATE batch SET status=CASE WHEN (SELECT j.seq FROM job j WHERE j.id=$2)=(SELECT max(seq) FROM job) AND (SELECT count(*) FROM label WHERE batch_id=$1 AND NOT cancelled)=(SELECT count(DISTINCT sr.label_id) FROM scan_record sr JOIN job j ON j.id=sr.job_id JOIN label l ON l.id=sr.label_id WHERE sr.batch_id=$1 AND NOT l.cancelled AND j.seq=(SELECT max(seq) FROM job)) THEN 'done' WHEN status IN ('pending','scheduled') THEN 'in_production' ELSE status END,updated_at=now() WHERE id=$1`, batchID, jobID)
+	err = updateBatchProgress(ctx, tx, batchID, jobID)
 	if err != nil {
 		return nil, nil, nil, err
 	}

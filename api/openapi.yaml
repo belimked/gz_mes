@@ -521,6 +521,212 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /handovers:
+    get:
+      operationId: listHandovers
+      tags: [production]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+        - { name: batchId, in: query, schema: { type: integer, format: int64 } }
+        - { name: jobId, in: query, schema: { type: integer, format: int64 } }
+        - { name: received, in: query, schema: { type: boolean } }
+        - { name: keyword, in: query, schema: { type: string }, description: "Matches handoverNo / lotNo / projectName" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HandoverPage" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createHandover
+      tags: [production]
+      description: |
+        Packs labels that have passed the given job into a handover sheet (交接单). Every barcode must belong
+        to the batch, be active, have a scan at that job, and not already sit on another handover for the
+        same job (409 label_in_handover). Handover numbers are generated (JJ + yyyyMMdd + 4-digit seq).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HandoverCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HandoverDetail" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /handovers/{id}:
+    get:
+      operationId: getHandover
+      tags: [production]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HandoverDetail" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /handovers/{id}/receive:
+    post:
+      operationId: receiveHandover
+      tags: [production]
+      description: Marks the sheet as received by the next station. 409 already_received.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Handover" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /delivery-notes:
+    get:
+      operationId: listDeliveryNotes
+      tags: [delivery]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+        - { name: batchId, in: query, schema: { type: integer, format: int64 } }
+        - { name: customerId, in: query, schema: { type: integer, format: int64 } }
+        - { name: keyword, in: query, schema: { type: string }, description: "Matches noteNo / lotNo / projectName / plateNo" }
+        - { name: accounted, in: query, schema: { type: boolean }, description: "Already on a deliver account" }
+        - { name: beginDate, in: query, schema: { type: string, format: date } }
+        - { name: endDate, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliveryNotePage" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createDeliveryNote
+      tags: [delivery]
+      description: |
+        Ships labels. Each barcode must belong to the batch, be active, have passed 成品装架 (job 55) and not be
+        on another note (409 label_delivered). Creating the note records a 发货对账 (job 60) scan for every
+        label, so a batch whose labels are all shipped becomes done. Note numbers: FH + yyyyMMdd + 4-digit seq.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeliveryNoteCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliveryNoteDetail" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /delivery-notes/{id}:
+    get:
+      operationId: getDeliveryNote
+      tags: [delivery]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliveryNoteDetail" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /deliver-accounts:
+    get:
+      operationId: listDeliverAccounts
+      tags: [finance]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+        - { name: customerId, in: query, schema: { type: integer, format: int64 } }
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/AccountStatus" } }
+        - { name: keyword, in: query, schema: { type: string }, description: "Matches accountNo / customerName" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliverAccountPage" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createDeliverAccount
+      tags: [finance]
+      description: |
+        Builds a customer statement (发货对账单) from delivery notes. All notes must belong to the customer
+        and not be on another account (409 note_accounted). amount = round(totalArea × unitPrice + extraAmount, 2).
+        Account numbers: DZ + yyyyMMdd + 4-digit seq. Created in draft.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeliverAccountCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliverAccountDetail" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /deliver-accounts/{id}:
+    get:
+      operationId: getDeliverAccount
+      tags: [finance]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliverAccountDetail" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /deliver-accounts/{id}/confirm:
+    post:
+      operationId: confirmDeliverAccount
+      tags: [finance]
+      description: draft → confirmed. 409 already_confirmed.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliverAccount" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1022,3 +1228,182 @@ components:
         scan: { $ref: "#/components/schemas/Scan" }
         label: { $ref: "#/components/schemas/Label" }
         progress: { $ref: "#/components/schemas/BatchProgress" }
+
+    Handover:
+      type: object
+      required: [id, handoverNo, factoryId, batchId, lotNo, projectName, jobId, jobCode, jobName, qty, area, remark, packedBy, packedAt, received]
+      properties:
+        id: { type: integer, format: int64 }
+        handoverNo: { type: string }
+        factoryId: { type: integer, format: int64 }
+        batchId: { type: integer, format: int64 }
+        lotNo: { type: string }
+        projectName: { type: string }
+        jobId: { type: integer, format: int64 }
+        jobCode: { type: string }
+        jobName: { type: string }
+        qty: { type: integer, description: "Label count" }
+        area: { type: number, format: double, description: "Σ pieceArea" }
+        remark: { type: string }
+        packedBy: { type: string }
+        packedAt: { type: string, format: date-time }
+        received: { type: boolean }
+        receivedBy: { type: string, nullable: true }
+        receivedAt: { type: string, format: date-time, nullable: true }
+
+    HandoverDetail:
+      allOf:
+        - $ref: "#/components/schemas/Handover"
+        - type: object
+          required: [labels]
+          properties:
+            labels:
+              type: array
+              items: { $ref: "#/components/schemas/Label" }
+
+    HandoverPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Handover" }
+        total: { type: integer, format: int64 }
+
+    HandoverCreate:
+      type: object
+      required: [batchId, jobCode, barCodes]
+      properties:
+        batchId: { type: integer, format: int64 }
+        jobCode: { type: string, minLength: 1, maxLength: 16 }
+        barCodes:
+          type: array
+          minItems: 1
+          maxItems: 2000
+          items: { type: string }
+        remark: { type: string, maxLength: 500 }
+
+    DeliveryNote:
+      type: object
+      required: [id, noteNo, factoryId, batchId, lotNo, projectName, customerId, customerName, contractNo, deliveryBatch, qty, area, logisticsCompany, plateNo, driver, driverPhone, deliveredAt, remark, accounted, createdBy, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        noteNo: { type: string }
+        factoryId: { type: integer, format: int64 }
+        batchId: { type: integer, format: int64 }
+        lotNo: { type: string }
+        projectName: { type: string }
+        customerId: { type: integer, format: int64 }
+        customerName: { type: string }
+        contractNo: { type: string }
+        deliveryBatch: { type: string, description: "发货批次（第几车）" }
+        qty: { type: integer }
+        area: { type: number, format: double }
+        logisticsCompany: { type: string }
+        plateNo: { type: string }
+        driver: { type: string }
+        driverPhone: { type: string }
+        deliveredAt: { type: string, format: date }
+        remark: { type: string }
+        accounted: { type: boolean }
+        accountId: { type: integer, format: int64, nullable: true }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    DeliveryNoteDetail:
+      allOf:
+        - $ref: "#/components/schemas/DeliveryNote"
+        - type: object
+          required: [labels]
+          properties:
+            labels:
+              type: array
+              items: { $ref: "#/components/schemas/Label" }
+
+    DeliveryNotePage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DeliveryNote" }
+        total: { type: integer, format: int64 }
+
+    DeliveryNoteCreate:
+      type: object
+      required: [batchId, barCodes, deliveredAt]
+      properties:
+        batchId: { type: integer, format: int64 }
+        barCodes:
+          type: array
+          minItems: 1
+          maxItems: 2000
+          items: { type: string }
+        deliveryBatch: { type: string, maxLength: 32 }
+        logisticsCompany: { type: string, maxLength: 100 }
+        plateNo: { type: string, maxLength: 20 }
+        driver: { type: string, maxLength: 50 }
+        driverPhone: { type: string, maxLength: 20 }
+        deliveredAt: { type: string, format: date }
+        remark: { type: string, maxLength: 500 }
+
+    AccountStatus:
+      type: string
+      enum: [draft, confirmed]
+
+    DeliverAccount:
+      type: object
+      required: [id, accountNo, factoryId, customerId, customerName, noteCount, totalQty, totalArea, unitPrice, extraAmount, extraRemark, amount, status, remark, createdBy, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        accountNo: { type: string }
+        factoryId: { type: integer, format: int64 }
+        customerId: { type: integer, format: int64 }
+        customerName: { type: string }
+        noteCount: { type: integer }
+        totalQty: { type: integer }
+        totalArea: { type: number, format: double }
+        unitPrice: { type: number, format: double, description: "元/m²" }
+        extraAmount: { type: number, format: double, description: "运费等附加" }
+        extraRemark: { type: string }
+        amount: { type: number, format: double }
+        status: { $ref: "#/components/schemas/AccountStatus" }
+        remark: { type: string }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        confirmedBy: { type: string, nullable: true }
+        confirmedAt: { type: string, format: date-time, nullable: true }
+
+    DeliverAccountDetail:
+      allOf:
+        - $ref: "#/components/schemas/DeliverAccount"
+        - type: object
+          required: [notes]
+          properties:
+            notes:
+              type: array
+              items: { $ref: "#/components/schemas/DeliveryNote" }
+
+    DeliverAccountPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DeliverAccount" }
+        total: { type: integer, format: int64 }
+
+    DeliverAccountCreate:
+      type: object
+      required: [customerId, deliveryNoteIds, unitPrice]
+      properties:
+        customerId: { type: integer, format: int64 }
+        deliveryNoteIds:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items: { type: integer, format: int64 }
+        unitPrice: { type: number, format: double, minimum: 0 }
+        extraAmount: { type: number, format: double, default: 0 }
+        extraRemark: { type: string, maxLength: 200 }
+        remark: { type: string, maxLength: 500 }

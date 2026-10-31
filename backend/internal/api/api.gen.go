@@ -23,6 +23,24 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AccountStatus.
+const (
+	Confirmed AccountStatus = "confirmed"
+	Draft     AccountStatus = "draft"
+)
+
+// Valid indicates whether the value is a known member of the AccountStatus enum.
+func (e AccountStatus) Valid() bool {
+	switch e {
+	case Confirmed:
+		return true
+	case Draft:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BatchStatus.
 const (
 	Done         BatchStatus = "done"
@@ -139,6 +157,9 @@ func (e ValuationAuditKind) Valid() bool {
 		return false
 	}
 }
+
+// AccountStatus defines model for AccountStatus.
+type AccountStatus string
 
 // Batch defines model for Batch.
 type Batch struct {
@@ -487,6 +508,151 @@ type CustomerPage struct {
 	Total int64      `json:"total"`
 }
 
+// DeliverAccount defines model for DeliverAccount.
+type DeliverAccount struct {
+	AccountNo    string     `json:"accountNo"`
+	Amount       float64    `json:"amount"`
+	ConfirmedAt  *time.Time `json:"confirmedAt,omitempty"`
+	ConfirmedBy  *string    `json:"confirmedBy,omitempty"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	CreatedBy    string     `json:"createdBy"`
+	CustomerId   int64      `json:"customerId"`
+	CustomerName string     `json:"customerName"`
+
+	// ExtraAmount 运费等附加
+	ExtraAmount float64       `json:"extraAmount"`
+	ExtraRemark string        `json:"extraRemark"`
+	FactoryId   int64         `json:"factoryId"`
+	Id          int64         `json:"id"`
+	NoteCount   int           `json:"noteCount"`
+	Remark      string        `json:"remark"`
+	Status      AccountStatus `json:"status"`
+	TotalArea   float64       `json:"totalArea"`
+	TotalQty    int           `json:"totalQty"`
+
+	// UnitPrice 元/m²
+	UnitPrice float64 `json:"unitPrice"`
+}
+
+// DeliverAccountCreate defines model for DeliverAccountCreate.
+type DeliverAccountCreate struct {
+	CustomerId      int64    `json:"customerId"`
+	DeliveryNoteIds []int64  `json:"deliveryNoteIds"`
+	ExtraAmount     *float64 `json:"extraAmount,omitempty"`
+	ExtraRemark     *string  `json:"extraRemark,omitempty"`
+	Remark          *string  `json:"remark,omitempty"`
+	UnitPrice       float64  `json:"unitPrice"`
+}
+
+// DeliverAccountDetail defines model for DeliverAccountDetail.
+type DeliverAccountDetail struct {
+	AccountNo    string     `json:"accountNo"`
+	Amount       float64    `json:"amount"`
+	ConfirmedAt  *time.Time `json:"confirmedAt,omitempty"`
+	ConfirmedBy  *string    `json:"confirmedBy,omitempty"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	CreatedBy    string     `json:"createdBy"`
+	CustomerId   int64      `json:"customerId"`
+	CustomerName string     `json:"customerName"`
+
+	// ExtraAmount 运费等附加
+	ExtraAmount float64        `json:"extraAmount"`
+	ExtraRemark string         `json:"extraRemark"`
+	FactoryId   int64          `json:"factoryId"`
+	Id          int64          `json:"id"`
+	NoteCount   int            `json:"noteCount"`
+	Notes       []DeliveryNote `json:"notes"`
+	Remark      string         `json:"remark"`
+	Status      AccountStatus  `json:"status"`
+	TotalArea   float64        `json:"totalArea"`
+	TotalQty    int            `json:"totalQty"`
+
+	// UnitPrice 元/m²
+	UnitPrice float64 `json:"unitPrice"`
+}
+
+// DeliverAccountPage defines model for DeliverAccountPage.
+type DeliverAccountPage struct {
+	Items []DeliverAccount `json:"items"`
+	Total int64            `json:"total"`
+}
+
+// DeliveryNote defines model for DeliveryNote.
+type DeliveryNote struct {
+	AccountId    *int64             `json:"accountId,omitempty"`
+	Accounted    bool               `json:"accounted"`
+	Area         float64            `json:"area"`
+	BatchId      int64              `json:"batchId"`
+	ContractNo   string             `json:"contractNo"`
+	CreatedAt    time.Time          `json:"createdAt"`
+	CreatedBy    string             `json:"createdBy"`
+	CustomerId   int64              `json:"customerId"`
+	CustomerName string             `json:"customerName"`
+	DeliveredAt  openapi_types.Date `json:"deliveredAt"`
+
+	// DeliveryBatch 发货批次（第几车）
+	DeliveryBatch    string `json:"deliveryBatch"`
+	Driver           string `json:"driver"`
+	DriverPhone      string `json:"driverPhone"`
+	FactoryId        int64  `json:"factoryId"`
+	Id               int64  `json:"id"`
+	LogisticsCompany string `json:"logisticsCompany"`
+	LotNo            string `json:"lotNo"`
+	NoteNo           string `json:"noteNo"`
+	PlateNo          string `json:"plateNo"`
+	ProjectName      string `json:"projectName"`
+	Qty              int    `json:"qty"`
+	Remark           string `json:"remark"`
+}
+
+// DeliveryNoteCreate defines model for DeliveryNoteCreate.
+type DeliveryNoteCreate struct {
+	BarCodes         []string           `json:"barCodes"`
+	BatchId          int64              `json:"batchId"`
+	DeliveredAt      openapi_types.Date `json:"deliveredAt"`
+	DeliveryBatch    *string            `json:"deliveryBatch,omitempty"`
+	Driver           *string            `json:"driver,omitempty"`
+	DriverPhone      *string            `json:"driverPhone,omitempty"`
+	LogisticsCompany *string            `json:"logisticsCompany,omitempty"`
+	PlateNo          *string            `json:"plateNo,omitempty"`
+	Remark           *string            `json:"remark,omitempty"`
+}
+
+// DeliveryNoteDetail defines model for DeliveryNoteDetail.
+type DeliveryNoteDetail struct {
+	AccountId    *int64             `json:"accountId,omitempty"`
+	Accounted    bool               `json:"accounted"`
+	Area         float64            `json:"area"`
+	BatchId      int64              `json:"batchId"`
+	ContractNo   string             `json:"contractNo"`
+	CreatedAt    time.Time          `json:"createdAt"`
+	CreatedBy    string             `json:"createdBy"`
+	CustomerId   int64              `json:"customerId"`
+	CustomerName string             `json:"customerName"`
+	DeliveredAt  openapi_types.Date `json:"deliveredAt"`
+
+	// DeliveryBatch 发货批次（第几车）
+	DeliveryBatch    string  `json:"deliveryBatch"`
+	Driver           string  `json:"driver"`
+	DriverPhone      string  `json:"driverPhone"`
+	FactoryId        int64   `json:"factoryId"`
+	Id               int64   `json:"id"`
+	Labels           []Label `json:"labels"`
+	LogisticsCompany string  `json:"logisticsCompany"`
+	LotNo            string  `json:"lotNo"`
+	NoteNo           string  `json:"noteNo"`
+	PlateNo          string  `json:"plateNo"`
+	ProjectName      string  `json:"projectName"`
+	Qty              int     `json:"qty"`
+	Remark           string  `json:"remark"`
+}
+
+// DeliveryNotePage defines model for DeliveryNotePage.
+type DeliveryNotePage struct {
+	Items []DeliveryNote `json:"items"`
+	Total int64          `json:"total"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	// Code Example: invalid_credentials
@@ -504,6 +670,69 @@ type Factory struct {
 
 // FactoryKind defines model for Factory.Kind.
 type FactoryKind string
+
+// Handover defines model for Handover.
+type Handover struct {
+	// Area Σ pieceArea
+	Area        float64   `json:"area"`
+	BatchId     int64     `json:"batchId"`
+	FactoryId   int64     `json:"factoryId"`
+	HandoverNo  string    `json:"handoverNo"`
+	Id          int64     `json:"id"`
+	JobCode     string    `json:"jobCode"`
+	JobId       int64     `json:"jobId"`
+	JobName     string    `json:"jobName"`
+	LotNo       string    `json:"lotNo"`
+	PackedAt    time.Time `json:"packedAt"`
+	PackedBy    string    `json:"packedBy"`
+	ProjectName string    `json:"projectName"`
+
+	// Qty Label count
+	Qty        int        `json:"qty"`
+	Received   bool       `json:"received"`
+	ReceivedAt *time.Time `json:"receivedAt,omitempty"`
+	ReceivedBy *string    `json:"receivedBy,omitempty"`
+	Remark     string     `json:"remark"`
+}
+
+// HandoverCreate defines model for HandoverCreate.
+type HandoverCreate struct {
+	BarCodes []string `json:"barCodes"`
+	BatchId  int64    `json:"batchId"`
+	JobCode  string   `json:"jobCode"`
+	Remark   *string  `json:"remark,omitempty"`
+}
+
+// HandoverDetail defines model for HandoverDetail.
+type HandoverDetail struct {
+	// Area Σ pieceArea
+	Area        float64   `json:"area"`
+	BatchId     int64     `json:"batchId"`
+	FactoryId   int64     `json:"factoryId"`
+	HandoverNo  string    `json:"handoverNo"`
+	Id          int64     `json:"id"`
+	JobCode     string    `json:"jobCode"`
+	JobId       int64     `json:"jobId"`
+	JobName     string    `json:"jobName"`
+	Labels      []Label   `json:"labels"`
+	LotNo       string    `json:"lotNo"`
+	PackedAt    time.Time `json:"packedAt"`
+	PackedBy    string    `json:"packedBy"`
+	ProjectName string    `json:"projectName"`
+
+	// Qty Label count
+	Qty        int        `json:"qty"`
+	Received   bool       `json:"received"`
+	ReceivedAt *time.Time `json:"receivedAt,omitempty"`
+	ReceivedBy *string    `json:"receivedBy,omitempty"`
+	Remark     string     `json:"remark"`
+}
+
+// HandoverPage defines model for HandoverPage.
+type HandoverPage struct {
+	Items []Handover `json:"items"`
+	Total int64      `json:"total"`
+}
 
 // Health defines model for Health.
 type Health struct {
@@ -787,6 +1016,45 @@ type ListCustomersParams struct {
 	Keyword *string `form:"keyword,omitempty" json:"keyword,omitempty"`
 }
 
+// ListDeliverAccountsParams defines parameters for ListDeliverAccounts.
+type ListDeliverAccountsParams struct {
+	Page       *int           `form:"page,omitempty" json:"page,omitempty"`
+	Size       *int           `form:"size,omitempty" json:"size,omitempty"`
+	CustomerId *int64         `form:"customerId,omitempty" json:"customerId,omitempty"`
+	Status     *AccountStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Keyword Matches accountNo / customerName
+	Keyword *string `form:"keyword,omitempty" json:"keyword,omitempty"`
+}
+
+// ListDeliveryNotesParams defines parameters for ListDeliveryNotes.
+type ListDeliveryNotesParams struct {
+	Page       *int   `form:"page,omitempty" json:"page,omitempty"`
+	Size       *int   `form:"size,omitempty" json:"size,omitempty"`
+	BatchId    *int64 `form:"batchId,omitempty" json:"batchId,omitempty"`
+	CustomerId *int64 `form:"customerId,omitempty" json:"customerId,omitempty"`
+
+	// Keyword Matches noteNo / lotNo / projectName / plateNo
+	Keyword *string `form:"keyword,omitempty" json:"keyword,omitempty"`
+
+	// Accounted Already on a deliver account
+	Accounted *bool               `form:"accounted,omitempty" json:"accounted,omitempty"`
+	BeginDate *openapi_types.Date `form:"beginDate,omitempty" json:"beginDate,omitempty"`
+	EndDate   *openapi_types.Date `form:"endDate,omitempty" json:"endDate,omitempty"`
+}
+
+// ListHandoversParams defines parameters for ListHandovers.
+type ListHandoversParams struct {
+	Page     *int   `form:"page,omitempty" json:"page,omitempty"`
+	Size     *int   `form:"size,omitempty" json:"size,omitempty"`
+	BatchId  *int64 `form:"batchId,omitempty" json:"batchId,omitempty"`
+	JobId    *int64 `form:"jobId,omitempty" json:"jobId,omitempty"`
+	Received *bool  `form:"received,omitempty" json:"received,omitempty"`
+
+	// Keyword Matches handoverNo / lotNo / projectName
+	Keyword *string `form:"keyword,omitempty" json:"keyword,omitempty"`
+}
+
 // ListLabelsParams defines parameters for ListLabels.
 type ListLabelsParams struct {
 	Page    *int   `form:"page,omitempty" json:"page,omitempty"`
@@ -835,6 +1103,15 @@ type AuditContractValuationJSONRequestBody = ValuationAudit
 
 // CreateCustomerJSONRequestBody defines body for CreateCustomer for application/json ContentType.
 type CreateCustomerJSONRequestBody = CustomerCreate
+
+// CreateDeliverAccountJSONRequestBody defines body for CreateDeliverAccount for application/json ContentType.
+type CreateDeliverAccountJSONRequestBody = DeliverAccountCreate
+
+// CreateDeliveryNoteJSONRequestBody defines body for CreateDeliveryNote for application/json ContentType.
+type CreateDeliveryNoteJSONRequestBody = DeliveryNoteCreate
+
+// CreateHandoverJSONRequestBody defines body for CreateHandover for application/json ContentType.
+type CreateHandoverJSONRequestBody = HandoverCreate
 
 // CreateProjectJSONRequestBody defines body for CreateProject for application/json ContentType.
 type CreateProjectJSONRequestBody = ProjectCreate
@@ -896,8 +1173,41 @@ type ServerInterface interface {
 	// (POST /customers/{id}/confirm)
 	ConfirmCustomer(w http.ResponseWriter, r *http.Request, id int64)
 
+	// (GET /deliver-accounts)
+	ListDeliverAccounts(w http.ResponseWriter, r *http.Request, params ListDeliverAccountsParams)
+
+	// (POST /deliver-accounts)
+	CreateDeliverAccount(w http.ResponseWriter, r *http.Request)
+
+	// (GET /deliver-accounts/{id})
+	GetDeliverAccount(w http.ResponseWriter, r *http.Request, id int64)
+
+	// (POST /deliver-accounts/{id}/confirm)
+	ConfirmDeliverAccount(w http.ResponseWriter, r *http.Request, id int64)
+
+	// (GET /delivery-notes)
+	ListDeliveryNotes(w http.ResponseWriter, r *http.Request, params ListDeliveryNotesParams)
+
+	// (POST /delivery-notes)
+	CreateDeliveryNote(w http.ResponseWriter, r *http.Request)
+
+	// (GET /delivery-notes/{id})
+	GetDeliveryNote(w http.ResponseWriter, r *http.Request, id int64)
+
 	// (GET /factories)
 	ListFactories(w http.ResponseWriter, r *http.Request)
+
+	// (GET /handovers)
+	ListHandovers(w http.ResponseWriter, r *http.Request, params ListHandoversParams)
+
+	// (POST /handovers)
+	CreateHandover(w http.ResponseWriter, r *http.Request)
+
+	// (GET /handovers/{id})
+	GetHandover(w http.ResponseWriter, r *http.Request, id int64)
+
+	// (POST /handovers/{id}/receive)
+	ReceiveHandover(w http.ResponseWriter, r *http.Request, id int64)
 
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -1019,8 +1329,63 @@ func (_ Unimplemented) ConfirmCustomer(w http.ResponseWriter, r *http.Request, i
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// (GET /deliver-accounts)
+func (_ Unimplemented) ListDeliverAccounts(w http.ResponseWriter, r *http.Request, params ListDeliverAccountsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /deliver-accounts)
+func (_ Unimplemented) CreateDeliverAccount(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /deliver-accounts/{id})
+func (_ Unimplemented) GetDeliverAccount(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /deliver-accounts/{id}/confirm)
+func (_ Unimplemented) ConfirmDeliverAccount(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /delivery-notes)
+func (_ Unimplemented) ListDeliveryNotes(w http.ResponseWriter, r *http.Request, params ListDeliveryNotesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /delivery-notes)
+func (_ Unimplemented) CreateDeliveryNote(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /delivery-notes/{id})
+func (_ Unimplemented) GetDeliveryNote(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // (GET /factories)
 func (_ Unimplemented) ListFactories(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /handovers)
+func (_ Unimplemented) ListHandovers(w http.ResponseWriter, r *http.Request, params ListHandoversParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /handovers)
+func (_ Unimplemented) CreateHandover(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /handovers/{id})
+func (_ Unimplemented) GetHandover(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /handovers/{id}/receive)
+func (_ Unimplemented) ReceiveHandover(w http.ResponseWriter, r *http.Request, id int64) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1707,11 +2072,490 @@ func (siw *ServerInterfaceWrapper) ConfirmCustomer(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// ListDeliverAccounts operation middleware
+func (siw *ServerInterfaceWrapper) ListDeliverAccounts(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListDeliverAccountsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "size", r.URL.Query(), &params.Size, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "size"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "size", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "customerId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "customerId", r.URL.Query(), &params.CustomerId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "customerId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "customerId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "keyword" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "keyword", r.URL.Query(), &params.Keyword, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "keyword"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "keyword", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListDeliverAccounts(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateDeliverAccount operation middleware
+func (siw *ServerInterfaceWrapper) CreateDeliverAccount(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateDeliverAccount(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetDeliverAccount operation middleware
+func (siw *ServerInterfaceWrapper) GetDeliverAccount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDeliverAccount(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConfirmDeliverAccount operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmDeliverAccount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfirmDeliverAccount(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListDeliveryNotes operation middleware
+func (siw *ServerInterfaceWrapper) ListDeliveryNotes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListDeliveryNotesParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "size", r.URL.Query(), &params.Size, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "size"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "size", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "batchId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "batchId", r.URL.Query(), &params.BatchId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "batchId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "batchId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "customerId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "customerId", r.URL.Query(), &params.CustomerId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "customerId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "customerId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "keyword" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "keyword", r.URL.Query(), &params.Keyword, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "keyword"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "keyword", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "accounted" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "accounted", r.URL.Query(), &params.Accounted, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "accounted"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "accounted", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "beginDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "beginDate", r.URL.Query(), &params.BeginDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "beginDate"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "beginDate", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "endDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "endDate"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListDeliveryNotes(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateDeliveryNote operation middleware
+func (siw *ServerInterfaceWrapper) CreateDeliveryNote(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateDeliveryNote(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetDeliveryNote operation middleware
+func (siw *ServerInterfaceWrapper) GetDeliveryNote(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDeliveryNote(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListFactories operation middleware
 func (siw *ServerInterfaceWrapper) ListFactories(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListFactories(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListHandovers operation middleware
+func (siw *ServerInterfaceWrapper) ListHandovers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListHandoversParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "size", r.URL.Query(), &params.Size, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "size"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "size", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "batchId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "batchId", r.URL.Query(), &params.BatchId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "batchId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "batchId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "jobId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "jobId", r.URL.Query(), &params.JobId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "jobId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "jobId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "received" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "received", r.URL.Query(), &params.Received, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "received"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "received", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "keyword" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "keyword", r.URL.Query(), &params.Keyword, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "keyword"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "keyword", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListHandovers(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateHandover operation middleware
+func (siw *ServerInterfaceWrapper) CreateHandover(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateHandover(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetHandover operation middleware
+func (siw *ServerInterfaceWrapper) GetHandover(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHandover(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReceiveHandover operation middleware
+func (siw *ServerInterfaceWrapper) ReceiveHandover(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReceiveHandover(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2293,6 +3137,39 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/scans", wrapper.ScanLabel)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/handovers", wrapper.ListHandovers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/handovers", wrapper.CreateHandover)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/handovers/{id}", wrapper.GetHandover)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/handovers/{id}/receive", wrapper.ReceiveHandover)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/delivery-notes", wrapper.ListDeliveryNotes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/delivery-notes", wrapper.CreateDeliveryNote)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/delivery-notes/{id}", wrapper.GetDeliveryNote)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/deliver-accounts", wrapper.ListDeliverAccounts)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/deliver-accounts", wrapper.CreateDeliverAccount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/deliver-accounts/{id}", wrapper.GetDeliverAccount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/deliver-accounts/{id}/confirm", wrapper.ConfirmDeliverAccount)
 	})
 
 	return r
@@ -3306,6 +4183,426 @@ func (response ConfirmCustomer409JSONResponse) VisitConfirmCustomerResponse(w ht
 	return err
 }
 
+type ListDeliverAccountsRequestObject struct {
+	Params ListDeliverAccountsParams
+}
+
+type ListDeliverAccountsResponseObject interface {
+	VisitListDeliverAccountsResponse(w http.ResponseWriter) error
+}
+
+type ListDeliverAccounts200JSONResponse DeliverAccountPage
+
+func (response ListDeliverAccounts200JSONResponse) VisitListDeliverAccountsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDeliverAccounts400JSONResponse struct{ ErrorJSONResponse }
+
+func (response ListDeliverAccounts400JSONResponse) VisitListDeliverAccountsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDeliverAccounts401JSONResponse Error
+
+func (response ListDeliverAccounts401JSONResponse) VisitListDeliverAccountsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDeliverAccountRequestObject struct {
+	Body *CreateDeliverAccountJSONRequestBody
+}
+
+type CreateDeliverAccountResponseObject interface {
+	VisitCreateDeliverAccountResponse(w http.ResponseWriter) error
+}
+
+type CreateDeliverAccount201JSONResponse DeliverAccountDetail
+
+func (response CreateDeliverAccount201JSONResponse) VisitCreateDeliverAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDeliverAccount400JSONResponse struct{ ErrorJSONResponse }
+
+func (response CreateDeliverAccount400JSONResponse) VisitCreateDeliverAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDeliverAccount401JSONResponse Error
+
+func (response CreateDeliverAccount401JSONResponse) VisitCreateDeliverAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDeliverAccount404JSONResponse Error
+
+func (response CreateDeliverAccount404JSONResponse) VisitCreateDeliverAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDeliverAccount409JSONResponse Error
+
+func (response CreateDeliverAccount409JSONResponse) VisitCreateDeliverAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDeliverAccountRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type GetDeliverAccountResponseObject interface {
+	VisitGetDeliverAccountResponse(w http.ResponseWriter) error
+}
+
+type GetDeliverAccount200JSONResponse DeliverAccountDetail
+
+func (response GetDeliverAccount200JSONResponse) VisitGetDeliverAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDeliverAccount401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetDeliverAccount401JSONResponse) VisitGetDeliverAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDeliverAccount404JSONResponse Error
+
+func (response GetDeliverAccount404JSONResponse) VisitGetDeliverAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmDeliverAccountRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type ConfirmDeliverAccountResponseObject interface {
+	VisitConfirmDeliverAccountResponse(w http.ResponseWriter) error
+}
+
+type ConfirmDeliverAccount200JSONResponse DeliverAccount
+
+func (response ConfirmDeliverAccount200JSONResponse) VisitConfirmDeliverAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmDeliverAccount401JSONResponse struct{ ErrorJSONResponse }
+
+func (response ConfirmDeliverAccount401JSONResponse) VisitConfirmDeliverAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmDeliverAccount404JSONResponse Error
+
+func (response ConfirmDeliverAccount404JSONResponse) VisitConfirmDeliverAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmDeliverAccount409JSONResponse Error
+
+func (response ConfirmDeliverAccount409JSONResponse) VisitConfirmDeliverAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDeliveryNotesRequestObject struct {
+	Params ListDeliveryNotesParams
+}
+
+type ListDeliveryNotesResponseObject interface {
+	VisitListDeliveryNotesResponse(w http.ResponseWriter) error
+}
+
+type ListDeliveryNotes200JSONResponse DeliveryNotePage
+
+func (response ListDeliveryNotes200JSONResponse) VisitListDeliveryNotesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDeliveryNotes400JSONResponse struct{ ErrorJSONResponse }
+
+func (response ListDeliveryNotes400JSONResponse) VisitListDeliveryNotesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDeliveryNotes401JSONResponse Error
+
+func (response ListDeliveryNotes401JSONResponse) VisitListDeliveryNotesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDeliveryNoteRequestObject struct {
+	Body *CreateDeliveryNoteJSONRequestBody
+}
+
+type CreateDeliveryNoteResponseObject interface {
+	VisitCreateDeliveryNoteResponse(w http.ResponseWriter) error
+}
+
+type CreateDeliveryNote201JSONResponse DeliveryNoteDetail
+
+func (response CreateDeliveryNote201JSONResponse) VisitCreateDeliveryNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDeliveryNote400JSONResponse struct{ ErrorJSONResponse }
+
+func (response CreateDeliveryNote400JSONResponse) VisitCreateDeliveryNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDeliveryNote401JSONResponse Error
+
+func (response CreateDeliveryNote401JSONResponse) VisitCreateDeliveryNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDeliveryNote404JSONResponse Error
+
+func (response CreateDeliveryNote404JSONResponse) VisitCreateDeliveryNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDeliveryNote409JSONResponse Error
+
+func (response CreateDeliveryNote409JSONResponse) VisitCreateDeliveryNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDeliveryNoteRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type GetDeliveryNoteResponseObject interface {
+	VisitGetDeliveryNoteResponse(w http.ResponseWriter) error
+}
+
+type GetDeliveryNote200JSONResponse DeliveryNoteDetail
+
+func (response GetDeliveryNote200JSONResponse) VisitGetDeliveryNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDeliveryNote401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetDeliveryNote401JSONResponse) VisitGetDeliveryNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDeliveryNote404JSONResponse Error
+
+func (response GetDeliveryNote404JSONResponse) VisitGetDeliveryNoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListFactoriesRequestObject struct {
 }
 
@@ -3337,6 +4634,248 @@ func (response ListFactories401JSONResponse) VisitListFactoriesResponse(w http.R
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHandoversRequestObject struct {
+	Params ListHandoversParams
+}
+
+type ListHandoversResponseObject interface {
+	VisitListHandoversResponse(w http.ResponseWriter) error
+}
+
+type ListHandovers200JSONResponse HandoverPage
+
+func (response ListHandovers200JSONResponse) VisitListHandoversResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHandovers400JSONResponse struct{ ErrorJSONResponse }
+
+func (response ListHandovers400JSONResponse) VisitListHandoversResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHandovers401JSONResponse Error
+
+func (response ListHandovers401JSONResponse) VisitListHandoversResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateHandoverRequestObject struct {
+	Body *CreateHandoverJSONRequestBody
+}
+
+type CreateHandoverResponseObject interface {
+	VisitCreateHandoverResponse(w http.ResponseWriter) error
+}
+
+type CreateHandover201JSONResponse HandoverDetail
+
+func (response CreateHandover201JSONResponse) VisitCreateHandoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateHandover400JSONResponse struct{ ErrorJSONResponse }
+
+func (response CreateHandover400JSONResponse) VisitCreateHandoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateHandover401JSONResponse Error
+
+func (response CreateHandover401JSONResponse) VisitCreateHandoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateHandover404JSONResponse Error
+
+func (response CreateHandover404JSONResponse) VisitCreateHandoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateHandover409JSONResponse Error
+
+func (response CreateHandover409JSONResponse) VisitCreateHandoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHandoverRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type GetHandoverResponseObject interface {
+	VisitGetHandoverResponse(w http.ResponseWriter) error
+}
+
+type GetHandover200JSONResponse HandoverDetail
+
+func (response GetHandover200JSONResponse) VisitGetHandoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHandover401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetHandover401JSONResponse) VisitGetHandoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHandover404JSONResponse Error
+
+func (response GetHandover404JSONResponse) VisitGetHandoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReceiveHandoverRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type ReceiveHandoverResponseObject interface {
+	VisitReceiveHandoverResponse(w http.ResponseWriter) error
+}
+
+type ReceiveHandover200JSONResponse Handover
+
+func (response ReceiveHandover200JSONResponse) VisitReceiveHandoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReceiveHandover401JSONResponse struct{ ErrorJSONResponse }
+
+func (response ReceiveHandover401JSONResponse) VisitReceiveHandoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReceiveHandover404JSONResponse Error
+
+func (response ReceiveHandover404JSONResponse) VisitReceiveHandoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReceiveHandover409JSONResponse Error
+
+func (response ReceiveHandover409JSONResponse) VisitReceiveHandoverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -3921,8 +5460,41 @@ type StrictServerInterface interface {
 	// (POST /customers/{id}/confirm)
 	ConfirmCustomer(ctx context.Context, request ConfirmCustomerRequestObject) (ConfirmCustomerResponseObject, error)
 
+	// (GET /deliver-accounts)
+	ListDeliverAccounts(ctx context.Context, request ListDeliverAccountsRequestObject) (ListDeliverAccountsResponseObject, error)
+
+	// (POST /deliver-accounts)
+	CreateDeliverAccount(ctx context.Context, request CreateDeliverAccountRequestObject) (CreateDeliverAccountResponseObject, error)
+
+	// (GET /deliver-accounts/{id})
+	GetDeliverAccount(ctx context.Context, request GetDeliverAccountRequestObject) (GetDeliverAccountResponseObject, error)
+
+	// (POST /deliver-accounts/{id}/confirm)
+	ConfirmDeliverAccount(ctx context.Context, request ConfirmDeliverAccountRequestObject) (ConfirmDeliverAccountResponseObject, error)
+
+	// (GET /delivery-notes)
+	ListDeliveryNotes(ctx context.Context, request ListDeliveryNotesRequestObject) (ListDeliveryNotesResponseObject, error)
+
+	// (POST /delivery-notes)
+	CreateDeliveryNote(ctx context.Context, request CreateDeliveryNoteRequestObject) (CreateDeliveryNoteResponseObject, error)
+
+	// (GET /delivery-notes/{id})
+	GetDeliveryNote(ctx context.Context, request GetDeliveryNoteRequestObject) (GetDeliveryNoteResponseObject, error)
+
 	// (GET /factories)
 	ListFactories(ctx context.Context, request ListFactoriesRequestObject) (ListFactoriesResponseObject, error)
+
+	// (GET /handovers)
+	ListHandovers(ctx context.Context, request ListHandoversRequestObject) (ListHandoversResponseObject, error)
+
+	// (POST /handovers)
+	CreateHandover(ctx context.Context, request CreateHandoverRequestObject) (CreateHandoverResponseObject, error)
+
+	// (GET /handovers/{id})
+	GetHandover(ctx context.Context, request GetHandoverRequestObject) (GetHandoverResponseObject, error)
+
+	// (POST /handovers/{id}/receive)
+	ReceiveHandover(ctx context.Context, request ReceiveHandoverRequestObject) (ReceiveHandoverResponseObject, error)
 
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
@@ -4475,6 +6047,198 @@ func (sh *strictHandler) ConfirmCustomer(w http.ResponseWriter, r *http.Request,
 	}
 }
 
+// ListDeliverAccounts operation middleware
+func (sh *strictHandler) ListDeliverAccounts(w http.ResponseWriter, r *http.Request, params ListDeliverAccountsParams) {
+	var request ListDeliverAccountsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListDeliverAccounts(ctx, request.(ListDeliverAccountsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListDeliverAccounts")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListDeliverAccountsResponseObject); ok {
+		if err := validResponse.VisitListDeliverAccountsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateDeliverAccount operation middleware
+func (sh *strictHandler) CreateDeliverAccount(w http.ResponseWriter, r *http.Request) {
+	var request CreateDeliverAccountRequestObject
+
+	var body CreateDeliverAccountJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateDeliverAccount(ctx, request.(CreateDeliverAccountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateDeliverAccount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateDeliverAccountResponseObject); ok {
+		if err := validResponse.VisitCreateDeliverAccountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetDeliverAccount operation middleware
+func (sh *strictHandler) GetDeliverAccount(w http.ResponseWriter, r *http.Request, id int64) {
+	var request GetDeliverAccountRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetDeliverAccount(ctx, request.(GetDeliverAccountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetDeliverAccount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetDeliverAccountResponseObject); ok {
+		if err := validResponse.VisitGetDeliverAccountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfirmDeliverAccount operation middleware
+func (sh *strictHandler) ConfirmDeliverAccount(w http.ResponseWriter, r *http.Request, id int64) {
+	var request ConfirmDeliverAccountRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfirmDeliverAccount(ctx, request.(ConfirmDeliverAccountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfirmDeliverAccount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConfirmDeliverAccountResponseObject); ok {
+		if err := validResponse.VisitConfirmDeliverAccountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListDeliveryNotes operation middleware
+func (sh *strictHandler) ListDeliveryNotes(w http.ResponseWriter, r *http.Request, params ListDeliveryNotesParams) {
+	var request ListDeliveryNotesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListDeliveryNotes(ctx, request.(ListDeliveryNotesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListDeliveryNotes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListDeliveryNotesResponseObject); ok {
+		if err := validResponse.VisitListDeliveryNotesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateDeliveryNote operation middleware
+func (sh *strictHandler) CreateDeliveryNote(w http.ResponseWriter, r *http.Request) {
+	var request CreateDeliveryNoteRequestObject
+
+	var body CreateDeliveryNoteJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateDeliveryNote(ctx, request.(CreateDeliveryNoteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateDeliveryNote")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateDeliveryNoteResponseObject); ok {
+		if err := validResponse.VisitCreateDeliveryNoteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetDeliveryNote operation middleware
+func (sh *strictHandler) GetDeliveryNote(w http.ResponseWriter, r *http.Request, id int64) {
+	var request GetDeliveryNoteRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetDeliveryNote(ctx, request.(GetDeliveryNoteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetDeliveryNote")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetDeliveryNoteResponseObject); ok {
+		if err := validResponse.VisitGetDeliveryNoteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListFactories operation middleware
 func (sh *strictHandler) ListFactories(w http.ResponseWriter, r *http.Request) {
 	var request ListFactoriesRequestObject
@@ -4492,6 +6256,115 @@ func (sh *strictHandler) ListFactories(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListFactoriesResponseObject); ok {
 		if err := validResponse.VisitListFactoriesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListHandovers operation middleware
+func (sh *strictHandler) ListHandovers(w http.ResponseWriter, r *http.Request, params ListHandoversParams) {
+	var request ListHandoversRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListHandovers(ctx, request.(ListHandoversRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListHandovers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListHandoversResponseObject); ok {
+		if err := validResponse.VisitListHandoversResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateHandover operation middleware
+func (sh *strictHandler) CreateHandover(w http.ResponseWriter, r *http.Request) {
+	var request CreateHandoverRequestObject
+
+	var body CreateHandoverJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateHandover(ctx, request.(CreateHandoverRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateHandover")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateHandoverResponseObject); ok {
+		if err := validResponse.VisitCreateHandoverResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetHandover operation middleware
+func (sh *strictHandler) GetHandover(w http.ResponseWriter, r *http.Request, id int64) {
+	var request GetHandoverRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetHandover(ctx, request.(GetHandoverRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetHandover")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetHandoverResponseObject); ok {
+		if err := validResponse.VisitGetHandoverResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReceiveHandover operation middleware
+func (sh *strictHandler) ReceiveHandover(w http.ResponseWriter, r *http.Request, id int64) {
+	var request ReceiveHandoverRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReceiveHandover(ctx, request.(ReceiveHandoverRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReceiveHandover")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReceiveHandoverResponseObject); ok {
+		if err := validResponse.VisitReceiveHandoverResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -4770,97 +6643,120 @@ func (sh *strictHandler) ScanLabel(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

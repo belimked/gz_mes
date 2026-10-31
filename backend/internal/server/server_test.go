@@ -64,7 +64,7 @@ type env struct {
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	ctx := context.Background()
-	_, err := pool.Exec(ctx, "TRUNCATE scan_record, label, batch_item, batch, contract, customer, project, user_role, role_menu, role, user_factory, app_user, factory RESTART IDENTITY CASCADE")
+	_, err := pool.Exec(ctx, "TRUNCATE deliver_account, delivery_note_label, delivery_note, handover_label, handover, doc_seq, scan_record, label, batch_item, batch, contract, customer, project, user_role, role_menu, role, user_factory, app_user, factory RESTART IDENTITY CASCADE")
 	if err != nil {
 		t.Fatal(err)
 	}
