@@ -85,21 +85,20 @@ function fullscreen() {
     >
       <router-link to="/" class="brand">
         <span class="logo">M</span>
-        <span v-if="!collapsed" class="name">{{ brand.name }} <small>MES</small>
-        </span>
+        <span v-if="!collapsed" class="name">{{ brand.name }} <small>MES</small> </span>
       </router-link>
       <a-menu
         v-model:selected-keys="selectedKeys"
         v-model:open-keys="openKeys"
         mode="inline"
-        theme="dark"
+        :theme="layout.siderTheme"
         data-testid="side-menu"
         @click="go"
       >
         <a-menu-item key="/">
           <template #icon>
-            <MenuIcon name="dashboard" />
-          </template>首页
+            <MenuIcon name="dashboard" /> </template
+          >首页
         </a-menu-item>
         <template v-for="m in auth.menus" :key="m.path">
           <a-sub-menu v-if="m.children?.length" :key="m.path">
@@ -111,8 +110,8 @@ function fullscreen() {
           </a-sub-menu>
           <a-menu-item v-else :key="m.path">
             <template #icon>
-              <MenuIcon :name="m.icon" />
-            </template>{{ m.title }}
+              <MenuIcon :name="m.icon" /> </template
+            >{{ m.title }}
           </a-menu-item>
         </template>
       </a-menu>
@@ -122,7 +121,7 @@ function fullscreen() {
         <span class="logo">M</span>
         <span class="name">{{ brand.name }}</span>
       </div>
-      <a-menu v-model:selected-keys="selectedKeys" mode="inline" theme="dark" data-testid="side-menu" @click="go">
+      <a-menu v-model:selected-keys="selectedKeys" mode="inline" :theme="layout.siderTheme" data-testid="side-menu" @click="go">
         <a-menu-item key="/">首页</a-menu-item>
         <a-sub-menu v-for="m in auth.menus.filter((x) => x.children?.length)" :key="m.path" :title="m.title">
           <a-menu-item v-for="c in m.children" :key="c.path">{{ c.title }}</a-menu-item>
@@ -151,9 +150,7 @@ function fullscreen() {
           </template>
         </a-input>
         <div class="spacer" />
-        <div class="shift desktop">
-          <span class="live-dot" />早班 08:00–17:00 <b>节拍: 正常</b>
-        </div>
+        <div class="shift desktop"><span class="live-dot" />早班 08:00–17:00 <b>节拍: 正常</b></div>
         <a-tag v-if="isDemo" class="desktop" color="orange">演示环境 · 数据为虚构</a-tag>
         <a-badge dot class="desktop">
           <button class="icon-button" aria-label="通知">
@@ -173,9 +170,7 @@ function fullscreen() {
           </span>
           <template #overlay>
             <a-menu>
-              <a-menu-item key="logout" data-testid="logout" @click="logout">
-                <LogoutOutlined /> 退出登录
-              </a-menu-item>
+              <a-menu-item key="logout" data-testid="logout" @click="logout"> <LogoutOutlined /> 退出登录 </a-menu-item>
             </a-menu>
           </template>
         </a-dropdown>
@@ -192,7 +187,8 @@ function fullscreen() {
 }
 .sider {
   min-height: 100vh;
-  background: var(--gz-sider);
+  background: var(--gz-card);
+  border-right: 1px solid var(--gz-border);
 }
 .brand {
   display: flex;
@@ -200,7 +196,7 @@ function fullscreen() {
   gap: 10px;
   height: 56px;
   padding: 0 12px;
-  color: white;
+  color: var(--gz-text);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -292,17 +288,16 @@ function fullscreen() {
   background: var(--gz-bg);
   min-height: calc(100vh - 56px);
 }
-:deep(.ant-menu-dark) {
-  background: var(--gz-sider);
-}
-:deep(.ant-menu-dark .ant-menu-sub) {
-  background: var(--gz-submenu);
+:deep(.ant-menu-light) {
+  background: var(--gz-card);
+  border-inline-end: 0 !important;
 }
 :deep(.ant-menu-item-selected) {
-  border-left: 3px solid var(--gz-primary);
+  background: #e6f4ff;
+  font-weight: 500;
 }
 :global(.mobile-nav .ant-drawer-body) {
-  background: var(--gz-sider);
+  background: var(--gz-card);
   padding: 0;
 }
 @media (max-width: 1100px) {

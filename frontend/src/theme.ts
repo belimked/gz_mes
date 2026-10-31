@@ -58,7 +58,7 @@ export const isLoginStyle = (s: unknown): s is LoginStyle => loginStyles.some((x
 
 export const layout = {
   siderWidth: 208,
-  siderTheme: 'dark' as 'dark' | 'light',
+  siderTheme: 'light' as 'dark' | 'light',
   /** Default login page style. */
   loginStyle: 'aurora' as LoginStyle,
 }
