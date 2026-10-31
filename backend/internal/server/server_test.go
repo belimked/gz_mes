@@ -70,9 +70,9 @@ func newEnv(t *testing.T) *env {
 	}
 	st := store.New(pool)
 	e := &env{t: t, st: st}
-	e.plant = must(st.CreateFactory(ctx, "F01", "本厂", "own"))
-	e.outA = must(st.CreateFactory(ctx, "W01", "外协A", "outsource"))
-	e.outB = must(st.CreateFactory(ctx, "W02", "外协B", "outsource"))
+	e.plant = must(st.CreateFactory(ctx, "F01", "本厂", "own")).ID
+	e.outA = must(st.CreateFactory(ctx, "W01", "外协A", "outsource")).ID
+	e.outB = must(st.CreateFactory(ctx, "W02", "外协B", "outsource")).ID
 	if _, err := st.EnsureAdmin(ctx, "admin", "admin-pass"); err != nil {
 		t.Fatal(err)
 	}

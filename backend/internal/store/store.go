@@ -188,23 +188,34 @@ func (s *Store) MenusFor(ctx context.Context, p *auth.Principal) ([]*Menu, error
 
 // Factory is a plant or outsource factory.
 type Factory struct {
-	ID   int64
-	Code string
-	Name string
-	Kind string
+	ID     int64
+	Code   string
+	Name   string
+	Kind   string
+	IsStop bool
 }
 
 // CreateFactory inserts a factory.
-func (s *Store) CreateFactory(ctx context.Context, code, name, kind string) (int64, error) {
-	var id int64
-	err := s.db.QueryRow(ctx, "INSERT INTO factory (code, name, kind) VALUES ($1, $2, $3) RETURNING id", code, name, kind).Scan(&id)
-	return id, mapErr(err)
+func (s *Store) CreateFactory(ctx context.Context, code, name, kind string) (*Factory, error) {
+	f := &Factory{}
+	err := s.db.QueryRow(ctx, "INSERT INTO factory (code, name, kind) VALUES ($1, $2, $3) RETURNING id, code, name, kind, is_stop", code, name, kind).Scan(&f.ID, &f.Code, &f.Name, &f.Kind, &f.IsStop)
+	return f, mapErr(err)
+}
+
+// UpdateFactory changes the mutable factory fields.
+func (s *Store) UpdateFactory(ctx context.Context, id int64, name string, isStop bool) (*Factory, error) {
+	f := &Factory{}
+	err := s.db.QueryRow(ctx, "UPDATE factory SET name = $2, is_stop = $3 WHERE id = $1 RETURNING id, code, name, kind, is_stop", id, name, isStop).Scan(&f.ID, &f.Code, &f.Name, &f.Kind, &f.IsStop)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return f, err
 }
 
 // Factories lists factories within scope.
 func (s *Store) Factories(ctx context.Context, sc auth.Scope) ([]Factory, error) {
 	rows, err := s.db.Query(ctx,
-		"SELECT id, code, name, kind FROM factory WHERE NOT is_stop AND ($1 OR id = ANY($2)) ORDER BY id",
+		"SELECT id, code, name, kind, is_stop FROM factory WHERE ($1 OR id = ANY($2)) ORDER BY id",
 		sc.All, sc.FactoryIDs)
 	if err != nil {
 		return nil, err

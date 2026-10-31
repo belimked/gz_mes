@@ -133,7 +133,7 @@ func (s *Server) ListFactories(ctx context.Context, _ api.ListFactoriesRequestOb
 	}
 	out := make(api.ListFactories200JSONResponse, 0, len(fs))
 	for _, f := range fs {
-		out = append(out, api.Factory{Id: f.ID, Code: f.Code, Name: f.Name, Kind: api.FactoryKind(f.Kind)})
+		out = append(out, toAPIFactory(&f))
 	}
 	return out, nil
 }

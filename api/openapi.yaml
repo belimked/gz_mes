@@ -68,6 +68,164 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/Factory" }
         "401": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createFactory
+      tags: [system]
+      description: Admin only (403 forbidden). 409 duplicate_code.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FactoryCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Factory" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /factories/{id}:
+    put:
+      operationId: updateFactory
+      tags: [system]
+      description: Admin only. Rename or stop/resume a factory; code and kind are immutable.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FactoryUpdate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Factory" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /menus:
+    get:
+      operationId: listMenus
+      tags: [system]
+      description: Full menu tree (flat), admin only. Used to assign menus to users.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MenuItem" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [system]
+      description: Admin only.
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+        - { name: keyword, in: query, schema: { type: string }, description: "Matches username / displayName" }
+        - { name: enabled, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserPage" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createUser
+      tags: [system]
+      description: |
+        Admin only. Creates the account, grants the listed factories and the listed menus (a per-user role
+        "user:<username>" is created). Non-admin users need at least one factory (400). 409 duplicate_code.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserDetail" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [system]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserDetail" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    put:
+      operationId: updateUser
+      tags: [system]
+      description: |
+        Admin only. Replaces displayName / enabled / isAdmin / factoryIds / menuIds (lists are replace-all).
+        Cannot disable yourself or drop your own admin flag (409 self_lock).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserUpdate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserDetail" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /users/{id}/password:
+    put:
+      operationId: resetUserPassword
+      tags: [system]
+      description: Admin only.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PasswordReset" }
+      responses:
+        "204": { description: No Content }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
 
   /projects:
     get:
@@ -800,16 +958,93 @@ components:
           type: array
           items: { $ref: "#/components/schemas/MenuItem" }
 
+    FactoryKind:
+      type: string
+      enum: [own, outsource]
+
     Factory:
       type: object
-      required: [id, code, name, kind]
+      required: [id, code, name, kind, isStop]
       properties:
         id: { type: integer, format: int64 }
         code: { type: string }
         name: { type: string }
-        kind:
-          type: string
-          enum: [own, outsource]
+        kind: { $ref: "#/components/schemas/FactoryKind" }
+        isStop: { type: boolean }
+
+    FactoryCreate:
+      type: object
+      required: [code, name, kind]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 32 }
+        name: { type: string, minLength: 1, maxLength: 100 }
+        kind: { $ref: "#/components/schemas/FactoryKind" }
+
+    FactoryUpdate:
+      type: object
+      required: [name, isStop]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        isStop: { type: boolean }
+
+    UserDetail:
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+          required: [enabled, factoryIds, menuIds, createdAt]
+          properties:
+            enabled: { type: boolean }
+            factoryIds:
+              type: array
+              items: { type: integer, format: int64 }
+            menuIds:
+              type: array
+              items: { type: integer, format: int64 }
+            createdAt: { type: string, format: date-time }
+
+    UserPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/UserDetail" }
+        total: { type: integer, format: int64 }
+
+    UserCreate:
+      type: object
+      required: [username, displayName, password]
+      properties:
+        username: { type: string, minLength: 2, maxLength: 32, pattern: "^[a-zA-Z0-9_.-]+$" }
+        displayName: { type: string, minLength: 1, maxLength: 50 }
+        password: { type: string, minLength: 6, maxLength: 72 }
+        isAdmin: { type: boolean, default: false }
+        factoryIds:
+          type: array
+          items: { type: integer, format: int64 }
+        menuIds:
+          type: array
+          items: { type: integer, format: int64 }
+
+    UserUpdate:
+      type: object
+      required: [displayName, enabled, isAdmin, factoryIds, menuIds]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 50 }
+        enabled: { type: boolean }
+        isAdmin: { type: boolean }
+        factoryIds:
+          type: array
+          items: { type: integer, format: int64 }
+        menuIds:
+          type: array
+          items: { type: integer, format: int64 }
+
+    PasswordReset:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string, minLength: 6, maxLength: 72 }
 
     ProjectKind:
       type: string

@@ -62,6 +62,99 @@ export interface paths {
     /** @description Factories visible to the current user. */
     get: operations['listFactories']
     put?: never
+    /** @description Admin only (403 forbidden). 409 duplicate_code. */
+    post: operations['createFactory']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/factories/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /** @description Admin only. Rename or stop/resume a factory; code and kind are immutable. */
+    put: operations['updateFactory']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/menus': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** @description Full menu tree (flat), admin only. Used to assign menus to users. */
+    get: operations['listMenus']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/users': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** @description Admin only. */
+    get: operations['listUsers']
+    put?: never
+    /**
+     * @description Admin only. Creates the account, grants the listed factories and the listed menus (a per-user role
+     *     "user:<username>" is created). Non-admin users need at least one factory (400). 409 duplicate_code.
+     */
+    post: operations['createUser']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/users/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['getUser']
+    /**
+     * @description Admin only. Replaces displayName / enabled / isAdmin / factoryIds / menuIds (lists are replace-all).
+     *     Cannot disable yourself or drop your own admin flag (409 self_lock).
+     */
+    put: operations['updateUser']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/users/{id}/password': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /** @description Admin only. */
+    put: operations['resetUserPassword']
     post?: never
     delete?: never
     options?: never
@@ -570,13 +663,55 @@ export interface components {
       user: components['schemas']['User']
       menus: components['schemas']['MenuItem'][]
     }
+    /** @enum {string} */
+    FactoryKind: 'own' | 'outsource'
     Factory: {
       /** Format: int64 */
       id: number
       code: string
       name: string
-      /** @enum {string} */
-      kind: 'own' | 'outsource'
+      kind: components['schemas']['FactoryKind']
+      isStop: boolean
+    }
+    FactoryCreate: {
+      code: string
+      name: string
+      kind: components['schemas']['FactoryKind']
+    }
+    FactoryUpdate: {
+      name: string
+      isStop: boolean
+    }
+    UserDetail: components['schemas']['User'] & {
+      enabled: boolean
+      factoryIds: number[]
+      menuIds: number[]
+      /** Format: date-time */
+      createdAt: string
+    }
+    UserPage: {
+      items: components['schemas']['UserDetail'][]
+      /** Format: int64 */
+      total: number
+    }
+    UserCreate: {
+      username: string
+      displayName: string
+      password: string
+      /** @default false */
+      isAdmin: boolean
+      factoryIds?: number[]
+      menuIds?: number[]
+    }
+    UserUpdate: {
+      displayName: string
+      enabled: boolean
+      isAdmin: boolean
+      factoryIds: number[]
+      menuIds: number[]
+    }
+    PasswordReset: {
+      password: string
     }
     /** @enum {string} */
     ProjectKind: 'online' | 'offline'
@@ -1344,6 +1479,227 @@ export interface operations {
         }
       }
       401: components['responses']['Error']
+    }
+  }
+  createFactory: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['FactoryCreate']
+      }
+    }
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Factory']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      403: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  updateFactory: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['FactoryUpdate']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Factory']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      403: components['responses']['Error']
+      404: components['responses']['Error']
+    }
+  }
+  listMenus: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MenuItem'][]
+        }
+      }
+      401: components['responses']['Error']
+      403: components['responses']['Error']
+    }
+  }
+  listUsers: {
+    parameters: {
+      query?: {
+        page?: number
+        size?: number
+        /** @description Matches username / displayName */
+        keyword?: string
+        enabled?: boolean
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['UserPage']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      403: components['responses']['Error']
+    }
+  }
+  createUser: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UserCreate']
+      }
+    }
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['UserDetail']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      403: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  getUser: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['UserDetail']
+        }
+      }
+      401: components['responses']['Error']
+      403: components['responses']['Error']
+      404: components['responses']['Error']
+    }
+  }
+  updateUser: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UserUpdate']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['UserDetail']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      403: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  resetUserPassword: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PasswordReset']
+      }
+    }
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      403: components['responses']['Error']
+      404: components['responses']['Error']
     }
   }
   listProjects: {
