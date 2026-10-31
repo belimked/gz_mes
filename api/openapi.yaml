@@ -952,6 +952,23 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [report]
+      description: |
+        Home-page summary, scoped to the caller's factories. Counters are computed live from batches,
+        labels, scan_record and delivery_note; trend covers the last 14 days (today inclusive).
+      parameters:
+        - { name: days, in: query, schema: { type: integer, minimum: 7, maximum: 90, default: 14 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dashboard" }
+        "401": { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1765,3 +1782,106 @@ components:
         unitPrice: { type: number, format: double, minimum: 0 }
         ingotPrice: { type: number, format: double, minimum: 0, default: 0 }
         remark: { type: string, maxLength: 500 }
+
+    Dashboard:
+      type: object
+      required: [generatedAt, kpi, batchStatus, jobLoad, scanTrend, customerArea, activeBatches, recentScans]
+      properties:
+        generatedAt: { type: string, format: date-time }
+        kpi: { $ref: "#/components/schemas/DashboardKpi" }
+        batchStatus:
+          type: array
+          description: Batch count per status (pie)
+          items: { $ref: "#/components/schemas/StatusCount" }
+        jobLoad:
+          type: array
+          description: Per job, pieces of in-production batches whose latest scan is this job (bar)
+          items: { $ref: "#/components/schemas/JobLoad" }
+        scanTrend:
+          type: array
+          description: One entry per day, oldest first (line)
+          items: { $ref: "#/components/schemas/DailyScan" }
+        customerArea:
+          type: array
+          description: Order area of open (not done) batches per customer, top 6 + 其他 (pie)
+          items: { $ref: "#/components/schemas/CustomerArea" }
+        activeBatches:
+          type: array
+          description: In-production batches ordered by requiredDate, max 8
+          items: { $ref: "#/components/schemas/ActiveBatch" }
+        recentScans:
+          type: array
+          description: Latest 8 scans
+          items: { $ref: "#/components/schemas/Scan" }
+
+    DashboardKpi:
+      type: object
+      required: [inProduction, pendingSchedule, doneToday, todayScanQty, todayScanArea, labelQty, deliveredQty, deliveredArea, unaccountedNotes, unaccountedArea, urgentOpen, overdueOpen]
+      properties:
+        inProduction: { type: integer, description: "Batches in_production" }
+        pendingSchedule: { type: integer, description: "Batches pending" }
+        doneToday: { type: integer, description: "Batches that became done today" }
+        todayScanQty: { type: integer }
+        todayScanArea: { type: number, format: double }
+        labelQty: { type: integer, description: "Active labels of open batches" }
+        deliveredQty: { type: integer, description: "Pieces on delivery notes in the trend window" }
+        deliveredArea: { type: number, format: double }
+        unaccountedNotes: { type: integer, description: "Delivery notes not yet on an account" }
+        unaccountedArea: { type: number, format: double }
+        urgentOpen: { type: integer, description: "Open batches flagged urgent" }
+        overdueOpen: { type: integer, description: "Open batches past requiredDate" }
+
+    StatusCount:
+      type: object
+      required: [status, count]
+      properties:
+        status: { $ref: "#/components/schemas/BatchStatus" }
+        count: { type: integer }
+
+    JobLoad:
+      type: object
+      required: [jobId, jobCode, jobName, seq, qty, area]
+      properties:
+        jobId: { type: integer, format: int64 }
+        jobCode: { type: string }
+        jobName: { type: string }
+        seq: { type: integer }
+        qty: { type: integer }
+        area: { type: number, format: double }
+
+    DailyScan:
+      type: object
+      required: [date, qty, area, deliveredQty]
+      properties:
+        date: { type: string, format: date }
+        qty: { type: integer, description: "Scans that day" }
+        area: { type: number, format: double }
+        deliveredQty: { type: integer, description: "Pieces shipped that day (delivery note deliveredAt)" }
+
+    CustomerArea:
+      type: object
+      required: [customerId, customerName, area, batches]
+      properties:
+        customerId: { type: integer, format: int64, nullable: true, description: "null for 其他" }
+        customerName: { type: string }
+        area: { type: number, format: double }
+        batches: { type: integer }
+
+    ActiveBatch:
+      type: object
+      required: [id, lotNo, projectName, customerName, thickness, color, itemQty, itemArea, labelQty, currentSeq, currentJobName, progress, requiredDate, urgency]
+      properties:
+        id: { type: integer, format: int64 }
+        lotNo: { type: string }
+        projectName: { type: string }
+        customerName: { type: string }
+        thickness: { type: number, format: double }
+        itemQty: { type: integer }
+        itemArea: { type: number, format: double }
+        labelQty: { type: integer }
+        color: { type: string }
+        currentSeq: { type: integer, description: "Highest job seq with at least one scan, 0 if none" }
+        currentJobName: { type: string }
+        progress: { type: integer, description: "0-100: Σ(scans) / (labelQty × 11)" }
+        requiredDate: { type: string, format: date, nullable: true }
+        urgency: { $ref: "#/components/schemas/Urgency" }

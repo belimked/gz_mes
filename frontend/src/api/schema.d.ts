@@ -677,6 +677,26 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/dashboard': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * @description Home-page summary, scoped to the caller's factories. Counters are computed live from batches,
+     *     labels, scan_record and delivery_note; trend covers the last 14 days (today inclusive).
+     */
+    get: operations['getDashboard']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -1512,6 +1532,105 @@ export interface components {
        */
       ingotPrice: number
       remark?: string
+    }
+    Dashboard: {
+      /** Format: date-time */
+      generatedAt: string
+      kpi: components['schemas']['DashboardKpi']
+      /** @description Batch count per status (pie) */
+      batchStatus: components['schemas']['StatusCount'][]
+      /** @description Per job, pieces of in-production batches whose latest scan is this job (bar) */
+      jobLoad: components['schemas']['JobLoad'][]
+      /** @description One entry per day, oldest first (line) */
+      scanTrend: components['schemas']['DailyScan'][]
+      /** @description Order area of open (not done) batches per customer, top 6 + 其他 (pie) */
+      customerArea: components['schemas']['CustomerArea'][]
+      /** @description In-production batches ordered by requiredDate, max 8 */
+      activeBatches: components['schemas']['ActiveBatch'][]
+      /** @description Latest 8 scans */
+      recentScans: components['schemas']['Scan'][]
+    }
+    DashboardKpi: {
+      /** @description Batches in_production */
+      inProduction: number
+      /** @description Batches pending */
+      pendingSchedule: number
+      /** @description Batches that became done today */
+      doneToday: number
+      todayScanQty: number
+      /** Format: double */
+      todayScanArea: number
+      /** @description Active labels of open batches */
+      labelQty: number
+      /** @description Pieces on delivery notes in the trend window */
+      deliveredQty: number
+      /** Format: double */
+      deliveredArea: number
+      /** @description Delivery notes not yet on an account */
+      unaccountedNotes: number
+      /** Format: double */
+      unaccountedArea: number
+      /** @description Open batches flagged urgent */
+      urgentOpen: number
+      /** @description Open batches past requiredDate */
+      overdueOpen: number
+    }
+    StatusCount: {
+      status: components['schemas']['BatchStatus']
+      count: number
+    }
+    JobLoad: {
+      /** Format: int64 */
+      jobId: number
+      jobCode: string
+      jobName: string
+      seq: number
+      qty: number
+      /** Format: double */
+      area: number
+    }
+    DailyScan: {
+      /** Format: date */
+      date: string
+      /** @description Scans that day */
+      qty: number
+      /** Format: double */
+      area: number
+      /** @description Pieces shipped that day (delivery note deliveredAt) */
+      deliveredQty: number
+    }
+    CustomerArea: {
+      /**
+       * Format: int64
+       * @description null for 其他
+       */
+      customerId: number | null
+      customerName: string
+      /** Format: double */
+      area: number
+      batches: number
+    }
+    ActiveBatch: {
+      /** Format: int64 */
+      id: number
+      lotNo: string
+      projectName: string
+      customerName: string
+      /** Format: double */
+      thickness: number
+      itemQty: number
+      /** Format: double */
+      itemArea: number
+      labelQty: number
+      color: string
+      /** @description Highest job seq with at least one scan, 0 if none */
+      currentSeq: number
+      currentJobName: string
+      /** @description 0-100: Σ(scans) / (labelQty × 11) */
+      progress: number
+      /** Format: date */
+      requiredDate: string | null
+      urgency: components['schemas']['Urgency']
     }
   }
   responses: {
@@ -2873,6 +2992,29 @@ export interface operations {
       401: components['responses']['Error']
       404: components['responses']['Error']
       409: components['responses']['Error']
+    }
+  }
+  getDashboard: {
+    parameters: {
+      query?: {
+        days?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Dashboard']
+        }
+      }
+      401: components['responses']['Error']
     }
   }
 }
