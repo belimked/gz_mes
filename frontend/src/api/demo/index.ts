@@ -17,17 +17,19 @@ import {
   seedLabels,
   seedPlans,
   seedProjects,
+  seedQc,
   seedScans,
   users as seedUsers,
   type DemoUser,
   type DemoBatchValuation,
   type DemoPlan,
+  type DemoQc,
 } from './data'
 
 type S = components['schemas']
 
 interface DemoDB {
-  version: 15
+  version: 16
   factories: S['Factory'][]
   users: DemoUser[]
   nextId: number
@@ -45,6 +47,7 @@ interface DemoDB {
   batchItems: S['BatchItem'][]
   labels: S['Label'][]
   scans: S['Scan'][]
+  qc: DemoQc[]
   plans: DemoPlan[]
 }
 
@@ -86,8 +89,10 @@ function fresh(): DemoDB {
   }
   const plans = seedPlans(batches, jobs, scans)
   for (const plan of plans) plan.id = nextId++
+  const qc = seedQc(labels, scans, jobs)
+  for (const row of qc) row.id = nextId++
   return {
-    version: 15,
+    version: 16,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
     nextId,
@@ -105,6 +110,7 @@ function fresh(): DemoDB {
     batchItems,
     labels,
     scans,
+    qc,
     plans,
   }
 }
@@ -114,12 +120,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 15) return parsed
+      if (parsed?.version === 16) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 15) memory = fresh()
+  if (memory?.version !== 16) memory = fresh()
   return memory
 }
 
@@ -197,6 +203,47 @@ async function body(req: Request): Promise<Record<string, unknown> | null> {
 }
 
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+
+/** Joins label / batch fields onto a stored inspection and derives the 复检 state. */
+function qcView(db: DemoDB, row: DemoQc): S['QcRecord'] {
+  const label = db.labels.find((x) => x.id === row.labelId)!
+  const batch = db.batches.find((x) => x.id === row.batchId)
+  const job = jobs.find((x) => x.id === row.jobId)!
+  const defectJob = row.defectJobId === null ? undefined : jobs.find((x) => x.id === row.defectJobId)
+  const later =
+    row.result === 'fail'
+      ? db.qc
+          .filter((x) => x.labelId === row.labelId && x.jobId === row.jobId && x.result === 'pass' && x.inspectedAt > row.inspectedAt)
+          .map((x) => x.inspectedAt)
+          .sort()[0]
+      : undefined
+  return {
+    id: row.id,
+    labelId: row.labelId,
+    barCode: label.barCode,
+    batchId: row.batchId,
+    lotNo: label.lotNo,
+    projectName: label.projectName,
+    outsourceFactoryName: batch?.outsourceFactoryName ?? null,
+    pieceNo: label.pieceNo,
+    pieceIndex: label.pieceIndex,
+    pieceArea: label.pieceArea,
+    color: label.color,
+    jobId: row.jobId,
+    jobName: job.name,
+    result: row.result,
+    defectJobId: row.defectJobId,
+    defectJobName: defectJob?.name ?? null,
+    defectCategory: row.defectCategory,
+    defectReason: row.defectReason,
+    inspectedBy: row.inspectedBy,
+    staffNo: row.staffNo,
+    inspectedAt: row.inspectedAt,
+    device: row.device,
+    reinspected: later !== undefined,
+    reinspectedAt: later ?? null,
+  }
+}
 
 function progress(db: DemoDB, batch: S['Batch']): S['BatchProgress'] {
   const labels = db.labels.filter((label) => label.batchId === batch.id)
@@ -1411,12 +1458,40 @@ export async function demoFetch(req: Request): Promise<Response> {
     if (label.cancelled) return fail(409, 'label_cancelled', '标签已作废')
     if (db.scans.some((scan) => scan.labelId === label.id && scan.jobId === job.id))
       return fail(409, 'already_scanned', '该标签在此工序已扫描')
+    const result = b.result
+    if (job.isQc && result !== 'pass' && result !== 'fail') return fail(400, 'qc_result_required', '质检岗位必须选择合格 / 不合格')
+    const defectJobId = result === 'fail' && b.defectJobId !== undefined && b.defectJobId !== null ? Number(b.defectJobId) : null
+    if (defectJobId !== null && !jobs.some((x) => x.id === defectJobId)) return fail(400, 'invalid_job', '工序代码不存在')
     if (job.seq > 1) {
       const previous = jobs.find((x) => x.seq === job.seq - 1)!
       if (!db.scans.some((scan) => scan.labelId === label.id && scan.jobId === previous.id))
         return fail(409, 'out_of_order', `请先完成上一道工序: ${previous.name}`)
     }
     const scannedAt = new Date().toISOString()
+    let qc: S['QcRecord'] | null = null
+    if (job.isQc) {
+      const row: DemoQc = {
+        id: db.nextId++,
+        labelId: label.id,
+        batchId: label.batchId,
+        jobId: job.id,
+        result: result as S['QcResult'],
+        defectJobId,
+        defectCategory: result === 'fail' ? str(b.defectCategory) : '',
+        defectReason: result === 'fail' ? str(b.defectReason) : '',
+        inspectedBy: u.displayName,
+        staffNo: u.staffNo,
+        inspectedAt: scannedAt,
+        device: str(b.device),
+      }
+      db.qc.push(row)
+      qc = qcView(db, row)
+      if (result === 'fail') {
+        save(db)
+        const batch = db.batches.find((x) => x.id === label.batchId)!
+        return json(201, { scan: null, qc, label, progress: progress(db, batch) })
+      }
+    }
     const scan: S['Scan'] = {
       id: db.nextId++,
       labelId: label.id,
@@ -1446,7 +1521,220 @@ export async function demoFetch(req: Request): Promise<Response> {
     }
     batch.updatedAt = scannedAt
     save(db)
-    return json(201, { scan, label, progress: progress(db, batch) })
+    return json(201, { scan, qc, label, progress: progress(db, batch) })
+  }
+
+  if (route === 'GET /qc-scans') {
+    const q = url.searchParams
+    const page = Number(q.get('page') ?? 1)
+    const size = Number(q.get('size') ?? 20)
+    if (!validPage(page, size)) return fail(400, 'invalid_request', 'page/size 参数不合法')
+    const batchId = q.get('batchId')
+    const jobId = q.get('jobId')
+    const defectJobId = q.get('defectJobId')
+    if (!validId(batchId) || !validId(jobId) || !validId(defectJobId)) return fail(400, 'invalid_request', '参数不合法')
+    const result = q.get('result')
+    if (result !== null && result !== 'pass' && result !== 'fail') return fail(400, 'invalid_request', '判定结果不合法')
+    const reinspected = q.get('reinspected')
+    if (reinspected !== null && reinspected !== 'true' && reinspected !== 'false') return fail(400, 'invalid_request', '复检参数不合法')
+    const beginDate = q.get('beginDate')
+    const endDate = q.get('endDate')
+    const begin = beginDate !== null ? dateStart(beginDate) : null
+    const end = endDate !== null ? dateStart(endDate) + 86400000 : null
+    if (Number.isNaN(begin) || Number.isNaN(end)) return fail(400, 'invalid_request', '日期参数不合法')
+    if (begin !== null && end !== null && begin >= end) return fail(400, 'invalid_request', '日期范围无效')
+    const kw = (q.get('keyword') ?? '').trim().toLowerCase()
+    const staff = (q.get('staff') ?? '').trim().toLowerCase()
+    const staffUsers = db.users.filter((x) => [x.displayName, x.staffNo, x.username].some((s) => s.toLowerCase().includes(staff)))
+    const scoped = new Set(db.batches.filter((batch) => inScope(u, batch.factoryId)).map((batch) => batch.id))
+    const all = db.qc
+      .filter((row) => scoped.has(row.batchId))
+      .filter((row) => batchId === null || row.batchId === Number(batchId))
+      .filter((row) => jobId === null || row.jobId === Number(jobId))
+      .filter((row) => defectJobId === null || row.defectJobId === Number(defectJobId))
+      .filter((row) => result === null || row.result === result)
+      .filter((row) => begin === null || Date.parse(row.inspectedAt) >= begin)
+      .filter((row) => end === null || Date.parse(row.inspectedAt) < end)
+      .map((row) => qcView(db, row))
+      .filter((row) => reinspected === null || (row.result === 'fail' && row.reinspected === (reinspected === 'true')))
+      .filter(
+        (row) =>
+          !kw ||
+          [row.barCode, row.lotNo, row.projectName, row.pieceNo, row.defectCategory, row.defectReason].some((s) =>
+            s.toLowerCase().includes(kw),
+          ),
+      )
+      .filter(
+        (row) =>
+          !staff ||
+          row.inspectedBy.toLowerCase().includes(staff) ||
+          row.staffNo.toLowerCase().includes(staff) ||
+          staffUsers.some((x) => x.displayName === row.inspectedBy),
+      )
+      .sort((a, b) => b.inspectedAt.localeCompare(a.inspectedAt) || b.id - a.id)
+    const fails = all.filter((row) => row.result === 'fail')
+    const summary = {
+      inspected: all.length,
+      passed: all.length - fails.length,
+      failed: fails.length,
+      failedArea: fails.reduce((n, row) => n + row.pieceArea, 0),
+      reinspected: fails.filter((row) => row.reinspected).length,
+      pending: fails.filter((row) => !row.reinspected).length,
+    }
+    return json(200, { items: all.slice((page - 1) * size, page * size), total: all.length, summary })
+  }
+
+  if (route === 'GET /reports/quality') {
+    const q = url.searchParams
+    const page = Number(q.get('page') ?? 1)
+    const size = Number(q.get('size') ?? 20)
+    if (!validPage(page, size)) return fail(400, 'invalid_request', 'page/size 参数不合法')
+    const today = new Date().toISOString().slice(0, 10)
+    const from = q.get('from') ?? today
+    const to = q.get('to') ?? today
+    if (Number.isNaN(dateStart(from)) || Number.isNaN(dateStart(to)) || from > to) return fail(400, 'invalid_request', '日期范围无效')
+    const jobId = q.get('jobId')
+    const defectJobId = q.get('defectJobId')
+    if (!validId(jobId) || !validId(defectJobId)) return fail(400, 'invalid_request', '参数不合法')
+    const kw = (q.get('keyword') ?? '').trim().toLowerCase()
+    const scoped = new Set(db.batches.filter((batch) => inScope(u, batch.factoryId)).map((batch) => batch.id))
+    const all = db.qc
+      .filter((row) => scoped.has(row.batchId))
+      .filter((row) => {
+        const d = row.inspectedAt.slice(0, 10)
+        return d >= from && d <= to
+      })
+      .filter((row) => jobId === null || row.jobId === Number(jobId))
+      .filter((row) => defectJobId === null || row.defectJobId === Number(defectJobId))
+      .map((row) => qcView(db, row))
+      .filter((row) => !kw || [row.lotNo, row.projectName, row.defectCategory, row.defectReason].some((s) => s.toLowerCase().includes(kw)))
+    const fails = all.filter((row) => row.result === 'fail')
+    const summary = {
+      inspected: all.length,
+      passed: all.length - fails.length,
+      failed: fails.length,
+      failedArea: fails.reduce((n, row) => n + row.pieceArea, 0),
+      reinspected: fails.filter((row) => row.reinspected).length,
+      passRate: all.length ? Math.floor(((all.length - fails.length) * 100) / all.length) : 0,
+    }
+    const groups = new Map<string, S['QualityReportRow'] & { pieces: Set<string>; people: Set<string> }>()
+    for (const row of fails) {
+      const date = row.inspectedAt.slice(0, 10)
+      const key = JSON.stringify([date, row.jobId, row.batchId, row.defectJobId, row.defectCategory, row.defectReason])
+      let g = groups.get(key)
+      if (!g) {
+        g = {
+          date,
+          jobId: row.jobId,
+          jobName: row.jobName,
+          batchId: row.batchId,
+          lotNo: row.lotNo,
+          projectName: row.projectName,
+          outsourceFactoryName: row.outsourceFactoryName,
+          defectJobId: row.defectJobId,
+          defectJobName: row.defectJobName,
+          defectCategory: row.defectCategory,
+          defectReason: row.defectReason,
+          qty: 0,
+          area: 0,
+          reinspectedQty: 0,
+          pieceNos: '',
+          inspectors: '',
+          pieces: new Set(),
+          people: new Set(),
+        }
+        groups.set(key, g)
+      }
+      g.qty++
+      g.area += row.pieceArea
+      if (row.reinspected) g.reinspectedQty++
+      g.pieces.add(row.pieceNo)
+      g.people.add(row.inspectedBy)
+    }
+    const jobSeq = (id: number) => jobs.find((j) => j.id === id)?.seq ?? 0
+    const rows = [...groups.values()]
+      .map(({ pieces, people, ...g }) => ({ ...g, pieceNos: [...pieces].sort().join(','), inspectors: [...people].sort().join(',') }))
+      .sort((a, b) => b.date.localeCompare(a.date) || b.qty - a.qty || jobSeq(a.jobId) - jobSeq(b.jobId) || a.lotNo.localeCompare(b.lotNo))
+    return json(200, { items: rows.slice((page - 1) * size, page * size), total: rows.length, summary })
+  }
+
+  if (route === 'GET /reports/defect-daily') {
+    const q = url.searchParams
+    const page = Number(q.get('page') ?? 1)
+    const size = Number(q.get('size') ?? 20)
+    if (!validPage(page, size)) return fail(400, 'invalid_request', 'page/size 参数不合法')
+    const today = new Date().toISOString().slice(0, 10)
+    const from = q.get('from') ?? today
+    const to = q.get('to') ?? today
+    if (Number.isNaN(dateStart(from)) || Number.isNaN(dateStart(to)) || from > to) return fail(400, 'invalid_request', '日期范围无效')
+    const outsourceFactoryId = q.get('outsourceFactoryId')
+    if (!validId(outsourceFactoryId)) return fail(400, 'invalid_request', '参数不合法')
+    const workshop = q.get('workshop')
+    const kw = (q.get('keyword') ?? '').trim().toLowerCase()
+    const qcJobs = jobs.filter((j) => j.isQc)
+    const activeLabels = new Set(db.labels.filter((label) => !label.cancelled).map((label) => label.id))
+    const fails = db.qc
+      .filter((row) => row.result === 'fail' && activeLabels.has(row.labelId))
+      .filter((row) => {
+        const d = row.inspectedAt.slice(0, 10)
+        return d >= from && d <= to
+      })
+      .map((row) => qcView(db, row))
+    const byBatch = new Map<number, S['QcRecord'][]>()
+    for (const row of fails) byBatch.set(row.batchId, [...(byBatch.get(row.batchId) ?? []), row])
+    const rows: S['DefectDailyRow'][] = []
+    for (const batch of db.batches) {
+      const list = byBatch.get(batch.id)
+      if (!list || !inScope(u, batch.factoryId)) continue
+      if (workshop !== null && batch.workshop !== workshop) continue
+      if (outsourceFactoryId !== null && batch.outsourceFactoryId !== Number(outsourceFactoryId)) continue
+      if (kw && ![batch.lotNo, batch.projectName, batch.customerName, batch.clientOrderNo].some((s) => s.toLowerCase().includes(kw)))
+        continue
+      const cells = qcJobs.map((job) => {
+        const hits = list.filter((row) => row.jobId === job.id)
+        const re = hits.filter((row) => row.reinspected)
+        const pend = hits.filter((row) => !row.reinspected)
+        const area = (xs: S['QcRecord'][]) => xs.reduce((n, row) => n + row.pieceArea, 0)
+        return {
+          jobId: job.id,
+          jobName: job.name,
+          failedQty: hits.length,
+          failedArea: area(hits),
+          reinspectedQty: re.length,
+          reinspectedArea: area(re),
+          pendingQty: pend.length,
+          pendingArea: area(pend),
+        }
+      })
+      rows.push({
+        batchId: batch.id,
+        lotNo: batch.lotNo,
+        projectName: batch.projectName,
+        customerName: batch.customerName,
+        clientOrderNo: batch.clientOrderNo,
+        thickness: batch.thickness,
+        color: batch.color,
+        workshop: batch.workshop,
+        outsourceFactoryName: batch.outsourceFactoryName ?? null,
+        itemQty: batch.itemQty,
+        itemArea: batch.itemArea,
+        failedQty: list.length,
+        failedArea: list.reduce((n, row) => n + row.pieceArea, 0),
+        pendingQty: list.filter((row) => !row.reinspected).length,
+        cells,
+      })
+    }
+    rows.sort((a, b) => b.failedQty - a.failedQty || a.lotNo.localeCompare(b.lotNo))
+    const sum = (f: (c: S['DefectJobCell']) => number) => rows.reduce((n, row) => n + row.cells.reduce((m, c) => m + f(c), 0), 0)
+    const summary = {
+      batches: rows.length,
+      failedQty: sum((c) => c.failedQty),
+      failedArea: sum((c) => c.failedArea),
+      reinspectedQty: sum((c) => c.reinspectedQty),
+      pendingQty: sum((c) => c.pendingQty),
+      pendingArea: sum((c) => c.pendingArea),
+    }
+    return json(200, { jobs: qcJobs, items: rows.slice((page - 1) * size, page * size), total: rows.length, summary })
   }
 
   if (route === 'GET /handovers' || route === 'GET /delivery-notes' || route === 'GET /deliver-accounts') {

@@ -41,7 +41,7 @@ test('login, create and confirm a project, logout', async ({ page }) => {
 test('scan records page lists seeded scans and filters by keyword', async ({ page }) => {
   await login(page)
   await page.getByTestId('side-menu').getByText('生产报表').click()
-  await page.getByTestId('side-menu').getByText('扫描记录').click()
+  await page.getByTestId('side-menu').getByText('扫描记录', { exact: true }).click()
   await expect(page).toHaveURL(/\/report\/scans/)
   const table = page.getByTestId('scan-table')
   await expect(table.locator('tbody tr.ant-table-row')).not.toHaveCount(0)
@@ -67,6 +67,36 @@ test('production balance page and progress summary toggle', async ({ page }) => 
   await page.getByTestId('progress-view').getByText('工程汇总').click()
   await expect(page.getByTestId('report-table').locator('thead')).toContainText('完成率')
   await expect(page.getByTestId('export-csv')).toBeVisible()
+})
+
+test('quality pages list inspections and the scan page records a fail verdict', async ({ page }) => {
+  await login(page)
+  await page.getByTestId('side-menu').getByText('质量管理').click()
+  await page.getByTestId('side-menu').getByText('质检扫描记录').click()
+  await expect(page).toHaveURL(/\/quality\/qc-scans/)
+  const table = page.getByTestId('qc-table')
+  await expect(table.locator('tbody tr.ant-table-row')).not.toHaveCount(0)
+  await expect(page.getByTestId('qc-summary')).toContainText('待返工')
+
+  await page.getByTestId('side-menu').getByText('质量报表').click()
+  await expect(page).toHaveURL(/\/quality\/report/)
+  await expect(page.getByTestId('quality-summary')).toContainText('合格率')
+  await expect(page.getByTestId('quality-table').locator('tbody tr.ant-table-row')).not.toHaveCount(0)
+
+  await page.getByTestId('side-menu').getByText('生产报表').click()
+  await page.getByTestId('side-menu').getByText('不良品日报').click()
+  await expect(page).toHaveURL(/\/report\/defect-daily/)
+  await expect(page.getByTestId('defect-table').locator('thead')).toContainText('钣金质检')
+
+  // Scan page: picking a QC job reveals the verdict switch; a fail verdict needs no flow scan.
+  await page.evaluate(() => localStorage.setItem('gz-scan-job', '25'))
+  await page.goto('/production/scan')
+  await expect(page.locator('.handheld .ant-select-selection-item')).toHaveText('25-钣金质检')
+  const verdict = page.getByTestId('qc-result')
+  await expect(verdict).toBeVisible()
+  await verdict.getByText('不合格').click()
+  await expect(page.getByTestId('defect-reason')).toBeVisible()
+  await expect(page.getByRole('button', { name: '记录不合格' })).toBeVisible()
 })
 
 test('wrong password shows an error', async ({ page }) => {

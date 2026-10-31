@@ -17,9 +17,18 @@ const result = ref<Schemas['ScanResult']>()
 const history = ref<History[]>([])
 let timer: ReturnType<typeof setTimeout> | undefined
 const currentJob = computed(() => jobs.value.find((j) => j.code === jobCode.value))
+const qcResult = ref<Schemas['QcResult']>('pass')
+const defectJobId = ref<number>()
+const defectCategory = ref('')
+const defectReason = ref('')
+/** Jobs a failed piece can be sent back to: anything before the current QC job. */
+const defectJobOptions = computed(() =>
+  jobs.value.filter((j) => currentJob.value && j.seq < currentJob.value.seq).map((j) => ({ value: j.id, label: `${j.code}-${j.name}` })),
+)
 function selectJob(code: string) {
   jobCode.value = code
   localStorage.setItem('gz-scan-job', code)
+  qcResult.value = 'pass'
   void nextTick(() => input.value?.focus())
 }
 async function scan() {
@@ -33,10 +42,30 @@ async function scan() {
   busy.value = true
   let success = false
   let text = '扫描成功'
+  const isQc = currentJob.value?.isQc ?? false
+  const failed = isQc && qcResult.value === 'fail'
   try {
-    result.value = await call(client.POST('/scans', { body: { barCode: code, jobCode: jobCode.value, device: 'web' } }))
+    result.value = await call(
+      client.POST('/scans', {
+        body: {
+          barCode: code,
+          jobCode: jobCode.value,
+          device: 'web',
+          ...(isQc ? { result: qcResult.value } : {}),
+          ...(failed
+            ? {
+                defectJobId: defectJobId.value,
+                defectCategory: defectCategory.value.trim(),
+                defectReason: defectReason.value.trim(),
+              }
+            : {}),
+        },
+      }),
+    )
     success = true
-    message.success(text)
+    text = failed ? '已记录不合格' : isQc ? '合格' : '扫描成功'
+    if (failed) message.warning(text)
+    else message.success(text)
   } catch (e) {
     text = errorMessage(e)
     message.error(text)
@@ -86,6 +115,25 @@ onUnmounted(() => {
         :options="jobs.map((j) => ({ value: j.code, label: `${j.code}-${j.name}` }))"
         @change="selectJob"
       />
+      <template v-if="currentJob?.isQc">
+        <label class="input-label">判定结果</label>
+        <a-radio-group v-model:value="qcResult" size="large" button-style="solid" class="verdict" data-testid="qc-result">
+          <a-radio-button value="pass" class="pass">合格</a-radio-button>
+          <a-radio-button value="fail" class="fail">不合格</a-radio-button>
+        </a-radio-group>
+        <div v-if="qcResult === 'fail'" class="defect">
+          <a-select
+            v-model:value="defectJobId"
+            allow-clear
+            placeholder="责任工序（返回到哪道工序）"
+            :options="defectJobOptions"
+            style="width: 100%"
+            data-testid="defect-job"
+          />
+          <a-input v-model:value="defectCategory" placeholder="不良类别（如 外观 / 尺寸）" :maxlength="50" data-testid="defect-category" />
+          <a-input v-model:value="defectReason" placeholder="不良原因（如 划伤 / 色差）" :maxlength="200" data-testid="defect-reason" />
+        </div>
+      </template>
       <label class="input-label">扫描条码</label>
       <a-input
         ref="input"
@@ -99,9 +147,37 @@ onUnmounted(() => {
         :disabled="busy"
         @press-enter="scan"
       />
-      <a-button type="primary" size="large" block :loading="busy" class="submit" @click="scan">确认报工</a-button>
+      <a-button
+        :type="currentJob?.isQc && qcResult === 'fail' ? 'default' : 'primary'"
+        :danger="currentJob?.isQc && qcResult === 'fail'"
+        size="large"
+        block
+        :loading="busy"
+        class="submit"
+        @click="scan"
+        >{{ currentJob?.isQc ? (qcResult === 'fail' ? '记录不合格' : '确认合格') : '确认报工' }}</a-button
+      >
       <template v-if="result">
         <a-divider>本次扫描</a-divider>
+        <a-alert
+          v-if="result.qc"
+          :type="result.qc.result === 'pass' ? 'success' : 'error'"
+          show-icon
+          class="qc-alert"
+          data-testid="qc-alert"
+          :message="
+            result.qc.result === 'pass'
+              ? `${result.qc.jobName}：合格`
+              : `${result.qc.jobName}：不合格，标签停留在 ${result.label.lastJobName ?? '未开工'}`
+          "
+          :description="
+            result.qc.result === 'fail'
+              ? [result.qc.defectJobName && `责任工序 ${result.qc.defectJobName}`, result.qc.defectCategory, result.qc.defectReason]
+                  .filter(Boolean)
+                  .join(' · ') || undefined
+              : undefined
+          "
+        />
         <a-descriptions bordered size="small" :column="2">
           <a-descriptions-item label="批次号">{{ result.label.lotNo }}</a-descriptions-item
           ><a-descriptions-item label="工程">{{ result.label.projectName }}</a-descriptions-item>
@@ -158,6 +234,25 @@ label {
 }
 .submit {
   margin-top: 16px;
+}
+.verdict {
+  display: flex;
+}
+.verdict :deep(.ant-radio-button-wrapper) {
+  flex: 1;
+  text-align: center;
+}
+.verdict :deep(.fail.ant-radio-button-wrapper-checked) {
+  background: var(--ant-color-error, #cf1322);
+  border-color: var(--ant-color-error, #cf1322);
+}
+.defect {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.qc-alert {
+  margin-bottom: 12px;
 }
 h3 {
   margin: 24px 0 12px;

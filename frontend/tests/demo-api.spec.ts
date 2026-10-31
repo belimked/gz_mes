@@ -105,4 +105,79 @@ describe('demo api', () => {
     const scoped = await call(api.GET('/scans', { ...wx, params: { query: { size: 200 } } }))
     expect(scoped.total).toBeLessThan(page.total)
   })
+
+  it('records QC verdicts on scan and feeds quality lists / reports', async () => {
+    const admin = await login('admin', 'admin123')
+    const jobs = await call(api.GET('/jobs', admin))
+    expect(jobs.filter((j) => j.isQc).map((j) => j.code)).toEqual(['25', '45'])
+
+    // Seeded data already contains inspections, including reinspected and pending fails.
+    const seeded = await call(api.GET('/qc-scans', { ...admin, params: { query: { size: 5 } } }))
+    expect(seeded.total).toBeGreaterThan(5)
+    expect(seeded.summary.passed + seeded.summary.failed).toBe(seeded.summary.inspected)
+    expect(seeded.summary.reinspected + seeded.summary.pending).toBe(seeded.summary.failed)
+    expect(seeded.summary.pending).toBeGreaterThan(0)
+    for (let i = 1; i < seeded.items.length; i++) expect(seeded.items[i - 1]!.inspectedAt >= seeded.items[i]!.inspectedAt).toBe(true)
+    const pending = await call(api.GET('/qc-scans', { ...admin, params: { query: { reinspected: false, size: 200 } } }))
+    expect(pending.total).toBe(seeded.summary.pending)
+    expect(pending.items.every((r) => r.result === 'fail' && !r.reinspected)).toBe(true)
+
+    // Pick a label that sits at 钣金下线 (20) and inspect it at 25.
+    const labels = await call(api.GET('/labels', { ...admin, params: { query: { size: 200 } } }))
+    const job20 = jobs.find((j) => j.code === '20')!
+    const label = labels.items.find((l) => l.lastJobId === job20.id && !l.cancelled && !pending.items.some((p) => p.labelId === l.id))!
+    expect(label).toBeDefined()
+    await expect(call(api.POST('/scans', { ...admin, body: { barCode: label.barCode, jobCode: '25' } }))).rejects.toMatchObject({
+      code: 'qc_result_required',
+    })
+    const failed = await call(
+      api.POST('/scans', {
+        ...admin,
+        body: {
+          barCode: label.barCode,
+          jobCode: '25',
+          result: 'fail',
+          defectJobId: job20.id,
+          defectCategory: '外观',
+          defectReason: '测试划伤',
+        },
+      }),
+    )
+    expect(failed.scan).toBeNull()
+    expect(failed.qc?.result).toBe('fail')
+    expect(failed.qc?.defectJobName).toBe(job20.name)
+    expect(failed.label.lastJobId).toBe(job20.id)
+    await expect(call(api.POST('/scans', { ...admin, body: { barCode: label.barCode, jobCode: '30' } }))).rejects.toMatchObject({
+      code: 'out_of_order',
+    })
+    const passed = await call(api.POST('/scans', { ...admin, body: { barCode: label.barCode, jobCode: '25', result: 'pass' } }))
+    expect(passed.scan?.jobName).toBe('钣金质检')
+    expect(passed.qc?.result).toBe('pass')
+
+    const mine = await call(api.GET('/qc-scans', { ...admin, params: { query: { keyword: label.barCode } } }))
+    expect(mine.total).toBe(2)
+    expect(mine.items[0]!.result).toBe('pass')
+    expect(mine.items[1]!.result).toBe('fail')
+    expect(mine.items[1]!.reinspected).toBe(true)
+    expect(mine.items[1]!.reinspectedAt).toBe(mine.items[0]!.inspectedAt)
+
+    const report = await call(api.GET('/reports/quality', { ...admin, params: { query: { keyword: '测试划伤' } } }))
+    expect(report.total).toBe(1)
+    expect(report.items[0]).toMatchObject({ qty: 1, reinspectedQty: 1, defectCategory: '外观', lotNo: label.lotNo })
+    expect(report.summary).toMatchObject({ inspected: 1, failed: 1, passRate: 0 })
+    const overall = await call(api.GET('/reports/quality', { ...admin, params: { query: { from: '2000-01-01' } } }))
+    expect(overall.summary.passRate).toBeGreaterThan(0)
+
+    const daily = await call(api.GET('/reports/defect-daily', { ...admin, params: { query: { keyword: label.lotNo } } }))
+    expect(daily.jobs.map((j) => j.code)).toEqual(['25', '45'])
+    const row = daily.items.find((r) => r.batchId === label.batchId)!
+    expect(row.cells).toHaveLength(2)
+    expect(row.cells[0]!.failedQty).toBeGreaterThanOrEqual(1)
+    expect(row.cells[0]!.reinspectedQty).toBeGreaterThanOrEqual(1)
+    expect(daily.summary.failedQty).toBe(row.failedQty)
+
+    const wx = await login('waixie', 'demo123')
+    const scoped = await call(api.GET('/qc-scans', { ...wx, params: { query: { size: 200 } } }))
+    expect(scoped.items.every((r) => r.barCode !== label.barCode)).toBe(true)
+  })
 })

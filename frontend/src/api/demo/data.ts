@@ -78,6 +78,10 @@ export const menus: { id: number; parentId: number | null; title: string; path: 
   { id: 1003, parentId: 1000, title: '员工产量', path: '/report/staff-output', icon: 'team' },
   { id: 1004, parentId: 1000, title: '扫描记录', path: '/report/scans', icon: 'barcode' },
   { id: 1005, parentId: 1000, title: '生产平衡表', path: '/report/production-balance', icon: 'calculator' },
+  { id: 1006, parentId: 1000, title: '不良品日报', path: '/report/defect-daily', icon: 'file-text' },
+  { id: 700, parentId: null, title: '质量管理', path: '/quality', icon: 'audit' },
+  { id: 701, parentId: 700, title: '质检扫描记录', path: '/quality/qc-scans', icon: 'scan' },
+  { id: 702, parentId: 700, title: '质量报表', path: '/quality/report', icon: 'bar-chart' },
 ]
 
 export const users: DemoUser[] = [
@@ -186,7 +190,14 @@ export const jobs: S['Job'][] = [
   ['50', '成品接收', 'finished'],
   ['55', '成品装架', 'finished'],
   ['60', '发货对账', 'finished'],
-].map(([code, name, stage], i) => ({ id: i + 1, code: code!, name: name!, seq: i + 1, stage: stage as S['Job']['stage'] }))
+].map(([code, name, stage], i) => ({
+  id: i + 1,
+  code: code!,
+  name: name!,
+  seq: i + 1,
+  stage: stage as S['Job']['stage'],
+  isQc: code === '25' || code === '45',
+}))
 
 const batchDate = (offset: number) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10)
 
@@ -360,6 +371,102 @@ export const operators = [
   { name: '陈工', staffNo: '6615' },
   { name: '演示管理员', staffNo: '0001' },
 ]
+
+/** Stored inspection row; label / batch fields and the 复检 state are joined at read time. */
+export type DemoQc = Pick<
+  S['QcRecord'],
+  | 'id'
+  | 'labelId'
+  | 'batchId'
+  | 'jobId'
+  | 'result'
+  | 'defectJobId'
+  | 'defectCategory'
+  | 'defectReason'
+  | 'inspectedBy'
+  | 'staffNo'
+  | 'inspectedAt'
+  | 'device'
+>
+
+const DEFECTS: [string, string][] = [
+  ['外观', '划伤'],
+  ['外观', '色差'],
+  ['尺寸', '折弯角度超差'],
+  ['外观', '喷涂流挂'],
+  ['尺寸', '孔位偏移'],
+]
+
+/**
+ * Seeds qc_record rows from the flow scans: every scan at a QC job is a pass; a deterministic subset of pieces
+ * also gets an earlier fail (复检 = later passed). Pieces currently sitting right before a QC job may get a
+ * pending fail (not yet re-passed). Ids are placeholders (0); the caller assigns real ids.
+ */
+export function seedQc(labels: S['Label'][], scans: S['Scan'][], jobList: S['Job'][]): DemoQc[] {
+  const qcJobs = jobList.filter((job) => job.isQc)
+  const out: DemoQc[] = []
+  const op = (i: number) => operators[i % operators.length]!
+  for (const job of qcJobs) {
+    const previous = jobList.find((x) => x.seq === job.seq - 1)!
+    const defectJob = jobList.find((x) => x.seq === job.seq - 2) ?? previous
+    for (const scan of scans.filter((s) => s.jobId === job.id)) {
+      const n = scan.labelId + job.seq
+      if (n % 9 === 0) {
+        const [category, reason] = DEFECTS[n % DEFECTS.length]!
+        out.push({
+          id: 0,
+          labelId: scan.labelId,
+          batchId: scan.batchId,
+          jobId: job.id,
+          result: 'fail',
+          defectJobId: n % 2 ? defectJob.id : previous.id,
+          defectCategory: category,
+          defectReason: reason,
+          inspectedBy: op(n).name,
+          staffNo: op(n).staffNo,
+          inspectedAt: new Date(Date.parse(scan.scannedAt) - 40 * 60000).toISOString(),
+          device: '',
+        })
+      }
+      out.push({
+        id: 0,
+        labelId: scan.labelId,
+        batchId: scan.batchId,
+        jobId: job.id,
+        result: 'pass',
+        defectJobId: null,
+        defectCategory: '',
+        defectReason: '',
+        inspectedBy: scan.scannedBy,
+        staffNo: scan.staffNo,
+        inspectedAt: scan.scannedAt,
+        device: scan.device,
+      })
+    }
+    // Pending fails: pieces whose last scan is the job right before this QC job.
+    for (const label of labels) {
+      if (label.cancelled || label.lastJobId !== previous.id || !label.lastScannedAt) continue
+      const n = label.id + job.seq
+      if (n % 4 !== 0) continue
+      const [category, reason] = DEFECTS[(n + 2) % DEFECTS.length]!
+      out.push({
+        id: 0,
+        labelId: label.id,
+        batchId: label.batchId,
+        jobId: job.id,
+        result: 'fail',
+        defectJobId: n % 2 ? defectJob.id : previous.id,
+        defectCategory: category,
+        defectReason: reason,
+        inspectedBy: op(n).name,
+        staffNo: op(n).staffNo,
+        inspectedAt: new Date(Date.parse(label.lastScannedAt) + 30 * 60000).toISOString(),
+        device: '',
+      })
+    }
+  }
+  return out
+}
 
 export function seedScans(batches: S['Batch'][], labels: S['Label'][], jobList: S['Job'][]): S['Scan'][] {
   let id = Math.max(0, ...labels.map((label) => label.id)) + 1

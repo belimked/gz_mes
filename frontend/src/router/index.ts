@@ -106,6 +106,24 @@ const children: RouteRecordRaw[] = [
     meta: { title: '扫描记录', group: '生产报表' },
   },
   {
+    path: 'report/defect-daily',
+    name: 'defect-daily',
+    component: () => import('@/views/report/DefectDaily.vue'),
+    meta: { title: '不良品日报', group: '生产报表' },
+  },
+  {
+    path: 'quality/qc-scans',
+    name: 'qc-scans',
+    component: () => import('@/views/quality/QcScans.vue'),
+    meta: { title: '质检扫描记录', group: '质量管理' },
+  },
+  {
+    path: 'quality/report',
+    name: 'quality-report',
+    component: () => import('@/views/quality/QualityReport.vue'),
+    meta: { title: '质量报表', group: '质量管理' },
+  },
+  {
     path: 'report/production-balance',
     name: 'report-production-balance',
     component: () => import('@/views/report/ProductionBalance.vue'),

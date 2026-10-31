@@ -477,6 +477,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/qc-scans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description 质检扫描记录: every inspection at a QC job (pass and fail), newest first. beginDate / endDate filter on
+         *     inspectedAt (dates, inclusive). reinspected=true keeps fail rows that later passed; false keeps fail rows still
+         *     pending. Summary covers the whole filter.
+         */
+        get: operations["listQcScans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/handovers": {
         parameters: {
             query?: never;
@@ -808,6 +829,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description 质量报表: fail inspections with inspectedAt in [from, to] (dates, inclusive; both default to today), grouped by
+         *     date × QC job × batch × defect job × defect category × defect reason. qty counts pieces, area sums piece_area,
+         *     reinspectedQty counts pieces that later passed. Ordered by date desc, qty desc.
+         */
+        get: operations["getQualityReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/defect-daily": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description 不良品日报: one row per batch that had at least one fail inspection with inspectedAt in [from, to] (dates,
+         *     inclusive; both default to today), with per-QC-job fail / reinspected / pending counts and areas. pending =
+         *     fail rows (in range) whose label has not passed that job yet. Ordered by failedQty desc, lotNo.
+         */
+        get: operations["getDefectDailyReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/staff-output": {
         parameters: {
             query?: never;
@@ -1095,6 +1158,8 @@ export interface components {
             name: string;
             /** @description Execution order, 1-based */
             seq: number;
+            /** @description 质检岗位 (25 钣金质检 / 45 喷涂质检): scans carry a pass / fail result */
+            isQc: boolean;
             /**
              * @description 钣金工段 / 喷涂工段 / 成品包装发货
              * @enum {string}
@@ -1412,6 +1477,73 @@ export interface components {
             /** @description Job code, e.g. "20" */
             jobCode: string;
             device?: string;
+            result?: components["schemas"]["QcResult"];
+            /**
+             * Format: int64
+             * @description 不良工序 (fail only)
+             */
+            defectJobId?: number;
+            /** @description 不良分类 (fail only) */
+            defectCategory?: string;
+            /** @description 不良原因 (fail only) */
+            defectReason?: string;
+        };
+        /** @enum {string} */
+        QcResult: "pass" | "fail";
+        QcRecord: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            labelId: number;
+            barCode: string;
+            /** Format: int64 */
+            batchId: number;
+            lotNo: string;
+            projectName: string;
+            outsourceFactoryName: string | null;
+            pieceNo: string;
+            pieceIndex: number;
+            /** Format: double */
+            pieceArea: number;
+            color: string;
+            /**
+             * Format: int64
+             * @description QC job
+             */
+            jobId: number;
+            jobName: string;
+            result: components["schemas"]["QcResult"];
+            /** Format: int64 */
+            defectJobId: number | null;
+            defectJobName: string | null;
+            defectCategory: string;
+            defectReason: string;
+            inspectedBy: string;
+            staffNo: string;
+            /** Format: date-time */
+            inspectedAt: string;
+            device: string;
+            /** @description fail rows: a later pass exists at the same job */
+            reinspected: boolean;
+            /** Format: date-time */
+            reinspectedAt: string | null;
+        };
+        QcRecordPage: {
+            items: components["schemas"]["QcRecord"][];
+            /** Format: int64 */
+            total: number;
+            /** @description Over the whole filter */
+            summary: {
+                inspected: number;
+                passed: number;
+                failed: number;
+                /** Format: double */
+                failedArea: number;
+                /** @description fail rows that later passed */
+                reinspected: number;
+                /** @description fail rows not yet re-passed */
+                pending: number;
+            };
         };
         JobProgress: {
             /** Format: int64 */
@@ -1436,7 +1568,10 @@ export interface components {
             jobs: components["schemas"]["JobProgress"][];
         };
         ScanResult: {
-            scan: components["schemas"]["Scan"];
+            /** @description null when a QC scan failed (the piece did not advance) */
+            scan: components["schemas"]["Scan"] | null;
+            /** @description set for scans at a QC job */
+            qc: components["schemas"]["QcRecord"] | null;
             label: components["schemas"]["Label"];
             progress: components["schemas"]["BatchProgress"];
         };
@@ -2028,6 +2163,99 @@ export interface components {
                 labelQty: number;
                 /** @description Σ per job over all matching rows; pct = qty*100/labelQty */
                 cells: components["schemas"]["JobCell"][];
+            };
+        };
+        QualityReportRow: {
+            /** Format: date */
+            date: string;
+            /** Format: int64 */
+            jobId: number;
+            jobName: string;
+            /** Format: int64 */
+            batchId: number;
+            lotNo: string;
+            projectName: string;
+            outsourceFactoryName: string | null;
+            /** Format: int64 */
+            defectJobId: number | null;
+            defectJobName: string | null;
+            defectCategory: string;
+            defectReason: string;
+            qty: number;
+            /** Format: double */
+            area: number;
+            reinspectedQty: number;
+            /** @description distinct pieceNo, comma separated */
+            pieceNos: string;
+            /** @description distinct inspector names, comma separated */
+            inspectors: string;
+        };
+        QualityReport: {
+            items: components["schemas"]["QualityReportRow"][];
+            total: number;
+            summary: {
+                /** @description all inspections in range (pass + fail) */
+                inspected: number;
+                passed: number;
+                failed: number;
+                /** Format: double */
+                failedArea: number;
+                reinspected: number;
+                /** @description 0-100, passed*100/inspected */
+                passRate: number;
+            };
+        };
+        DefectJobCell: {
+            /** Format: int64 */
+            jobId: number;
+            jobName: string;
+            failedQty: number;
+            /** Format: double */
+            failedArea: number;
+            reinspectedQty: number;
+            /** Format: double */
+            reinspectedArea: number;
+            pendingQty: number;
+            /** Format: double */
+            pendingArea: number;
+        };
+        DefectDailyRow: {
+            /** Format: int64 */
+            batchId: number;
+            lotNo: string;
+            projectName: string;
+            customerName: string;
+            clientOrderNo: string;
+            /** Format: double */
+            thickness: number;
+            color: string;
+            workshop: string;
+            outsourceFactoryName: string | null;
+            itemQty: number;
+            /** Format: double */
+            itemArea: number;
+            /** @description Σ over QC jobs */
+            failedQty: number;
+            /** Format: double */
+            failedArea: number;
+            pendingQty: number;
+            /** @description Same length and order as DefectDailyReport.jobs */
+            cells: components["schemas"]["DefectJobCell"][];
+        };
+        DefectDailyReport: {
+            /** @description QC jobs in seq order */
+            jobs: components["schemas"]["Job"][];
+            items: components["schemas"]["DefectDailyRow"][];
+            total: number;
+            summary: {
+                batches: number;
+                failedQty: number;
+                /** Format: double */
+                failedArea: number;
+                reinspectedQty: number;
+                pendingQty: number;
+                /** Format: double */
+                pendingArea: number;
             };
         };
         StaffOutputRow: {
@@ -3079,6 +3307,43 @@ export interface operations {
             409: components["responses"]["Error"];
         };
     };
+    listQcScans: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                batchId?: number;
+                /** @description QC job */
+                jobId?: number;
+                defectJobId?: number;
+                result?: components["schemas"]["QcResult"];
+                reinspected?: boolean;
+                beginDate?: string;
+                endDate?: string;
+                /** @description barCode / lotNo / projectName / pieceNo / defectCategory / defectReason */
+                keyword?: string;
+                /** @description inspector displayName / staffNo / username */
+                staff?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QcRecordPage"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+        };
+    };
     listHandovers: {
         parameters: {
             query?: {
@@ -3719,6 +3984,69 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BatchJobReport"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+        };
+    };
+    getQualityReport: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                /** @description QC job */
+                jobId?: number;
+                defectJobId?: number;
+                /** @description lotNo / projectName / defectCategory / defectReason */
+                keyword?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityReport"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+        };
+    };
+    getDefectDailyReport: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                workshop?: string;
+                outsourceFactoryId?: number;
+                /** @description lotNo / projectName / customerName / clientOrderNo */
+                keyword?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DefectDailyReport"];
                 };
             };
             400: components["responses"]["Error"];
