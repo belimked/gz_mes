@@ -107,7 +107,12 @@ function fullscreen() {
               <MenuIcon :name="m.icon" />
             </template>
             <template #title>{{ m.title }}</template>
-            <a-menu-item v-for="c in m.children" :key="c.path">{{ c.title }}</a-menu-item>
+            <a-menu-item v-for="c in m.children" :key="c.path">
+              <template #icon>
+                <MenuIcon :name="c.icon" />
+              </template>
+              {{ c.title }}
+            </a-menu-item>
           </a-sub-menu>
           <a-menu-item v-else :key="m.path">
             <template #icon>
@@ -126,7 +131,12 @@ function fullscreen() {
       <a-menu v-model:selected-keys="selectedKeys" mode="inline" :theme="layout.siderTheme" data-testid="side-menu" @click="go">
         <a-menu-item key="/">首页</a-menu-item>
         <a-sub-menu v-for="m in auth.menus.filter((x) => x.children?.length)" :key="m.path" :title="m.title">
-          <a-menu-item v-for="c in m.children" :key="c.path">{{ c.title }}</a-menu-item>
+          <a-menu-item v-for="c in m.children" :key="c.path">
+            <template #icon>
+              <MenuIcon :name="c.icon" />
+            </template>
+            {{ c.title }}
+          </a-menu-item>
         </a-sub-menu>
       </a-menu>
     </a-drawer>
