@@ -102,6 +102,88 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/customers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listCustomers"];
+        put?: never;
+        post: operations["createCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customers/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["confirmCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/contracts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listContracts"];
+        put?: never;
+        /** @description customerId and projectId must belong to the same factory as the contract. */
+        post: operations["createContract"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/contracts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getContract"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/contracts/{id}/audit-valuation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Marks the customer or outsource valuation as audited. Idempotent conflict (409) if already audited. */
+        post: operations["auditContractValuation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -182,6 +264,134 @@ export interface components {
             items: components["schemas"]["Project"][];
             /** Format: int64 */
             total: number;
+        };
+        Customer: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            factoryId: number;
+            name: string;
+            contacts: string;
+            phone: string;
+            address: string;
+            bank: string;
+            account: string;
+            /** @description EAS 客户编码 */
+            easCode: string;
+            /** @description EAS 客户名称 */
+            easName: string;
+            /** @description 内部客户 */
+            isInternal: boolean;
+            confirmed: boolean;
+            createdBy: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        CustomerCreate: {
+            /** Format: int64 */
+            factoryId: number;
+            name: string;
+            contacts?: string;
+            phone?: string;
+            address?: string;
+            bank?: string;
+            account?: string;
+            easCode?: string;
+            easName?: string;
+            /** @default false */
+            isInternal: boolean;
+        };
+        CustomerPage: {
+            items: components["schemas"]["Customer"][];
+            /** Format: int64 */
+            total: number;
+        };
+        Contract: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            factoryId: number;
+            /** @description 合同单号，厂区内唯一 */
+            contractNo: string;
+            customerContractNo: string;
+            innerContractNo: string;
+            /** Format: int64 */
+            customerId: number;
+            customerName: string;
+            /** Format: int64 */
+            projectId: number;
+            /** @description 项目全称 */
+            projectName: string;
+            /** @description 业务员 */
+            salesman: string;
+            /** @description 订单数量（件） */
+            orderQty: number;
+            /**
+             * Format: double
+             * @description 订单面积 m²
+             */
+            orderArea: number;
+            /** @description 计价方式 */
+            pricingManner: string;
+            /** @description 付款方式 */
+            payment: string;
+            /** @description 付款节点 */
+            paymentPoint: string;
+            /** @description 材质 */
+            texture: string;
+            /** @description 喷涂类型 */
+            paintType: string;
+            /** @description 包装 */
+            packing: string;
+            receiver: string;
+            receiverPhone: string;
+            receiverAddress: string;
+            remark: string;
+            /** @description 客户计价审核 */
+            customerValuationAudited: boolean;
+            /** @description 外协计价审核 */
+            outsourceValuationAudited: boolean;
+            createdBy: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ContractCreate: {
+            /** Format: int64 */
+            factoryId: number;
+            contractNo: string;
+            customerContractNo?: string;
+            innerContractNo?: string;
+            /** Format: int64 */
+            customerId: number;
+            /** Format: int64 */
+            projectId: number;
+            salesman?: string;
+            /** @default 0 */
+            orderQty: number;
+            /**
+             * Format: double
+             * @default 0
+             */
+            orderArea: number;
+            pricingManner?: string;
+            payment?: string;
+            paymentPoint?: string;
+            texture?: string;
+            paintType?: string;
+            packing?: string;
+            receiver?: string;
+            receiverPhone?: string;
+            receiverAddress?: string;
+            remark?: string;
+        };
+        ContractPage: {
+            items: components["schemas"]["Contract"][];
+            /** Format: int64 */
+            total: number;
+        };
+        ValuationAudit: {
+            /** @enum {string} */
+            kind: "customer" | "outsource";
         };
     };
     responses: {
@@ -362,6 +572,200 @@ export interface operations {
                     "application/json": components["schemas"]["Project"];
                 };
             };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    listCustomers: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                /** @description Matches name / easCode / easName */
+                keyword?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerPage"];
+                };
+            };
+            401: components["responses"]["Error"];
+        };
+    };
+    createCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerCreate"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Customer"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    confirmCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Customer"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    listContracts: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                /** @description Matches contractNo / customerContractNo / innerContractNo / customer name / project name / salesman */
+                keyword?: string;
+                customerId?: number;
+                projectId?: number;
+                /** @description createdAt >= beginDate (inclusive) */
+                beginDate?: string;
+                /** @description createdAt < endDate + 1 day */
+                endDate?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContractPage"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+        };
+    };
+    createContract: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContractCreate"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Contract"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    getContract: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Contract"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    auditContractValuation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ValuationAudit"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Contract"];
+                };
+            };
+            400: components["responses"]["Error"];
             401: components["responses"]["Error"];
             404: components["responses"]["Error"];
             409: components["responses"]["Error"];

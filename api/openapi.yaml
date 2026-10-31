@@ -120,6 +120,134 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /customers:
+    get:
+      operationId: listCustomers
+      tags: [sale]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+        - { name: keyword, in: query, schema: { type: string }, description: "Matches name / easCode / easName" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerPage" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createCustomer
+      tags: [sale]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CustomerCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Customer" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /customers/{id}/confirm:
+    post:
+      operationId: confirmCustomer
+      tags: [sale]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Customer" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /contracts:
+    get:
+      operationId: listContracts
+      tags: [sale]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+        - { name: keyword, in: query, schema: { type: string }, description: "Matches contractNo / customerContractNo / innerContractNo / customer name / project name / salesman" }
+        - { name: customerId, in: query, schema: { type: integer, format: int64 } }
+        - { name: projectId, in: query, schema: { type: integer, format: int64 } }
+        - { name: beginDate, in: query, schema: { type: string, format: date }, description: "createdAt >= beginDate (inclusive)" }
+        - { name: endDate, in: query, schema: { type: string, format: date }, description: "createdAt < endDate + 1 day" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContractPage" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createContract
+      tags: [sale]
+      description: customerId and projectId must belong to the same factory as the contract.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ContractCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Contract" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /contracts/{id}:
+    get:
+      operationId: getContract
+      tags: [sale]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Contract" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /contracts/{id}/audit-valuation:
+    post:
+      operationId: auditContractValuation
+      tags: [sale]
+      description: Marks the customer or outsource valuation as audited. Idempotent conflict (409) if already audited.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ValuationAudit" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Contract" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -242,3 +370,122 @@ components:
           type: array
           items: { $ref: "#/components/schemas/Project" }
         total: { type: integer, format: int64 }
+
+    Customer:
+      type: object
+      required: [id, factoryId, name, contacts, phone, address, bank, account, easCode, easName, isInternal, confirmed, createdBy, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        factoryId: { type: integer, format: int64 }
+        name: { type: string }
+        contacts: { type: string }
+        phone: { type: string }
+        address: { type: string }
+        bank: { type: string }
+        account: { type: string }
+        easCode: { type: string, description: "EAS 客户编码" }
+        easName: { type: string, description: "EAS 客户名称" }
+        isInternal: { type: boolean, description: "内部客户" }
+        confirmed: { type: boolean }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    CustomerCreate:
+      type: object
+      required: [factoryId, name]
+      properties:
+        factoryId: { type: integer, format: int64 }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        contacts: { type: string, maxLength: 100 }
+        phone: { type: string, maxLength: 50 }
+        address: { type: string, maxLength: 300 }
+        bank: { type: string, maxLength: 200 }
+        account: { type: string, maxLength: 100 }
+        easCode: { type: string, maxLength: 64 }
+        easName: { type: string, maxLength: 200 }
+        isInternal: { type: boolean, default: false }
+
+    CustomerPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Customer" }
+        total: { type: integer, format: int64 }
+
+    Contract:
+      type: object
+      required:
+        [id, factoryId, contractNo, customerContractNo, innerContractNo, customerId, customerName, projectId, projectName,
+         salesman, orderQty, orderArea, pricingManner, payment, paymentPoint, texture, paintType, packing,
+         receiver, receiverPhone, receiverAddress, remark, customerValuationAudited, outsourceValuationAudited,
+         createdBy, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        factoryId: { type: integer, format: int64 }
+        contractNo: { type: string, description: "合同单号，厂区内唯一" }
+        customerContractNo: { type: string }
+        innerContractNo: { type: string }
+        customerId: { type: integer, format: int64 }
+        customerName: { type: string }
+        projectId: { type: integer, format: int64 }
+        projectName: { type: string, description: "项目全称" }
+        salesman: { type: string, description: "业务员" }
+        orderQty: { type: integer, description: "订单数量（件）" }
+        orderArea: { type: number, format: double, description: "订单面积 m²" }
+        pricingManner: { type: string, description: "计价方式" }
+        payment: { type: string, description: "付款方式" }
+        paymentPoint: { type: string, description: "付款节点" }
+        texture: { type: string, description: "材质" }
+        paintType: { type: string, description: "喷涂类型" }
+        packing: { type: string, description: "包装" }
+        receiver: { type: string }
+        receiverPhone: { type: string }
+        receiverAddress: { type: string }
+        remark: { type: string }
+        customerValuationAudited: { type: boolean, description: "客户计价审核" }
+        outsourceValuationAudited: { type: boolean, description: "外协计价审核" }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    ContractCreate:
+      type: object
+      required: [factoryId, contractNo, customerId, projectId]
+      properties:
+        factoryId: { type: integer, format: int64 }
+        contractNo: { type: string, minLength: 1, maxLength: 64 }
+        customerContractNo: { type: string, maxLength: 64 }
+        innerContractNo: { type: string, maxLength: 64 }
+        customerId: { type: integer, format: int64 }
+        projectId: { type: integer, format: int64 }
+        salesman: { type: string, maxLength: 50 }
+        orderQty: { type: integer, minimum: 0, default: 0 }
+        orderArea: { type: number, format: double, minimum: 0, default: 0 }
+        pricingManner: { type: string, maxLength: 50 }
+        payment: { type: string, maxLength: 100 }
+        paymentPoint: { type: string, maxLength: 100 }
+        texture: { type: string, maxLength: 50 }
+        paintType: { type: string, maxLength: 50 }
+        packing: { type: string, maxLength: 50 }
+        receiver: { type: string, maxLength: 50 }
+        receiverPhone: { type: string, maxLength: 50 }
+        receiverAddress: { type: string, maxLength: 300 }
+        remark: { type: string, maxLength: 500 }
+
+    ContractPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Contract" }
+        total: { type: integer, format: int64 }
+
+    ValuationAudit:
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [customer, outsource]

@@ -63,7 +63,7 @@ type env struct {
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	ctx := context.Background()
-	_, err := pool.Exec(ctx, "TRUNCATE project, user_role, role_menu, role, user_factory, app_user, factory RESTART IDENTITY CASCADE")
+	_, err := pool.Exec(ctx, "TRUNCATE contract, customer, project, user_role, role_menu, role, user_factory, app_user, factory RESTART IDENTITY CASCADE")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,6 +309,102 @@ func TestCreateProjectUnknownFactory(t *testing.T) {
 	var er api.Error
 	if code := e.do("POST", "/projects", admin, api.ProjectCreate{FactoryId: 999999, Code: "X", FullName: "X"}, &er); code != 400 || er.Code != "invalid_factory" {
 		t.Fatalf("unknown factory: want 400 invalid_factory, got %d %q", code, er.Code)
+	}
+}
+
+func (e *env) createCustomer(token string, factoryID int64, name string) (int, api.Customer) {
+	e.t.Helper()
+	var c api.Customer
+	status := e.do("POST", "/customers", token, api.CustomerCreate{FactoryId: factoryID, Name: name}, &c)
+	return status, c
+}
+
+func TestCustomerLifecycle(t *testing.T) {
+	e := newEnv(t)
+	admin := e.login("admin", "admin-pass")
+	e.outsourceUser("wa", e.outA)
+	wa := e.login("wa", "pw-wa")
+	status, c := e.createCustomer(admin, e.plant, "客户 A")
+	if status != 201 || c.Confirmed || c.CreatedBy != "管理员" {
+		t.Fatalf("create: %d %+v", status, c)
+	}
+	var er api.Error
+	if code := e.do("POST", "/customers", admin, api.CustomerCreate{FactoryId: e.plant, Name: "客户 A"}, &er); code != 409 || er.Code != "duplicate_code" {
+		t.Fatalf("duplicate: %d %+v", code, er)
+	}
+	if code := e.do("POST", "/customers", wa, api.CustomerCreate{FactoryId: e.plant, Name: "wrong"}, &er); code != 403 || er.Code != "forbidden_factory" {
+		t.Fatalf("forbidden: %d %+v", code, er)
+	}
+	if code, _ := e.createCustomer(admin, e.outA, "客户 A"); code != 201 {
+		t.Fatalf("same name other factory: %d", code)
+	}
+	path := fmt.Sprintf("/customers/%d/confirm", c.Id)
+	if code := e.do("POST", path, wa, nil, &er); code != 404 || er.Code != "not_found" {
+		t.Fatalf("confirm outside scope: %d %+v", code, er)
+	}
+	var confirmed api.Customer
+	if code := e.do("POST", path, admin, nil, &confirmed); code != 200 || !confirmed.Confirmed {
+		t.Fatalf("confirm: %d %+v", code, confirmed)
+	}
+	if code := e.do("POST", path, admin, nil, &er); code != 409 || er.Code != "already_confirmed" {
+		t.Fatalf("repeat confirm: %d %+v", code, er)
+	}
+	var page api.CustomerPage
+	if code := e.do("GET", "/customers?keyword=%E5%AE%A2%E6%88%B7", wa, nil, &page); code != 200 || page.Total != 1 || page.Items[0].FactoryId != e.outA {
+		t.Fatalf("scoped list: %d %+v", code, page)
+	}
+}
+
+func TestContractLifecycle(t *testing.T) {
+	e := newEnv(t)
+	admin := e.login("admin", "admin-pass")
+	e.outsourceUser("wa", e.outA)
+	wa := e.login("wa", "pw-wa")
+	_, c := e.createCustomer(admin, e.plant, "客户 X")
+	_, foreign := e.createCustomer(admin, e.outA, "客户 Y")
+	_, p := e.createProject(admin, e.plant, "P-X")
+	body := api.ContractCreate{FactoryId: e.plant, ContractNo: "C_001%", CustomerId: c.Id, ProjectId: p.Id}
+	var contract api.Contract
+	if code := e.do("POST", "/contracts", admin, body, &contract); code != 201 || contract.CustomerName != c.Name || contract.ProjectName != p.FullName || contract.CreatedBy != "管理员" {
+		t.Fatalf("create: %d %+v", code, contract)
+	}
+	var er api.Error
+	if code := e.do("POST", "/contracts", admin, body, &er); code != 409 || er.Code != "duplicate_code" {
+		t.Fatalf("duplicate: %d %+v", code, er)
+	}
+	body.ContractNo = "C-foreign"
+	body.CustomerId = foreign.Id
+	if code := e.do("POST", "/contracts", admin, body, &er); code != 400 || er.Code != "invalid_reference" {
+		t.Fatalf("foreign customer: %d %+v", code, er)
+	}
+	path := fmt.Sprintf("/contracts/%d", contract.Id)
+	if code := e.do("GET", path, wa, nil, &er); code != 404 || er.Code != "not_found" {
+		t.Fatalf("outside scope: %d %+v", code, er)
+	}
+	var page api.ContractPage
+	date := contract.CreatedAt.Format("2006-01-02")
+	for _, query := range []string{"keyword=_001%25", fmt.Sprintf("customerId=%d", c.Id), "beginDate=" + date + "&endDate=" + date} {
+		if code := e.do("GET", "/contracts?"+query, admin, nil, &page); code != 200 || page.Total != 1 || len(page.Items) != 1 {
+			t.Fatalf("filter %s: %d %+v", query, code, page)
+		}
+	}
+	if code := e.do("GET", "/contracts?customerId="+fmt.Sprint(foreign.Id), admin, nil, &page); code != 200 || page.Total != 0 {
+		t.Fatalf("customer filter: %d %+v", code, page)
+	}
+	if code := e.do("GET", "/contracts", wa, nil, &page); code != 200 || page.Total != 0 {
+		t.Fatalf("scoped list: %d %+v", code, page)
+	}
+	for _, kind := range []api.ValuationAuditKind{"customer", "outsource"} {
+		var audited api.Contract
+		if code := e.do("POST", path+"/audit-valuation", admin, api.ValuationAudit{Kind: kind}, &audited); code != 200 {
+			t.Fatalf("audit %s: %d", kind, code)
+		}
+		if code := e.do("POST", path+"/audit-valuation", admin, api.ValuationAudit{Kind: kind}, &er); code != 409 || er.Code != "already_audited" {
+			t.Fatalf("repeat audit %s: %d %+v", kind, code, er)
+		}
+	}
+	if code := e.do("GET", path, admin, nil, &contract); code != 200 || !contract.CustomerValuationAudited || !contract.OutsourceValuationAudited {
+		t.Fatalf("get: %d %+v", code, contract)
 	}
 }
 

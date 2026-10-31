@@ -20,20 +20,21 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Defines values for FactoryKind.
 const (
-	Outsource FactoryKind = "outsource"
-	Own       FactoryKind = "own"
+	FactoryKindOutsource FactoryKind = "outsource"
+	FactoryKindOwn       FactoryKind = "own"
 )
 
 // Valid indicates whether the value is a known member of the FactoryKind enum.
 func (e FactoryKind) Valid() bool {
 	switch e {
-	case Outsource:
+	case FactoryKindOutsource:
 		return true
-	case Own:
+	case FactoryKindOwn:
 		return true
 	default:
 		return false
@@ -56,6 +57,152 @@ func (e ProjectKind) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// Defines values for ValuationAuditKind.
+const (
+	ValuationAuditKindCustomer  ValuationAuditKind = "customer"
+	ValuationAuditKindOutsource ValuationAuditKind = "outsource"
+)
+
+// Valid indicates whether the value is a known member of the ValuationAuditKind enum.
+func (e ValuationAuditKind) Valid() bool {
+	switch e {
+	case ValuationAuditKindCustomer:
+		return true
+	case ValuationAuditKindOutsource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Contract defines model for Contract.
+type Contract struct {
+	// ContractNo 合同单号，厂区内唯一
+	ContractNo         string    `json:"contractNo"`
+	CreatedAt          time.Time `json:"createdAt"`
+	CreatedBy          string    `json:"createdBy"`
+	CustomerContractNo string    `json:"customerContractNo"`
+	CustomerId         int64     `json:"customerId"`
+	CustomerName       string    `json:"customerName"`
+
+	// CustomerValuationAudited 客户计价审核
+	CustomerValuationAudited bool   `json:"customerValuationAudited"`
+	FactoryId                int64  `json:"factoryId"`
+	Id                       int64  `json:"id"`
+	InnerContractNo          string `json:"innerContractNo"`
+
+	// OrderArea 订单面积 m²
+	OrderArea float64 `json:"orderArea"`
+
+	// OrderQty 订单数量（件）
+	OrderQty int `json:"orderQty"`
+
+	// OutsourceValuationAudited 外协计价审核
+	OutsourceValuationAudited bool `json:"outsourceValuationAudited"`
+
+	// Packing 包装
+	Packing string `json:"packing"`
+
+	// PaintType 喷涂类型
+	PaintType string `json:"paintType"`
+
+	// Payment 付款方式
+	Payment string `json:"payment"`
+
+	// PaymentPoint 付款节点
+	PaymentPoint string `json:"paymentPoint"`
+
+	// PricingManner 计价方式
+	PricingManner string `json:"pricingManner"`
+	ProjectId     int64  `json:"projectId"`
+
+	// ProjectName 项目全称
+	ProjectName     string `json:"projectName"`
+	Receiver        string `json:"receiver"`
+	ReceiverAddress string `json:"receiverAddress"`
+	ReceiverPhone   string `json:"receiverPhone"`
+	Remark          string `json:"remark"`
+
+	// Salesman 业务员
+	Salesman string `json:"salesman"`
+
+	// Texture 材质
+	Texture string `json:"texture"`
+}
+
+// ContractCreate defines model for ContractCreate.
+type ContractCreate struct {
+	ContractNo         string   `json:"contractNo"`
+	CustomerContractNo *string  `json:"customerContractNo,omitempty"`
+	CustomerId         int64    `json:"customerId"`
+	FactoryId          int64    `json:"factoryId"`
+	InnerContractNo    *string  `json:"innerContractNo,omitempty"`
+	OrderArea          *float64 `json:"orderArea,omitempty"`
+	OrderQty           *int     `json:"orderQty,omitempty"`
+	Packing            *string  `json:"packing,omitempty"`
+	PaintType          *string  `json:"paintType,omitempty"`
+	Payment            *string  `json:"payment,omitempty"`
+	PaymentPoint       *string  `json:"paymentPoint,omitempty"`
+	PricingManner      *string  `json:"pricingManner,omitempty"`
+	ProjectId          int64    `json:"projectId"`
+	Receiver           *string  `json:"receiver,omitempty"`
+	ReceiverAddress    *string  `json:"receiverAddress,omitempty"`
+	ReceiverPhone      *string  `json:"receiverPhone,omitempty"`
+	Remark             *string  `json:"remark,omitempty"`
+	Salesman           *string  `json:"salesman,omitempty"`
+	Texture            *string  `json:"texture,omitempty"`
+}
+
+// ContractPage defines model for ContractPage.
+type ContractPage struct {
+	Items []Contract `json:"items"`
+	Total int64      `json:"total"`
+}
+
+// Customer defines model for Customer.
+type Customer struct {
+	Account   string    `json:"account"`
+	Address   string    `json:"address"`
+	Bank      string    `json:"bank"`
+	Confirmed bool      `json:"confirmed"`
+	Contacts  string    `json:"contacts"`
+	CreatedAt time.Time `json:"createdAt"`
+	CreatedBy string    `json:"createdBy"`
+
+	// EasCode EAS 客户编码
+	EasCode string `json:"easCode"`
+
+	// EasName EAS 客户名称
+	EasName   string `json:"easName"`
+	FactoryId int64  `json:"factoryId"`
+	Id        int64  `json:"id"`
+
+	// IsInternal 内部客户
+	IsInternal bool   `json:"isInternal"`
+	Name       string `json:"name"`
+	Phone      string `json:"phone"`
+}
+
+// CustomerCreate defines model for CustomerCreate.
+type CustomerCreate struct {
+	Account    *string `json:"account,omitempty"`
+	Address    *string `json:"address,omitempty"`
+	Bank       *string `json:"bank,omitempty"`
+	Contacts   *string `json:"contacts,omitempty"`
+	EasCode    *string `json:"easCode,omitempty"`
+	EasName    *string `json:"easName,omitempty"`
+	FactoryId  int64   `json:"factoryId"`
+	IsInternal *bool   `json:"isInternal,omitempty"`
+	Name       string  `json:"name"`
+	Phone      *string `json:"phone,omitempty"`
+}
+
+// CustomerPage defines model for CustomerPage.
+type CustomerPage struct {
+	Items []Customer `json:"items"`
+	Total int64      `json:"total"`
 }
 
 // Error defines model for Error.
@@ -153,6 +300,40 @@ type User struct {
 	Username    string `json:"username"`
 }
 
+// ValuationAudit defines model for ValuationAudit.
+type ValuationAudit struct {
+	Kind ValuationAuditKind `json:"kind"`
+}
+
+// ValuationAuditKind defines model for ValuationAudit.Kind.
+type ValuationAuditKind string
+
+// ListContractsParams defines parameters for ListContracts.
+type ListContractsParams struct {
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+	Size *int `form:"size,omitempty" json:"size,omitempty"`
+
+	// Keyword Matches contractNo / customerContractNo / innerContractNo / customer name / project name / salesman
+	Keyword    *string `form:"keyword,omitempty" json:"keyword,omitempty"`
+	CustomerId *int64  `form:"customerId,omitempty" json:"customerId,omitempty"`
+	ProjectId  *int64  `form:"projectId,omitempty" json:"projectId,omitempty"`
+
+	// BeginDate createdAt >= beginDate (inclusive)
+	BeginDate *openapi_types.Date `form:"beginDate,omitempty" json:"beginDate,omitempty"`
+
+	// EndDate createdAt < endDate + 1 day
+	EndDate *openapi_types.Date `form:"endDate,omitempty" json:"endDate,omitempty"`
+}
+
+// ListCustomersParams defines parameters for ListCustomers.
+type ListCustomersParams struct {
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+	Size *int `form:"size,omitempty" json:"size,omitempty"`
+
+	// Keyword Matches name / easCode / easName
+	Keyword *string `form:"keyword,omitempty" json:"keyword,omitempty"`
+}
+
 // ListProjectsParams defines parameters for ListProjects.
 type ListProjectsParams struct {
 	Page    *int    `form:"page,omitempty" json:"page,omitempty"`
@@ -162,6 +343,15 @@ type ListProjectsParams struct {
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
+
+// CreateContractJSONRequestBody defines body for CreateContract for application/json ContentType.
+type CreateContractJSONRequestBody = ContractCreate
+
+// AuditContractValuationJSONRequestBody defines body for AuditContractValuation for application/json ContentType.
+type AuditContractValuationJSONRequestBody = ValuationAudit
+
+// CreateCustomerJSONRequestBody defines body for CreateCustomer for application/json ContentType.
+type CreateCustomerJSONRequestBody = CustomerCreate
 
 // CreateProjectJSONRequestBody defines body for CreateProject for application/json ContentType.
 type CreateProjectJSONRequestBody = ProjectCreate
@@ -174,6 +364,27 @@ type ServerInterface interface {
 
 	// (GET /auth/me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+
+	// (GET /contracts)
+	ListContracts(w http.ResponseWriter, r *http.Request, params ListContractsParams)
+
+	// (POST /contracts)
+	CreateContract(w http.ResponseWriter, r *http.Request)
+
+	// (GET /contracts/{id})
+	GetContract(w http.ResponseWriter, r *http.Request, id int64)
+
+	// (POST /contracts/{id}/audit-valuation)
+	AuditContractValuation(w http.ResponseWriter, r *http.Request, id int64)
+
+	// (GET /customers)
+	ListCustomers(w http.ResponseWriter, r *http.Request, params ListCustomersParams)
+
+	// (POST /customers)
+	CreateCustomer(w http.ResponseWriter, r *http.Request)
+
+	// (POST /customers/{id}/confirm)
+	ConfirmCustomer(w http.ResponseWriter, r *http.Request, id int64)
 
 	// (GET /factories)
 	ListFactories(w http.ResponseWriter, r *http.Request)
@@ -202,6 +413,41 @@ func (_ Unimplemented) Login(w http.ResponseWriter, r *http.Request) {
 
 // (GET /auth/me)
 func (_ Unimplemented) GetMe(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /contracts)
+func (_ Unimplemented) ListContracts(w http.ResponseWriter, r *http.Request, params ListContractsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /contracts)
+func (_ Unimplemented) CreateContract(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /contracts/{id})
+func (_ Unimplemented) GetContract(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /contracts/{id}/audit-valuation)
+func (_ Unimplemented) AuditContractValuation(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /customers)
+func (_ Unimplemented) ListCustomers(w http.ResponseWriter, r *http.Request, params ListCustomersParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /customers)
+func (_ Unimplemented) CreateCustomer(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /customers/{id}/confirm)
+func (_ Unimplemented) ConfirmCustomer(w http.ResponseWriter, r *http.Request, id int64) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -258,6 +504,282 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListContracts operation middleware
+func (siw *ServerInterfaceWrapper) ListContracts(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListContractsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "size", r.URL.Query(), &params.Size, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "size"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "size", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "keyword" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "keyword", r.URL.Query(), &params.Keyword, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "keyword"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "keyword", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "customerId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "customerId", r.URL.Query(), &params.CustomerId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "customerId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "customerId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "projectId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "projectId", r.URL.Query(), &params.ProjectId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "projectId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "projectId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "beginDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "beginDate", r.URL.Query(), &params.BeginDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "beginDate"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "beginDate", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "endDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "endDate"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListContracts(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateContract operation middleware
+func (siw *ServerInterfaceWrapper) CreateContract(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateContract(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetContract operation middleware
+func (siw *ServerInterfaceWrapper) GetContract(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetContract(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AuditContractValuation operation middleware
+func (siw *ServerInterfaceWrapper) AuditContractValuation(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AuditContractValuation(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListCustomers operation middleware
+func (siw *ServerInterfaceWrapper) ListCustomers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListCustomersParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "size", r.URL.Query(), &params.Size, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "size"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "size", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "keyword" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "keyword", r.URL.Query(), &params.Keyword, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "keyword"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "keyword", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListCustomers(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateCustomer operation middleware
+func (siw *ServerInterfaceWrapper) CreateCustomer(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateCustomer(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConfirmCustomer operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmCustomer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfirmCustomer(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -528,6 +1050,27 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/projects/{id}/confirm", wrapper.ConfirmProject)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/customers", wrapper.ListCustomers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/customers", wrapper.CreateCustomer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/customers/{id}/confirm", wrapper.ConfirmCustomer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/contracts", wrapper.ListContracts)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/contracts", wrapper.CreateContract)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/contracts/{id}", wrapper.GetContract)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/contracts/{id}/audit-valuation", wrapper.AuditContractValuation)
+	})
 
 	return r
 }
@@ -601,6 +1144,441 @@ func (response GetMe401JSONResponse) VisitGetMeResponse(w http.ResponseWriter) e
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListContractsRequestObject struct {
+	Params ListContractsParams
+}
+
+type ListContractsResponseObject interface {
+	VisitListContractsResponse(w http.ResponseWriter) error
+}
+
+type ListContracts200JSONResponse ContractPage
+
+func (response ListContracts200JSONResponse) VisitListContractsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListContracts400JSONResponse struct{ ErrorJSONResponse }
+
+func (response ListContracts400JSONResponse) VisitListContractsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListContracts401JSONResponse Error
+
+func (response ListContracts401JSONResponse) VisitListContractsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateContractRequestObject struct {
+	Body *CreateContractJSONRequestBody
+}
+
+type CreateContractResponseObject interface {
+	VisitCreateContractResponse(w http.ResponseWriter) error
+}
+
+type CreateContract201JSONResponse Contract
+
+func (response CreateContract201JSONResponse) VisitCreateContractResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateContract400JSONResponse struct{ ErrorJSONResponse }
+
+func (response CreateContract400JSONResponse) VisitCreateContractResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateContract401JSONResponse Error
+
+func (response CreateContract401JSONResponse) VisitCreateContractResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateContract403JSONResponse Error
+
+func (response CreateContract403JSONResponse) VisitCreateContractResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateContract409JSONResponse Error
+
+func (response CreateContract409JSONResponse) VisitCreateContractResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetContractRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type GetContractResponseObject interface {
+	VisitGetContractResponse(w http.ResponseWriter) error
+}
+
+type GetContract200JSONResponse Contract
+
+func (response GetContract200JSONResponse) VisitGetContractResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetContract401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetContract401JSONResponse) VisitGetContractResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetContract404JSONResponse Error
+
+func (response GetContract404JSONResponse) VisitGetContractResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AuditContractValuationRequestObject struct {
+	Id   int64 `json:"id"`
+	Body *AuditContractValuationJSONRequestBody
+}
+
+type AuditContractValuationResponseObject interface {
+	VisitAuditContractValuationResponse(w http.ResponseWriter) error
+}
+
+type AuditContractValuation200JSONResponse Contract
+
+func (response AuditContractValuation200JSONResponse) VisitAuditContractValuationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AuditContractValuation400JSONResponse struct{ ErrorJSONResponse }
+
+func (response AuditContractValuation400JSONResponse) VisitAuditContractValuationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AuditContractValuation401JSONResponse Error
+
+func (response AuditContractValuation401JSONResponse) VisitAuditContractValuationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AuditContractValuation404JSONResponse Error
+
+func (response AuditContractValuation404JSONResponse) VisitAuditContractValuationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AuditContractValuation409JSONResponse Error
+
+func (response AuditContractValuation409JSONResponse) VisitAuditContractValuationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCustomersRequestObject struct {
+	Params ListCustomersParams
+}
+
+type ListCustomersResponseObject interface {
+	VisitListCustomersResponse(w http.ResponseWriter) error
+}
+
+type ListCustomers200JSONResponse CustomerPage
+
+func (response ListCustomers200JSONResponse) VisitListCustomersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCustomers401JSONResponse struct{ ErrorJSONResponse }
+
+func (response ListCustomers401JSONResponse) VisitListCustomersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCustomerRequestObject struct {
+	Body *CreateCustomerJSONRequestBody
+}
+
+type CreateCustomerResponseObject interface {
+	VisitCreateCustomerResponse(w http.ResponseWriter) error
+}
+
+type CreateCustomer201JSONResponse Customer
+
+func (response CreateCustomer201JSONResponse) VisitCreateCustomerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCustomer400JSONResponse struct{ ErrorJSONResponse }
+
+func (response CreateCustomer400JSONResponse) VisitCreateCustomerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCustomer401JSONResponse Error
+
+func (response CreateCustomer401JSONResponse) VisitCreateCustomerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCustomer403JSONResponse Error
+
+func (response CreateCustomer403JSONResponse) VisitCreateCustomerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCustomer409JSONResponse Error
+
+func (response CreateCustomer409JSONResponse) VisitCreateCustomerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmCustomerRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type ConfirmCustomerResponseObject interface {
+	VisitConfirmCustomerResponse(w http.ResponseWriter) error
+}
+
+type ConfirmCustomer200JSONResponse Customer
+
+func (response ConfirmCustomer200JSONResponse) VisitConfirmCustomerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmCustomer401JSONResponse struct{ ErrorJSONResponse }
+
+func (response ConfirmCustomer401JSONResponse) VisitConfirmCustomerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmCustomer404JSONResponse Error
+
+func (response ConfirmCustomer404JSONResponse) VisitConfirmCustomerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmCustomer409JSONResponse Error
+
+func (response ConfirmCustomer409JSONResponse) VisitConfirmCustomerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -848,6 +1826,27 @@ type StrictServerInterface interface {
 	// (GET /auth/me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
 
+	// (GET /contracts)
+	ListContracts(ctx context.Context, request ListContractsRequestObject) (ListContractsResponseObject, error)
+
+	// (POST /contracts)
+	CreateContract(ctx context.Context, request CreateContractRequestObject) (CreateContractResponseObject, error)
+
+	// (GET /contracts/{id})
+	GetContract(ctx context.Context, request GetContractRequestObject) (GetContractResponseObject, error)
+
+	// (POST /contracts/{id}/audit-valuation)
+	AuditContractValuation(ctx context.Context, request AuditContractValuationRequestObject) (AuditContractValuationResponseObject, error)
+
+	// (GET /customers)
+	ListCustomers(ctx context.Context, request ListCustomersRequestObject) (ListCustomersResponseObject, error)
+
+	// (POST /customers)
+	CreateCustomer(ctx context.Context, request CreateCustomerRequestObject) (CreateCustomerResponseObject, error)
+
+	// (POST /customers/{id}/confirm)
+	ConfirmCustomer(ctx context.Context, request ConfirmCustomerRequestObject) (ConfirmCustomerResponseObject, error)
+
 	// (GET /factories)
 	ListFactories(ctx context.Context, request ListFactoriesRequestObject) (ListFactoriesResponseObject, error)
 
@@ -951,6 +1950,205 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMeResponseObject); ok {
 		if err := validResponse.VisitGetMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListContracts operation middleware
+func (sh *strictHandler) ListContracts(w http.ResponseWriter, r *http.Request, params ListContractsParams) {
+	var request ListContractsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListContracts(ctx, request.(ListContractsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListContracts")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListContractsResponseObject); ok {
+		if err := validResponse.VisitListContractsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateContract operation middleware
+func (sh *strictHandler) CreateContract(w http.ResponseWriter, r *http.Request) {
+	var request CreateContractRequestObject
+
+	var body CreateContractJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateContract(ctx, request.(CreateContractRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateContract")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateContractResponseObject); ok {
+		if err := validResponse.VisitCreateContractResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetContract operation middleware
+func (sh *strictHandler) GetContract(w http.ResponseWriter, r *http.Request, id int64) {
+	var request GetContractRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetContract(ctx, request.(GetContractRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetContract")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetContractResponseObject); ok {
+		if err := validResponse.VisitGetContractResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AuditContractValuation operation middleware
+func (sh *strictHandler) AuditContractValuation(w http.ResponseWriter, r *http.Request, id int64) {
+	var request AuditContractValuationRequestObject
+
+	request.Id = id
+
+	var body AuditContractValuationJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AuditContractValuation(ctx, request.(AuditContractValuationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AuditContractValuation")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AuditContractValuationResponseObject); ok {
+		if err := validResponse.VisitAuditContractValuationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListCustomers operation middleware
+func (sh *strictHandler) ListCustomers(w http.ResponseWriter, r *http.Request, params ListCustomersParams) {
+	var request ListCustomersRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListCustomers(ctx, request.(ListCustomersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListCustomers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListCustomersResponseObject); ok {
+		if err := validResponse.VisitListCustomersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateCustomer operation middleware
+func (sh *strictHandler) CreateCustomer(w http.ResponseWriter, r *http.Request) {
+	var request CreateCustomerRequestObject
+
+	var body CreateCustomerJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateCustomer(ctx, request.(CreateCustomerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateCustomer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateCustomerResponseObject); ok {
+		if err := validResponse.VisitCreateCustomerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfirmCustomer operation middleware
+func (sh *strictHandler) ConfirmCustomer(w http.ResponseWriter, r *http.Request, id int64) {
+	var request ConfirmCustomerRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfirmCustomer(ctx, request.(ConfirmCustomerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfirmCustomer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConfirmCustomerResponseObject); ok {
+		if err := validResponse.VisitConfirmCustomerResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -1094,29 +2292,49 @@ func (sh *strictHandler) ConfirmProject(w http.ResponseWriter, r *http.Request, 
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"vFdtbxO5E/8qlv//FyAtSUoqJPKuIMpxUK6ioJMOqpO7O7sxXduLPVuaq/LdT37Ixsk6aXpJedV0PZ75",
-	"zW8efUdzJRolQaKhkzuqwTRKGnD/vNFaafsjVxJBov3JmqbmOUOu5PC7UdJ+M/kUBLO//q+hpBP6v+FS",
-	"69CfmqHXNp/PM1qAyTVvrBI6oYuDLChatd1o1YBG7iHlqgD7F26ZaGqgE8rlDat58XeuoQCJnNWGZhRn",
-	"jT00qLms6DyjAoxhlbu7djbPqIYfLddQ0MlXb2Epf9npUlffIUer65TlqPRsM7qedV7Yz6XSgqHDjC+O",
-	"lyi5RKhAW8FrLp0oyFZYNOqnpBlVLRrV6jyGs1QumdjBL17QbOGcuxGMpRz8DViN075/Bhm2ZpV/dZ2i",
-	"+wa04T47tsMKKpc3Ung+qIrLT/CjBYN9VA0z5qfSjjfB5QeQlQV/lIDVGtALuraKrqHs7mVLa1uA+hrq",
-	"I0V1DTKZINbAfQX0xcqsI/Mqg4IUpDPYjEeA9OHkCMLcZ/8MZPsOQdB5Z4ZpzWZ74XcXs4AkjT9Y7Vfb",
-	"lNeFBnkQB3iu5H6l2zBfMqvN7VS73lkQrVoEYoUyAoNqQIaG1TBstLKeJnsWcqx3rWwvG1CkeDz3hvo0",
-	"sqLQYEzS+Y0NLVey5FpAEZ1eKVUDk+5YA0MoTnCFu4IhPEPuyqiv0V95NUvaK33LfbdrMMq2rj+m++J/",
-	"6Mbbkirw+t6K2hE2VRo/7t6Rl4513bnDHmvLujgFWHEMYvZi8rfkwWsntDUbBLtdNMjxaJRtzo5I8MVx",
-	"dl8P3ieUkaXno9G9pvaNX2TuKMHAWjy3hXJLJN6vj3xZc2kvq7J0v1IzP9w9Z1Uihl0z3KkrBlWppogK",
-	"Wb1TmNZT2xleKEg5/yUMjFXkBTdNzWb7Vy43J4XgMt2d4i1ghxKNhn+Mb2mk759NJMhbzXF2YWn23l0B",
-	"06BPWpwu/ztd+PL7n59p2IAdXHe69G2K2PjlmctS9efMBZdVDcSviUSVBHWLU1IqTXAK5Irl13YKPXmr",
-	"MqJYw5/ZDK1APiVMFk6kDJPqm3zyedbAhVNOrHlDbjgjqgFpL7ov7jAjBQj1TKgCiFD5tXk6+CY/cwEG",
-	"mWgMYRrIp9PX4/H4JfEEm8E32Q2rCX37Fzl7c0FOzt9FC+CEjgZHg5ENVDBJJ3Q8GA3GYbw5Loesxemw",
-	"tvuW/bdRfjO0yeQeJ7a9+HWM+pCCwVeqmB3sObOyk85XEwd1C+5D9Jh6Phod2rbXnnpSfVBVBQXhLt2P",
-	"R0ebFHYIh9EjLCQunXy1ic0qYyvB0k0v7bln3ldPBQnW3wKeAX1E989gm++vW61BIrFl65L7hht+VQPx",
-	"O+bDCUlQ4Ft9aFqBhLW9byHRmUflyiyP4A1otp6x3GB3dV8Od2r/i8dsr/33mf3j/R7smZlBEIG/affA",
-	"3JRB4Qn6iFkULGzwc2MhrPjRbe+bPLHxPF+u+A3TTACCtqruKLfWfrSgZ4tH+YQ2dqRnkQ8FlKyt0W04",
-	"gksuWhFvO9EITis0/J8NCp/bDYrdeo2LferB+q9h5t7DsYn1qXr5iHGMV6GDJy2rgV7Osw3zxS/RAcAj",
-	"zZnVfX2nQXN0aOPJNutfGZ7c0c7kPiwUVnr8IOmXe4Q5rujhHS/mw/DEijeMNRa8AJcVqe0G5Fp80EFY",
-	"xbg0SMpW4xQ0gYKj6ff8oGOZRqku4d71Xc25vXQ1DeLyu39d/wUFeZhitNLHvy4DVtv+6sr+9dLSZkDf",
-	"LCLT6ppO6NCuqPPL+b8DAA==",
+	"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",
+	"u1bXamOfWOPt8X8GAA==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

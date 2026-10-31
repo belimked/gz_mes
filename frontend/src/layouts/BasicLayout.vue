@@ -97,8 +97,9 @@ function fullscreen() {
       >
         <a-menu-item key="/">
           <template #icon>
-            <MenuIcon name="dashboard" /> </template
-          >首页
+            <MenuIcon name="dashboard" />
+          </template>
+          首页
         </a-menu-item>
         <template v-for="m in auth.menus" :key="m.path">
           <a-sub-menu v-if="m.children?.length" :key="m.path">
@@ -110,8 +111,9 @@ function fullscreen() {
           </a-sub-menu>
           <a-menu-item v-else :key="m.path">
             <template #icon>
-              <MenuIcon :name="m.icon" /> </template
-            >{{ m.title }}
+              <MenuIcon :name="m.icon" />
+            </template>
+            {{ m.title }}
           </a-menu-item>
         </template>
       </a-menu>
