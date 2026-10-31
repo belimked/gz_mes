@@ -3,30 +3,17 @@ import type { components } from '../schema'
 
 type S = components['schemas']
 
-export interface DemoUser {
-  id: number
-  username: string
-  password: string
-  displayName: string
-  isAdmin: boolean
-  factoryIds: number[]
-  menuIds: number[]
-}
+export type DemoUser = S['UserDetail'] & { password: string }
 
 export const DEMO_ACCOUNTS = [
   { username: 'admin', password: 'admin123', note: '管理员，可看全部厂区' },
   { username: 'waixie', password: 'demo123', note: '外协厂账号，只能看外协厂A' },
 ]
 
-export const users: DemoUser[] = [
-  { id: 1, username: 'admin', password: 'admin123', displayName: '演示管理员', isAdmin: true, factoryIds: [], menuIds: [] },
-  { id: 2, username: 'waixie', password: 'demo123', displayName: '外协A操作员', isAdmin: false, factoryIds: [2], menuIds: [201, 203] },
-]
-
 export const factories: S['Factory'][] = [
-  { id: 1, code: 'F01', name: '本厂', kind: 'own' },
-  { id: 2, code: 'W01', name: '外协厂A', kind: 'outsource' },
-  { id: 3, code: 'W02', name: '外协厂B', kind: 'outsource' },
+  { id: 1, code: 'F01', name: '本厂', kind: 'own', isStop: false },
+  { id: 2, code: 'W01', name: '外协厂A', kind: 'outsource', isStop: false },
+  { id: 3, code: 'W02', name: '外协厂B', kind: 'outsource', isStop: false },
 ]
 
 // Mirrors backend/db/migrations/00001_init.sql.
@@ -49,6 +36,31 @@ export const menus: { id: number; parentId: number | null; title: string; path: 
   { id: 900, parentId: null, title: '财务管理', path: '/finance', icon: 'account-book' },
   { id: 901, parentId: 900, title: '工程批次对账', path: '/finance/batch-valuation' },
   { id: 902, parentId: 900, title: '发货对账查询', path: '/finance/deliver-accounts' },
+]
+
+export const users: DemoUser[] = [
+  {
+    id: 1,
+    username: 'admin',
+    password: 'admin123',
+    displayName: '演示管理员',
+    isAdmin: true,
+    enabled: true,
+    factoryIds: [],
+    menuIds: menus.map((m) => m.id),
+    createdAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 2,
+    username: 'waixie',
+    password: 'demo123',
+    displayName: '外协A操作员',
+    isAdmin: false,
+    enabled: true,
+    factoryIds: [2],
+    menuIds: [201, 203],
+    createdAt: '2026-01-01T00:00:00.000Z',
+  },
 ]
 
 const day = (d: number) => new Date(Date.UTC(2026, 0, d, 2, 30)).toISOString()

@@ -4,11 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 const placeholder = () => import('@/views/Placeholder.vue')
 
 // Planned modules: menus exist so navigation and permissions can already be tested.
-const planned: [string, string][] = [
-  ['system/factories', '厂区管理'],
-  ['system/users', '用户管理'],
-  ['finance/batch-valuation', '工程批次对账'],
-]
+const planned: [string, string][] = [['finance/batch-valuation', '工程批次对账']]
 
 const children: RouteRecordRaw[] = [
   { path: '', name: 'home', component: () => import('@/views/Home.vue'), meta: { title: '首页', public: true } },
@@ -65,6 +61,18 @@ const children: RouteRecordRaw[] = [
     name: 'deliver-accounts',
     component: () => import('@/views/finance/DeliverAccounts.vue'),
     meta: { title: '发货对账查询', group: '财务管理' },
+  },
+  {
+    path: 'system/factories',
+    name: 'factories',
+    component: () => import('@/views/system/Factories.vue'),
+    meta: { title: '厂区管理', group: '系统管理' },
+  },
+  {
+    path: 'system/users',
+    name: 'users',
+    component: () => import('@/views/system/Users.vue'),
+    meta: { title: '用户管理', group: '系统管理' },
   },
   ...planned.map(([path, title]): RouteRecordRaw => ({ path, component: placeholder, meta: { title } })),
 ]

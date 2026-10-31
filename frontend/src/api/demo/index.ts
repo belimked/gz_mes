@@ -2,7 +2,7 @@
 // Behaviour mirrors the Go backend (validation, factory isolation, error codes).
 import type { components } from '../schema'
 import {
-  factories,
+  factories as seedFactories,
   jobs,
   menus,
   seedBatchItems,
@@ -15,14 +15,16 @@ import {
   seedLabels,
   seedProjects,
   seedScans,
-  users,
+  users as seedUsers,
   type DemoUser,
 } from './data'
 
 type S = components['schemas']
 
 interface DemoDB {
-  version: 5
+  version: 6
+  factories: S['Factory'][]
+  users: DemoUser[]
   nextId: number
   docSeq: Record<string, number>
   handovers: S['Handover'][]
@@ -76,7 +78,9 @@ function fresh(): DemoDB {
     for (const note of deliveryNotes) if (note.accountId === oldId) note.accountId = account.id
   }
   return {
-    version: 5,
+    version: 6,
+    factories: seedFactories.map((f) => ({ ...f })),
+    users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
     nextId,
     docSeq: {},
     handovers,
@@ -99,12 +103,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 5) return parsed
+      if (parsed?.version === 6) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 5) memory = fresh()
+  if (memory?.version !== 6) memory = fresh()
   return memory
 }
 
@@ -123,10 +127,27 @@ const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 const fail = (status: number, code: string, message: string) => json(status, { code, message })
 
-function principal(req: Request): DemoUser | null {
+function principal(req: Request, db: DemoDB): DemoUser | null {
   const m = /^Bearer demo-token-(\d+)$/.exec(req.headers.get('Authorization') ?? '')
-  return m ? (users.find((u) => u.id === Number(m[1])) ?? null) : null
+  return m ? (db.users.find((u) => u.id === Number(m[1]) && u.enabled) ?? null) : null
 }
+
+function userDetail(u: DemoUser): S['UserDetail'] {
+  return {
+    id: u.id,
+    username: u.username,
+    displayName: u.displayName,
+    isAdmin: u.isAdmin,
+    enabled: u.enabled,
+    factoryIds: [...u.factoryIds],
+    menuIds: [...u.menuIds],
+    createdAt: u.createdAt,
+  }
+}
+
+const validIds = (value: unknown): value is number[] => Array.isArray(value) && value.every((id) => Number.isSafeInteger(id))
+const validReferences = (db: DemoDB, factoryIds: number[], menuIds: number[]) =>
+  factoryIds.every((id) => db.factories.some((f) => f.id === id)) && menuIds.every((id) => menus.some((m) => m.id === id))
 
 const inScope = (u: DemoUser, factoryId: number) => u.isAdmin || u.factoryIds.includes(factoryId)
 
@@ -219,18 +240,20 @@ export async function demoFetch(req: Request): Promise<Response> {
 
   if (route === 'GET /health') return json(200, { status: 'ok', version: 'demo' })
 
+  const db = load()
+  const { factories, users } = db
   if (route === 'POST /auth/login') {
     const b = await body(req)
     if (!b || !str(b.username) || !str(b.password)) return fail(400, 'invalid_request', '请输入用户名和密码')
     const u = users.find((x) => x.username === b.username && x.password === b.password)
-    if (!u) return fail(401, 'invalid_credentials', '用户名或密码错误')
+    if (!u?.enabled) return fail(401, 'invalid_credentials', '用户名或密码错误')
     return json(200, {
       token: `demo-token-${u.id}`,
       user: { id: u.id, username: u.username, displayName: u.displayName, isAdmin: u.isAdmin },
     })
   }
 
-  const u = principal(req)
+  const u = principal(req, db)
   if (!u) return fail(401, 'unauthorized', '请先登录')
 
   if (route === 'GET /auth/me') {
@@ -246,7 +269,127 @@ export async function demoFetch(req: Request): Promise<Response> {
       factories.filter((f) => inScope(u, f.id)),
     )
 
-  const db = load()
+  const factoryUpdate = /^PUT \/factories\/(\d+)$/.exec(route)
+  const userRoute = /^(GET|PUT) \/users\/(\d+)(\/password)?$/.exec(route)
+  if (
+    route === 'POST /factories' ||
+    factoryUpdate ||
+    route === 'GET /menus' ||
+    route === 'GET /users' ||
+    route === 'POST /users' ||
+    userRoute
+  ) {
+    if (!u.isAdmin) return fail(403, 'forbidden', '仅管理员可操作')
+  }
+
+  if (route === 'POST /factories') {
+    const b = await body(req)
+    const code = str(b?.code)
+    const name = str(b?.name)
+    if (!code || !name || (b?.kind !== 'own' && b?.kind !== 'outsource')) return fail(400, 'invalid_request', '厂区编码、名称或类型不合法')
+    if (factories.some((f) => f.code === code)) return fail(409, 'duplicate_code', '厂区编码已存在')
+    const factory: S['Factory'] = { id: Math.max(0, ...factories.map((f) => f.id)) + 1, code, name, kind: b.kind, isStop: false }
+    factories.push(factory)
+    save(db)
+    return json(201, factory)
+  }
+
+  if (factoryUpdate) {
+    const factory = factories.find((f) => f.id === Number(factoryUpdate[1]))
+    if (!factory) return fail(404, 'not_found', '厂区不存在')
+    const b = await body(req)
+    if (!str(b?.name) || typeof b?.isStop !== 'boolean') return fail(400, 'invalid_request', '厂区名称或停用状态不合法')
+    factory.name = str(b.name)
+    factory.isStop = b.isStop
+    save(db)
+    return json(200, factory)
+  }
+
+  if (route === 'GET /menus') return json(200, menuTree(u))
+
+  if (route === 'GET /users') {
+    const page = Number(url.searchParams.get('page') ?? 1)
+    const size = Number(url.searchParams.get('size') ?? 20)
+    if (!validPage(page, size)) return fail(400, 'invalid_request', 'page/size 参数不合法')
+    const enabled = url.searchParams.get('enabled')
+    if (enabled !== null && enabled !== 'true' && enabled !== 'false') return fail(400, 'invalid_request', 'enabled 参数不合法')
+    const kw = (url.searchParams.get('keyword') ?? '').trim().toLowerCase()
+    const all = users
+      .filter((x) => !kw || [x.username, x.displayName].some((s) => s.toLowerCase().includes(kw)))
+      .filter((x) => enabled === null || x.enabled === (enabled === 'true'))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id)
+    return json(200, { items: all.slice((page - 1) * size, page * size).map(userDetail), total: all.length })
+  }
+
+  if (route === 'POST /users') {
+    const b = await body(req)
+    const username = str(b?.username)
+    const displayName = str(b?.displayName)
+    if (
+      !/^[a-zA-Z0-9_.-]{2,32}$/.test(username) ||
+      !displayName ||
+      typeof b?.password !== 'string' ||
+      b.password.length < 6 ||
+      (b.isAdmin !== undefined && typeof b.isAdmin !== 'boolean') ||
+      (b.factoryIds !== undefined && !validIds(b.factoryIds)) ||
+      (b.menuIds !== undefined && !validIds(b.menuIds))
+    )
+      return fail(400, 'invalid_request', '用户参数不合法')
+    const isAdmin = b.isAdmin === true
+    const factoryIds = (b.factoryIds ?? []) as number[]
+    const menuIds = (b.menuIds ?? []) as number[]
+    if (!isAdmin && !factoryIds.length) return fail(400, 'invalid_request', '非管理员用户至少需要一个厂区')
+    if (!validReferences(db, factoryIds, menuIds)) return fail(400, 'invalid_reference', '厂区或菜单不存在')
+    if (users.some((x) => x.username === username)) return fail(409, 'duplicate_code', '用户名已存在')
+    const created: DemoUser = {
+      id: Math.max(0, ...users.map((x) => x.id)) + 1,
+      username,
+      displayName,
+      password: b.password,
+      isAdmin,
+      enabled: true,
+      factoryIds: [...new Set(factoryIds)],
+      menuIds: [...new Set(menuIds)],
+      createdAt: new Date().toISOString(),
+    }
+    users.push(created)
+    save(db)
+    return json(201, userDetail(created))
+  }
+
+  if (userRoute) {
+    const target = users.find((x) => x.id === Number(userRoute[2]))
+    if (!target) return fail(404, 'not_found', '用户不存在')
+    if (userRoute[1] === 'GET' && !userRoute[3]) return json(200, userDetail(target))
+    if (userRoute[1] === 'PUT' && userRoute[3] === '/password') {
+      const b = await body(req)
+      if (typeof b?.password !== 'string' || b.password.length < 6) return fail(400, 'invalid_request', '密码至少需要6位')
+      target.password = b.password
+      save(db)
+      return new Response(null, { status: 204 })
+    }
+    if (userRoute[1] === 'PUT' && !userRoute[3]) {
+      const b = await body(req)
+      if (
+        !str(b?.displayName) ||
+        typeof b?.enabled !== 'boolean' ||
+        typeof b.isAdmin !== 'boolean' ||
+        !validIds(b.factoryIds) ||
+        !validIds(b.menuIds)
+      )
+        return fail(400, 'invalid_request', '用户参数不合法')
+      if (target.id === u.id && (!b.enabled || !b.isAdmin)) return fail(409, 'self_lock', '不能停用自己或取消自己的管理员权限')
+      if (!b.isAdmin && !b.factoryIds.length) return fail(400, 'invalid_request', '非管理员用户至少需要一个厂区')
+      if (!validReferences(db, b.factoryIds, b.menuIds)) return fail(400, 'invalid_reference', '厂区或菜单不存在')
+      target.displayName = str(b.displayName)
+      target.enabled = b.enabled
+      target.isAdmin = b.isAdmin
+      target.factoryIds = [...new Set(b.factoryIds)]
+      target.menuIds = [...new Set(b.menuIds)]
+      save(db)
+      return json(200, userDetail(target))
+    }
+  }
 
   if (route === 'GET /projects') {
     const page = Number(url.searchParams.get('page') ?? 1)
