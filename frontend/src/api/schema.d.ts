@@ -1598,6 +1598,12 @@ export interface components {
       area: number
       /** @description Pieces shipped that day (delivery note deliveredAt) */
       deliveredQty: number
+      /** Format: double */
+      deliveredArea: number
+      /** @description Distinct batches with at least one scan that day */
+      activeBatches: number
+      /** @description Batches that became done that day (status done, updatedAt date) */
+      doneBatches: number
     }
     CustomerArea: {
       /**

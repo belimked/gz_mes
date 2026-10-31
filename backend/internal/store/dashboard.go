@@ -29,10 +29,13 @@ type JobLoad struct {
 	Area             float64
 }
 type DailyScan struct {
-	Date         time.Time
-	Qty          int
-	Area         float64
-	DeliveredQty int
+	Date          time.Time
+	Qty           int
+	Area          float64
+	DeliveredQty  int
+	DeliveredArea float64
+	ActiveBatches int
+	DoneBatches   int
 }
 type CustomerArea struct {
 	CustomerID   *int64
@@ -112,9 +115,13 @@ func (s *Store) GetDashboard(ctx context.Context, sc auth.Scope, days int) (*Das
 	if err != nil {
 		return nil, err
 	}
-	rows, err = s.db.Query(ctx, `SELECT dates.dt::date,coalesce(sc.qty,0)::int,coalesce(sc.area,0)::float8,coalesce(sh.qty,0)::int FROM generate_series(current_date-($3::int-1),current_date,'1 day'::interval) dates(dt)
- LEFT JOIN (SELECT sr.scanned_at::date dt,count(*) qty,sum(bi.piece_area) area FROM scan_record sr JOIN batch b ON b.id=sr.batch_id JOIN label l ON l.id=sr.label_id JOIN batch_item bi ON bi.id=l.batch_item_id WHERE ($1 OR b.factory_id=ANY($2)) AND sr.scanned_at::date BETWEEN current_date-($3::int-1) AND current_date GROUP BY 1) sc ON sc.dt=dates.dt
- LEFT JOIN (SELECT dn.delivered_at dt,sum(dn.qty) qty FROM delivery_note dn JOIN batch b ON b.id=dn.batch_id WHERE ($1 OR b.factory_id=ANY($2)) AND dn.delivered_at BETWEEN current_date-($3::int-1) AND current_date GROUP BY 1) sh ON sh.dt=dates.dt ORDER BY dates.dt`, sc.All, sc.FactoryIDs, days)
+	rows, err = s.db.Query(ctx, `SELECT dates.dt::date,coalesce(sc.qty,0)::int,coalesce(sc.area,0)::float8,
+ coalesce(sh.qty,0)::int,coalesce(sh.area,0)::float8,coalesce(sc.active_batches,0)::int,coalesce(done.qty,0)::int
+ FROM generate_series(current_date-($3::int-1),current_date,'1 day'::interval) dates(dt)
+ LEFT JOIN (SELECT sr.scanned_at::date dt,count(*) qty,sum(bi.piece_area) area,count(DISTINCT sr.batch_id) active_batches FROM scan_record sr JOIN batch b ON b.id=sr.batch_id JOIN label l ON l.id=sr.label_id JOIN batch_item bi ON bi.id=l.batch_item_id WHERE ($1 OR b.factory_id=ANY($2)) AND sr.scanned_at::date BETWEEN current_date-($3::int-1) AND current_date GROUP BY 1) sc ON sc.dt=dates.dt
+ LEFT JOIN (SELECT dn.delivered_at dt,sum(dn.qty) qty,sum(dn.area) area FROM delivery_note dn JOIN batch b ON b.id=dn.batch_id WHERE ($1 OR b.factory_id=ANY($2)) AND dn.delivered_at BETWEEN current_date-($3::int-1) AND current_date GROUP BY 1) sh ON sh.dt=dates.dt
+ LEFT JOIN (SELECT b.updated_at::date dt,count(*) qty FROM batch b WHERE b.status='done' AND ($1 OR b.factory_id=ANY($2)) AND b.updated_at::date BETWEEN current_date-($3::int-1) AND current_date GROUP BY 1) done ON done.dt=dates.dt
+ ORDER BY dates.dt`, sc.All, sc.FactoryIDs, days)
 	if err != nil {
 		return nil, err
 	}

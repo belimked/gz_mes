@@ -21,6 +21,11 @@ func TestDashboard(t *testing.T) {
 			t.Fatalf("nonempty status: %+v", v)
 		}
 	}
+	for _, v := range d.ScanTrend {
+		if v.ActiveBatches != 0 || v.DoneBatches != 0 || v.DeliveredArea != 0 {
+			t.Fatalf("nonempty scan trend: %+v", v)
+		}
+	}
 	if code := e.do("GET", "/dashboard?days=5", admin, nil, nil); code != 400 {
 		t.Fatalf("invalid days: %d", code)
 	}
@@ -67,6 +72,10 @@ func TestDashboard(t *testing.T) {
 	if len(d.ActiveBatches) != 1 || d.ActiveBatches[0].CurrentSeq != 2 || d.ActiveBatches[0].Progress <= 0 {
 		t.Errorf("active: %+v", d.ActiveBatches)
 	}
+	today := d.ScanTrend[len(d.ScanTrend)-1]
+	if today.Qty != 4 || today.ActiveBatches != 1 || today.DoneBatches != 0 || today.DeliveredArea != 0 {
+		t.Errorf("scan trend today: %+v", today)
+	}
 	if len(d.CustomerArea) == 0 || len(d.RecentScans) != 4 {
 		t.Errorf("customer / scans: %+v %+v", d.CustomerArea, d.RecentScans)
 	}
@@ -81,5 +90,10 @@ func TestDashboard(t *testing.T) {
 	e.outsourceUser("dashboard-wa", e.outA)
 	if code := e.do("GET", "/dashboard", e.login("dashboard-wa", "pw-dashboard-wa"), nil, &d); code != 200 || d.Kpi.InProduction != 0 || len(d.RecentScans) != 0 {
 		t.Errorf("scope: %d %+v", code, d)
+	}
+	for _, v := range d.ScanTrend {
+		if v.ActiveBatches != 0 || v.DoneBatches != 0 || v.DeliveredArea != 0 {
+			t.Errorf("scoped scan trend: %+v", v)
+		}
 	}
 }

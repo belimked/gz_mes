@@ -1851,12 +1851,15 @@ components:
 
     DailyScan:
       type: object
-      required: [date, qty, area, deliveredQty]
+      required: [date, qty, area, deliveredQty, deliveredArea, activeBatches, doneBatches]
       properties:
         date: { type: string, format: date }
         qty: { type: integer, description: "Scans that day" }
         area: { type: number, format: double }
         deliveredQty: { type: integer, description: "Pieces shipped that day (delivery note deliveredAt)" }
+        deliveredArea: { type: number, format: double }
+        activeBatches: { type: integer, description: "Distinct batches with at least one scan that day" }
+        doneBatches: { type: integer, description: "Batches that became done that day (status done, updatedAt date)" }
 
     CustomerArea:
       type: object
