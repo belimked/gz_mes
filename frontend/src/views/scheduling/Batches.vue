@@ -76,24 +76,20 @@ const notify = () => message.info('演示模式：此操作暂不保存')
     </div>
     <FilterCard @search="search" @reset="reset">
       <template #default="{ expanded }">
-        <label>批次号<a-input v-model:value="form.keyword" placeholder="PC-20241018-01" allow-clear />
+        <label>批次号<a-input v-model:value="form.keyword" placeholder="PC-20241018-01" allow-clear /> </label>
+        <label>工程项目<a-input v-model:value="form.project" placeholder="输入项目名称" allow-clear /> </label>
+        <label
+          >生产状态<a-select
+            v-model:value="form.status"
+            allow-clear
+            placeholder="全部状态"
+            :options="['生产中', '已完工', '加急逾期', '待排产'].map((x) => ({ label: x, value: x }))"
+          />
         </label>
-        <label>工程项目<a-input v-model:value="form.project" placeholder="输入项目名称" allow-clear />
-        </label>
-        <label>生产状态<a-select
-          v-model:value="form.status"
-          allow-clear
-          placeholder="全部状态"
-          :options="['生产中', '已完工', '加急逾期', '待排产'].map((x) => ({ label: x, value: x }))"
-        />
-        </label>
-        <label>交付日期<a-range-picker v-model:value="form.date" value-format="YYYY-MM-DD" />
-        </label>
+        <label>交付日期<a-range-picker v-model:value="form.date" value-format="YYYY-MM-DD" /> </label>
         <template v-if="expanded">
-          <label>材质厚度<a-input v-model:value="form.material" placeholder="如 3.0" />
-          </label>
-          <label>颜色色号<a-input v-model:value="form.color" placeholder="如 RAL 7016" />
-          </label>
+          <label>材质厚度<a-input v-model:value="form.material" placeholder="如 3.0" /> </label>
+          <label>颜色色号<a-input v-model:value="form.color" placeholder="如 RAL 7016" /> </label>
         </template>
       </template>
     </FilterCard>
@@ -191,11 +187,19 @@ const notify = () => message.info('演示模式：此操作暂不保存')
       <div class="summary">
         <b>当前页数据汇总合计:</b>
         <span>当前筛选: {{ visible.length }} 个批次</span>
-        <span>总件数: <b>{{ totals.quantity }}</b> 件</span>
-        <span>总展开面积: <b>{{ totals.area }}</b> m²</span>
-        <span>总计价面积: <b>{{ totals.price }}</b> m²</span>
-        <span>生产中 {{ visible.filter((x) => x.status === '生产中').length }} · 已完工
-          {{ visible.filter((x) => x.status === '已完工').length }} · 加急逾期 {{ visible.filter((x) => x.urgent).length }}</span>
+        <span
+          >总件数: <b>{{ totals.quantity }}</b> 件</span
+        >
+        <span
+          >总展开面积: <b>{{ totals.area }}</b> m²</span
+        >
+        <span
+          >总计价面积: <b>{{ totals.price }}</b> m²</span
+        >
+        <span
+          >生产中 {{ visible.filter((x) => x.status === '生产中').length }} · 已完工
+          {{ visible.filter((x) => x.status === '已完工').length }} · 加急逾期 {{ visible.filter((x) => x.urgent).length }}</span
+        >
         <span>数据更新: 10:48</span>
       </div>
     </PageCard>
@@ -208,15 +212,9 @@ const notify = () => message.info('演示模式：此操作暂不保存')
         <a-tabs v-model:active-key="tab">
           <a-tab-pane key="基本信息" tab="基本信息" />
           <a-tab-pane key="11道工序全景" tab="11道工序全景 ●" />
-          <a-tab-pane
-            key="一物一码构件清单"
-            :tab="`一物一码构件清单(${selected.quantity})`"
-          />
+          <a-tab-pane key="一物一码构件清单" :tab="`一物一码构件清单(${selected.quantity})`" />
           <a-tab-pane key="质检记录" tab="质检记录 (QC)" />
-          <a-tab-pane
-            key="发货物流"
-            tab="发货物流"
-          />
+          <a-tab-pane key="发货物流" tab="发货物流" />
         </a-tabs>
         <div v-if="tab === '基本信息'" class="drawer-body">
           <div class="barcode">
@@ -225,9 +223,7 @@ const notify = () => message.info('演示模式：此操作暂不保存')
               <div class="uid">{{ selected.uid }}</div>
               <small>派工时间: {{ selected.start }} 09:30 · 责任班组: {{ selected.team }}</small>
             </div>
-            <div class="qr">
-              ▦<small>扫码报工</small>
-            </div>
+            <div class="qr">▦<small>扫码报工</small></div>
           </div>
           <h3>批次工程要素信息</h3>
           <a-descriptions bordered :column="2" size="small">
@@ -257,9 +253,7 @@ const notify = () => message.info('演示模式：此操作暂不保存')
         <div v-else-if="tab === '一物一码构件清单'" class="drawer-body">
           <a-list bordered :data-source="selected.components">
             <template #renderItem="{ item }">
-              <a-list-item>
-                <CodeText :value="item.code" /> · {{ item.spec }} · × {{ item.quantity }} 件
-              </a-list-item>
+              <a-list-item> <CodeText :value="item.code" /> · {{ item.spec }} · × {{ item.quantity }} 件 </a-list-item>
             </template>
           </a-list>
         </div>

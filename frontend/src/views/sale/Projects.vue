@@ -159,7 +159,8 @@ onMounted(async () => {
     </div>
     <FilterCard @search="search" @reset="reset">
       <template #default="{ expanded }">
-        <label>关键字
+        <label
+          >关键字
           <a-input
             v-model:value="filters.keyword"
             placeholder="项目编号 / 名称 / 简称"
@@ -168,7 +169,8 @@ onMounted(async () => {
             @press-enter="search"
           />
         </label>
-        <label>厂区
+        <label
+          >厂区
           <a-select
             v-model:value="filters.factoryId"
             allow-clear
@@ -177,7 +179,8 @@ onMounted(async () => {
             :disabled="!auth.user?.isAdmin"
           />
         </label>
-        <label>类型
+        <label
+          >类型
           <a-select
             v-model:value="filters.kind"
             allow-clear
@@ -188,7 +191,8 @@ onMounted(async () => {
             ]"
           />
         </label>
-        <label>确认状态
+        <label
+          >确认状态
           <a-select
             v-model:value="filters.confirmed"
             allow-clear
@@ -199,7 +203,8 @@ onMounted(async () => {
             ]"
           />
         </label>
-        <label v-if="expanded">创建日期
+        <label v-if="expanded"
+          >创建日期
           <a-range-picker v-model:value="filters.dates" value-format="YYYY-MM-DD" />
         </label>
       </template>

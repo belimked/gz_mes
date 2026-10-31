@@ -7,8 +7,6 @@ const placeholder = () => import('@/views/Placeholder.vue')
 const planned: [string, string][] = [
   ['system/factories', '厂区管理'],
   ['system/users', '用户管理'],
-  ['sale/customers', '客户管理'],
-  ['sale/contracts', '合同查询'],
   ['production/area-tables', '面积表查询'],
   ['production/handovers', '交接单管理'],
   ['delivery/notes', '发货查询'],
@@ -18,8 +16,30 @@ const planned: [string, string][] = [
 
 const children: RouteRecordRaw[] = [
   { path: '', name: 'home', component: () => import('@/views/Home.vue'), meta: { title: '首页', public: true } },
-  { path: 'sale/projects', name: 'projects', component: () => import('@/views/sale/Projects.vue'), meta: { title: '项目管理', group: '销售管理' } },
-  { path: 'scheduling/batches', name: 'batches', component: () => import('@/views/scheduling/Batches.vue'), meta: { title: '生产批次查询', group: '排程管理' } },
+  {
+    path: 'sale/projects',
+    name: 'projects',
+    component: () => import('@/views/sale/Projects.vue'),
+    meta: { title: '项目管理', group: '销售管理' },
+  },
+  {
+    path: 'sale/customers',
+    name: 'customers',
+    component: () => import('@/views/sale/Customers.vue'),
+    meta: { title: '客户管理', group: '销售管理' },
+  },
+  {
+    path: 'sale/contracts',
+    name: 'contracts',
+    component: () => import('@/views/sale/Contracts.vue'),
+    meta: { title: '合同查询', group: '销售管理' },
+  },
+  {
+    path: 'scheduling/batches',
+    name: 'batches',
+    component: () => import('@/views/scheduling/Batches.vue'),
+    meta: { title: '生产批次查询', group: '排程管理' },
+  },
   ...planned.map(([path, title]): RouteRecordRaw => ({ path, component: placeholder, meta: { title } })),
 ]
 

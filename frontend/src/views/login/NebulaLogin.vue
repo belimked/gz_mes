@@ -15,7 +15,9 @@ const steps = ['合同', '排程', '标签', '扫码', '发货', '对账']
     <div class="nebula" aria-hidden="true"><span class="n1" /><span class="n2" /><span class="n3" /><span class="n4" /></div>
     <div class="wrap">
       <section class="intro">
-        <div class="brand"><BrandLogo bg="linear-gradient(135deg,#e879f9,#8b5cf6)" /> <span>{{ brand.name }}</span></div>
+        <div class="brand">
+          <BrandLogo bg="linear-gradient(135deg,#e879f9,#8b5cf6)" /> <span>{{ brand.name }}</span>
+        </div>
         <h2>把工厂的每一步<br /><em>连成一条光带</em></h2>
         <p>{{ brand.subtitle }}。从销售合同到发货对账，一个系统，一条数据链。</p>
         <ol class="chain">
@@ -52,18 +54,12 @@ const steps = ['合同', '排程', '标签', '扫码', '发货', '对账']
   position: absolute;
   inset: 0;
   background-image:
-    radial-gradient(1px 1px at 12% 18%, #fff 50%, transparent 51%),
-    radial-gradient(1px 1px at 28% 72%, #fff 50%, transparent 51%),
-    radial-gradient(1.5px 1.5px at 41% 33%, #fff 50%, transparent 51%),
-    radial-gradient(1px 1px at 57% 86%, #fff 50%, transparent 51%),
-    radial-gradient(1px 1px at 66% 12%, #fff 50%, transparent 51%),
-    radial-gradient(1.5px 1.5px at 79% 48%, #fff 50%, transparent 51%),
-    radial-gradient(1px 1px at 88% 78%, #fff 50%, transparent 51%),
-    radial-gradient(1px 1px at 93% 24%, #fff 50%, transparent 51%),
-    radial-gradient(1px 1px at 6% 56%, #fff 50%, transparent 51%),
-    radial-gradient(1px 1px at 35% 94%, #fff 50%, transparent 51%),
-    radial-gradient(1px 1px at 50% 6%, #fff 50%, transparent 51%),
-    radial-gradient(1px 1px at 73% 64%, #fff 50%, transparent 51%);
+    radial-gradient(1px 1px at 12% 18%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 28% 72%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 41% 33%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 57% 86%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 66% 12%, #fff 50%, transparent 51%), radial-gradient(1.5px 1.5px at 79% 48%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 88% 78%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 93% 24%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 6% 56%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 35% 94%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 50% 6%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 73% 64%, #fff 50%, transparent 51%);
   background-size: 100% 100%;
   opacity: 0.7;
   animation: twinkle 5s ease-in-out infinite alternate;
@@ -196,7 +192,9 @@ h2 em {
   height: 10px;
   border-radius: 50%;
   background: #e879f9;
-  box-shadow: 0 0 0 4px rgb(232 121 249 / 20%), 0 0 16px #e879f9;
+  box-shadow:
+    0 0 0 4px rgb(232 121 249 / 20%),
+    0 0 16px #e879f9;
   animation: pulse 3s ease-in-out infinite;
   animation-delay: calc(var(--i) * 0.4s);
 }

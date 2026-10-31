@@ -20,13 +20,16 @@ const metrics = [
     <div class="streaks" aria-hidden="true"><i /><i /><i /><i /><i /></div>
     <div class="wrap">
       <section class="intro">
-        <div class="brand"><BrandLogo bg="linear-gradient(135deg,#fb923c,#f43f5e)" /> <span>{{ brand.name }}</span></div>
+        <div class="brand">
+          <BrandLogo bg="linear-gradient(135deg,#fb923c,#f43f5e)" /> <span>{{ brand.name }}</span>
+        </div>
         <span class="pill"><i /> 车间在线 · 工序实时回传</span>
         <h2>从一张合同<br /><em>到一车铝板</em></h2>
         <p>{{ brand.subtitle }}。排程、面积表、标签、扫码、发货、对账，全部在一个系统里完成。</p>
         <div class="metrics">
           <div v-for="m in metrics" :key="m.label">
-            <b>{{ m.value }}</b><span>{{ m.label }}</span>
+            <b>{{ m.value }}</b
+            ><span>{{ m.label }}</span>
           </div>
         </div>
       </section>

@@ -19,13 +19,16 @@ const metrics = [
     <div class="grain" aria-hidden="true" />
     <div class="wrap">
       <section class="intro">
-        <div class="brand"><BrandLogo bg="linear-gradient(135deg,#7c6cff,#22d3ee)" /> <span>{{ brand.name }}</span></div>
+        <div class="brand">
+          <BrandLogo bg="linear-gradient(135deg,#7c6cff,#22d3ee)" /> <span>{{ brand.name }}</span>
+        </div>
         <span class="pill"><i /> 系统运行中 · 全流程数字化</span>
         <h2>让每一块板<br /><em>在数据里流动</em></h2>
         <p>{{ brand.subtitle }}。合同、排程、扫码、发货、对账，一条数据链贯通。</p>
         <div class="metrics">
           <div v-for="m in metrics" :key="m.label">
-            <b>{{ m.value }}</b><span>{{ m.label }}</span>
+            <b>{{ m.value }}</b
+            ><span>{{ m.label }}</span>
           </div>
         </div>
       </section>

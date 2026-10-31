@@ -47,9 +47,7 @@ function reset() {
     <PageCard class="title-card">
       <div class="title-row">
         <div>
-          <h1>
-            <span class="dot" />铝单板生产执行看板
-          </h1>
+          <h1><span class="dot" />铝单板生产执行看板</h1>
           <StatusTag tone="processing" label="生产中 12 个批次" />
           <StatusTag tone="success" label="达成率 94.2%" />
         </div>

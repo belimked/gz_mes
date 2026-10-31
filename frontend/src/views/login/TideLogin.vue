@@ -19,13 +19,16 @@ const metrics = [
     <div class="horizon" aria-hidden="true" />
     <div class="wrap">
       <section class="intro">
-        <div class="brand"><BrandLogo bg="linear-gradient(135deg,#2dd4bf,#4ade80)" /> <span>{{ brand.name }}</span></div>
+        <div class="brand">
+          <BrandLogo bg="linear-gradient(135deg,#2dd4bf,#4ade80)" /> <span>{{ brand.name }}</span>
+        </div>
         <span class="pill"><i /> 在线 · 生产数据实时同步</span>
         <h2>看得见的生产<br /><em>算得清的发货</em></h2>
         <p>{{ brand.subtitle }}。每块板一件一码，每道工序扫码留痕，发货即对账。</p>
         <div class="metrics">
           <div v-for="m in metrics" :key="m.label">
-            <b>{{ m.value }}</b><span>{{ m.label }}</span>
+            <b>{{ m.value }}</b
+            ><span>{{ m.label }}</span>
           </div>
         </div>
       </section>
