@@ -24,7 +24,7 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 9
+  version: 11
   factories: S['Factory'][]
   users: DemoUser[]
   nextId: number
@@ -81,7 +81,7 @@ function fresh(): DemoDB {
     for (const note of deliveryNotes) if (note.accountId === oldId) note.accountId = account.id
   }
   return {
-    version: 9,
+    version: 11,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
     nextId,
@@ -107,12 +107,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 9) return parsed
+      if (parsed?.version === 11) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 9) memory = fresh()
+  if (memory?.version !== 11) memory = fresh()
   return memory
 }
 
@@ -802,6 +802,32 @@ export async function demoFetch(req: Request): Promise<Response> {
           urgency: batch.urgency,
         }
       })
+    const activityGroups = new Map<string, S['ScanActivity']>()
+    for (const scan of scans) {
+      const bucket = Math.floor(Date.parse(scan.scannedAt) / 600000)
+      const key = JSON.stringify([scan.batchId, scan.jobId, scan.scannedBy, bucket])
+      const row = activityGroups.get(key)
+      if (row) {
+        row.qty++
+        row.area += labelById.get(scan.labelId)?.pieceArea ?? 0
+        if (scan.scannedAt > row.lastScannedAt) row.lastScannedAt = scan.scannedAt
+      } else {
+        activityGroups.set(key, {
+          batchId: scan.batchId,
+          lotNo: scan.lotNo,
+          jobId: scan.jobId,
+          jobName: scan.jobName,
+          scannedBy: scan.scannedBy,
+          qty: 1,
+          area: labelById.get(scan.labelId)?.pieceArea ?? 0,
+          lastScannedAt: scan.scannedAt,
+        })
+      }
+    }
+    const recentActivity = [...activityGroups.values()]
+      .sort((a, b) => b.lastScannedAt.localeCompare(a.lastScannedAt))
+      .slice(0, 8)
+      .map((row) => ({ ...row, area: area([row.area]) }))
     return json(200, {
       generatedAt: new Date().toISOString(),
       kpi: {
@@ -824,6 +850,7 @@ export async function demoFetch(req: Request): Promise<Response> {
       customerArea,
       activeBatches,
       recentScans: [...scans].sort((a, b) => b.scannedAt.localeCompare(a.scannedAt) || b.id - a.id).slice(0, 8),
+      recentActivity,
     } satisfies S['Dashboard'])
   }
 

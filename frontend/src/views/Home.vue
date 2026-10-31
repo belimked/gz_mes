@@ -26,14 +26,13 @@ const statusLabels: Record<Schemas['BatchStatus'], string> = {
   done: '已完工',
 }
 const columns = [
-  { title: '批次号', dataIndex: 'lotNo', width: 160 },
-  { title: '工程 / 客户', dataIndex: 'projectName', width: 180 },
-  { title: '厚度 · 颜色', dataIndex: 'thickness', width: 115 },
-  { title: '件数 / 面积', dataIndex: 'itemQty', width: 110 },
+  { title: '批次号', dataIndex: 'lotNo', width: 150, fixed: 'left' as const },
+  { title: '工程 / 客户', dataIndex: 'projectName', width: 180, ellipsis: true },
+  { title: '规格 / 件数', dataIndex: 'thickness', width: 200 },
   { title: '当前工序', dataIndex: 'currentJobName', width: 105 },
-  { title: '进度', dataIndex: 'progress', width: 125 },
-  { title: '需求交期', dataIndex: 'requiredDate', width: 115 },
-  { title: '紧急', dataIndex: 'urgency', width: 70 },
+  { title: '进度', dataIndex: 'progress', width: 120 },
+  { title: '需求交期', dataIndex: 'requiredDate', width: 100 },
+  { title: '紧急度', dataIndex: 'urgency', width: 70 },
 ]
 async function load() {
   loading.value = true
@@ -122,12 +121,25 @@ const kpis = computed(() => {
     },
   ]
 })
+const batchStatuses: Schemas['BatchStatus'][] = ['pending', 'scheduled', 'in_production', 'done']
+const statusColors: Record<Schemas['BatchStatus'], string> = {
+  pending: '#1677ff',
+  scheduled: '#52c41a',
+  in_production: '#faad14',
+  done: '#ff4d4f',
+}
+const statusCounts = computed(() =>
+  batchStatuses.map((status) => ({
+    status,
+    name: statusLabels[status],
+    count: dashboard.value?.batchStatus.find((item) => item.status === status)?.count ?? 0,
+  })),
+)
 const batchOption = computed<EChartsOption>(() => {
-  const data = dashboard.value?.batchStatus.map((s) => ({ name: statusLabels[s.status], value: s.count })) ?? []
+  const data = statusCounts.value.map((s) => ({ name: s.name, value: s.count }))
   return {
     color: colors,
     tooltip: { trigger: 'item' },
-    legend: { bottom: 0, type: 'scroll' },
     title: {
       text: String(data.reduce((n, d) => n + d.value, 0)),
       subtext: '批次总数',
@@ -136,18 +148,32 @@ const batchOption = computed<EChartsOption>(() => {
       textStyle: { fontSize: 22 },
       subtextStyle: { fontSize: 12 },
     },
-    series: [{ type: 'pie', radius: ['52%', '72%'], center: ['50%', '43%'], label: { show: false }, data }],
+    series: [{ type: 'pie', radius: ['52%', '72%'], center: ['50%', '50%'], label: { show: false }, data }],
   }
 })
+const customerTotal = computed(() => sum((dashboard.value?.customerArea ?? []).map((c) => c.area)))
+const topCustomers = computed(() =>
+  (dashboard.value?.customerArea ?? [])
+    .filter((c) => c.customerId != null)
+    .sort((a, b) => b.area - a.area)
+    .slice(0, 3),
+)
 const customerOption = computed<EChartsOption>(() => ({
   color: colors,
   tooltip: { trigger: 'item', valueFormatter: (v) => `${Number(v).toFixed(2)} m²` },
-  legend: { bottom: 0, type: 'scroll' },
+  title: {
+    text: `${customerTotal.value.toFixed(1)} m²`,
+    subtext: '总在制',
+    left: 'center',
+    top: '38%',
+    textStyle: { fontSize: 17 },
+    subtextStyle: { fontSize: 11 },
+  },
   series: [
     {
       type: 'pie',
-      radius: ['43%', '68%'],
-      center: ['50%', '42%'],
+      radius: ['48%', '72%'],
+      center: ['50%', '50%'],
       label: { show: false },
       data: dashboard.value?.customerArea.map((c) => ({ name: c.customerName, value: c.area })) ?? [],
     },
@@ -171,13 +197,26 @@ const cycleSummary = computed(() => {
   )
   return { total: sum(jobs.map((job) => job.cycleHours ?? 0)), bottleneck, longestDwell }
 })
+const topCycleJobs = computed(() =>
+  sortedJobs.value
+    .filter((job) => job.cycleHours != null)
+    .sort((a, b) => (b.cycleHours ?? 0) - (a.cycleHours ?? 0))
+    .slice(0, 5),
+)
 const cycleOption = computed<EChartsOption>(() => ({
-  grid: { left: 70, right: 24, top: 8, bottom: 8 },
-  xAxis: { type: 'value', show: false, splitLine: { show: false } },
+  grid: { left: 90, right: 60, top: 8, bottom: 26 },
+  xAxis: {
+    type: 'value',
+    name: '单位：小时',
+    nameLocation: 'end',
+    nameTextStyle: { fontSize: 10 },
+    axisLabel: { fontSize: 10 },
+    splitLine: { show: false },
+  },
   yAxis: {
     type: 'category',
     inverse: true,
-    data: sortedJobs.value.map((job) => job.jobName),
+    data: topCycleJobs.value.map((job) => job.jobName),
     axisTick: { show: false },
     axisLine: { show: false },
     axisLabel: { fontSize: 10 },
@@ -185,7 +224,7 @@ const cycleOption = computed<EChartsOption>(() => ({
   tooltip: {
     trigger: 'item',
     formatter: (param) => {
-      const job = sortedJobs.value[Array.isArray(param) ? (param[0]?.dataIndex ?? -1) : param.dataIndex]
+      const job = topCycleJobs.value[Array.isArray(param) ? (param[0]?.dataIndex ?? -1) : param.dataIndex]
       if (!job) return ''
       return `${job.jobName}<br/>周期：${job.cycleHours == null ? '—' : fmtH(job.cycleHours)}<br/>P90：${job.cycleP90Hours == null ? '—' : fmtH(job.cycleP90Hours)}<br/>样本数：${job.cycleSamples} 件`
     },
@@ -194,7 +233,7 @@ const cycleOption = computed<EChartsOption>(() => ({
     {
       type: 'bar',
       barMaxWidth: 10,
-      data: sortedJobs.value.map((job) => ({
+      data: topCycleJobs.value.map((job) => ({
         value: job.cycleHours ?? 0,
         itemStyle: { color: job === cycleSummary.value.bottleneck ? '#faad14' : '#1677ff' },
       })),
@@ -202,6 +241,19 @@ const cycleOption = computed<EChartsOption>(() => ({
     },
   ],
 }))
+type BatchFilter = 'all' | 'urgent' | 'overdue'
+const batchFilter = ref<BatchFilter>('all')
+const today = dayjs().format('YYYY-MM-DD')
+function isOverdue(batch: Schemas['ActiveBatch']) {
+  return !!batch.requiredDate && batch.requiredDate < today
+}
+const activeBatches = computed(() => dashboard.value?.activeBatches ?? [])
+const urgentBatches = computed(() => activeBatches.value.filter((batch) => batch.urgency === 'urgent'))
+const overdueBatches = computed(() => activeBatches.value.filter(isOverdue))
+const filteredBatches = computed(() =>
+  batchFilter.value === 'urgent' ? urgentBatches.value : batchFilter.value === 'overdue' ? overdueBatches.value : activeBatches.value,
+)
+const recentActivity = computed(() => dashboard.value?.recentActivity ?? [])
 const trendOption = computed<EChartsOption>(() => ({
   color: colors,
   tooltip: { trigger: 'axis' },
@@ -273,7 +325,7 @@ onMounted(() => {
         <ProcessPipeline :items="dashboard.jobLoad" />
         <div class="cycle-summary">
           <a-row :gutter="[16, 12]" align="middle">
-            <a-col :xs="24" :xl="10" class="cycle-facts">
+            <a-col :xs="24" :xl="8" class="cycle-facts">
               <div>
                 全流程平均周期 ≈ <strong>{{ fmtH(cycleSummary.total) }}</strong>
               </div>
@@ -291,7 +343,7 @@ onMounted(() => {
                 >
               </div>
             </a-col>
-            <a-col :xs="24" :xl="14">
+            <a-col :xs="24" :xl="16">
               <div class="cycle-chart-title">各工序平均周期（近 14 天）</div>
               <EChart :option="cycleOption" :height="150" />
             </a-col>
@@ -303,15 +355,31 @@ onMounted(() => {
           ><PageCard title="近 14 天报工与发货趋势"><EChart :option="trendOption" :height="300" /></PageCard
         ></a-col>
         <a-col :xs="24" :xl="8"
-          ><PageCard title="批次状态分布"><EChart :option="batchOption" :height="300" /></PageCard
-        ></a-col>
+          ><PageCard title="批次状态分布"
+            ><EChart :option="batchOption" :height="220" />
+            <div class="status-grid">
+              <div v-for="item in statusCounts" :key="item.status" class="status-cell">
+                <span><i class="legend-dot" :style="{ background: statusColors[item.status] }" />{{ item.name }}</span>
+                <strong>{{ item.count }}</strong>
+              </div>
+            </div></PageCard
+          ></a-col
+        >
       </a-row>
       <a-row :gutter="[16, 16]">
         <a-col :xs="24" :xl="16">
           <PageCard title="在制批次">
+            <template #extra>
+              <a-radio-group v-model:value="batchFilter" size="small" button-style="solid">
+                <a-radio-button value="all">全部 ({{ activeBatches.length }})</a-radio-button>
+                <a-radio-button value="urgent">加急 ({{ urgentBatches.length }})</a-radio-button>
+                <a-radio-button value="overdue">逾期 ({{ overdueBatches.length }})</a-radio-button>
+              </a-radio-group>
+            </template>
             <a-table
               :columns="columns"
-              :data-source="dashboard.activeBatches"
+              :data-source="filteredBatches"
+              :row-class-name="(record: Schemas['ActiveBatch']) => (isOverdue(record) ? 'overdue-row' : '')"
               row-key="id"
               size="small"
               :pagination="false"
@@ -326,21 +394,19 @@ onMounted(() => {
                   <div class="muted">{{ record.customerName }}</div></template
                 >
                 <template v-else-if="column.dataIndex === 'thickness'"
-                  >{{ record.thickness }} mm
-                  <div class="muted">{{ record.color || '—' }}</div></template
-                >
-                <template v-else-if="column.dataIndex === 'itemQty'"
-                  >{{ record.itemQty }} 件
-                  <div class="muted">{{ record.itemArea.toFixed(2) }} m²</div></template
+                  >{{ record.thickness }} mm · {{ record.color || '—' }}
+                  <div class="muted">{{ record.itemQty }} 件 · {{ record.itemArea.toFixed(2) }} m²</div></template
                 >
                 <template v-else-if="column.dataIndex === 'currentJobName'"
                   ><StatusTag :tone="record.currentSeq ? 'processing' : 'neutral'" :label="record.currentJobName || '未开工'"
                 /></template>
-                <template v-else-if="column.dataIndex === 'progress'"><a-progress :percent="record.progress" size="small" /></template>
+                <template v-else-if="column.dataIndex === 'progress'"
+                  ><div class="progress-cell">
+                    <a-progress :percent="record.progress" size="small" :show-info="false" /><span>{{ record.progress }}%</span>
+                  </div></template
+                >
                 <template v-else-if="column.dataIndex === 'requiredDate'"
-                  ><span :class="{ overdue: record.requiredDate && record.requiredDate < dayjs().format('YYYY-MM-DD') }">{{
-                    record.requiredDate || '—'
-                  }}</span></template
+                  ><span :class="{ overdue: isOverdue(record) }">{{ record.requiredDate || '—' }}</span></template
                 >
                 <template v-else-if="column.dataIndex === 'urgency'"
                   ><StatusTag
@@ -352,14 +418,30 @@ onMounted(() => {
           </PageCard>
         </a-col>
         <a-col :xs="24" :xl="8" class="side-cards">
-          <PageCard title="在制订单面积·按客户"><EChart :option="customerOption" :height="240" /></PageCard>
-          <PageCard title="最近报工">
-            <a-empty v-if="!dashboard.recentScans.length" description="暂无报工" />
-            <div v-for="scan in dashboard.recentScans" :key="scan.id" class="scan-row">
-              <span class="muted">{{ dayjs(scan.scannedAt).format('HH:mm') }}</span>
-              <div>
-                <CodeText :value="scan.barCode" />
+          <PageCard title="在制订单面积·按客户">
+            <EChart :option="customerOption" :height="200" />
+            <div class="customer-list">
+              <div v-for="(customer, index) in topCustomers" :key="customer.customerId ?? customer.customerName" class="customer-row">
+                <span><i class="legend-dot" :style="{ background: colors[index] }" />{{ customer.customerName }}</span>
+                <strong
+                  >{{ customer.area.toFixed(1) }} m² ({{ customerTotal ? Math.round((customer.area / customerTotal) * 100) : 0 }}%)</strong
+                >
+              </div>
+            </div>
+          </PageCard>
+          <PageCard title="最近报工动态">
+            <a-empty v-if="!recentActivity.length" description="暂无报工" />
+            <div
+              v-for="scan in recentActivity"
+              :key="`${scan.batchId}-${scan.jobId}-${scan.scannedBy}-${scan.lastScannedAt}`"
+              class="scan-row"
+            >
+              <div class="scan-detail">
+                <CodeText :value="scan.lotNo" />
                 <div class="muted">{{ scan.jobName }} · {{ scan.scannedBy }}</div>
+              </div>
+              <div class="scan-qty">
+                <strong>+{{ scan.qty }} 件</strong><span class="muted">{{ dayjs(scan.lastScannedAt).format('HH:mm') }}</span>
               </div>
             </div>
           </PageCard>
@@ -464,7 +546,75 @@ onMounted(() => {
 .scan-row:last-child {
   border-bottom: 0;
 }
-.scan-row > span {
-  flex: 0 0 38px;
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+.status-cell {
+  background: var(--gz-fill, #f5f7fa);
+  border-radius: var(--gz-radius);
+  padding: 7px 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.status-cell span,
+.customer-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.status-cell strong {
+  font-weight: 700;
+}
+.customer-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.customer-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.customer-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.customer-row strong {
+  white-space: nowrap;
+  font-weight: 500;
+}
+.progress-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.progress-cell :deep(.ant-progress) {
+  flex: 1;
+  min-width: 40px;
+}
+:deep(.overdue-row > td) {
+  background: #fff1f0 !important;
+}
+.scan-detail {
+  min-width: 0;
+  flex: 1;
+}
+.scan-qty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  white-space: nowrap;
+}
+.scan-qty strong {
+  color: var(--gz-primary);
 }
 </style>

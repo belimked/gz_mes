@@ -162,6 +162,15 @@ export function seedBatches(contracts: S['Contract'][]): S['Batch'][] {
     const scheduled = i >= 3
     const orderQty = 40 + i * 8
     const createdAt = new Date(Date.now() - (i + 1) * 86400000).toISOString()
+    const status = i < 3 ? 'pending' : i < 8 ? 'scheduled' : i < 15 ? 'in_production' : 'done'
+    const dueInDays =
+      status === 'done'
+        ? -(1 + (i % 5))
+        : status === 'in_production'
+          ? i % 2 === 0
+            ? 3 + ((i * 3) % 18)
+            : -(1 + (i % 5))
+          : 7 + ((i * 3) % 24)
     return {
       id: i + 24,
       factoryId: contract.factoryId,
@@ -182,9 +191,9 @@ export function seedBatches(contracts: S['Contract'][]): S['Batch'][] {
       orderArea: Number((orderQty * 3.006).toFixed(2)),
       deliveryAddress: '演示·示例市收货地址',
       specialRequest: '',
-      requiredDate: batchDate(i),
+      requiredDate: new Date(Date.now() + dueInDays * 86400000).toISOString().slice(0, 10),
       urgency: i === 1 || i === 11 ? 'urgent' : 'normal',
-      status: i < 3 ? 'pending' : i < 8 ? 'scheduled' : i < 15 ? 'in_production' : 'done',
+      status,
       itemCount: 0,
       itemQty: 0,
       itemArea: 0,
@@ -312,7 +321,7 @@ export function seedLabels(batches: S['Batch'][], batchItems: S['BatchItem'][]):
 export function seedScans(batches: S['Batch'][], labels: S['Label'][], jobList: S['Job'][]): S['Scan'][] {
   let id = Math.max(0, ...labels.map((label) => label.id)) + 1
   const today = Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00Z')
-  // Hours from the preceding step, with deterministic per-label variation.
+  // Hours from the preceding step, with deterministic per-batch variation.
   const intervals = [
     [1, 3],
     [2, 5],
@@ -326,19 +335,24 @@ export function seedScans(batches: S['Batch'][], labels: S['Label'][], jobList: 
     [12, 36],
   ]
   return batches.flatMap((batch, index) => {
-    const start = today - (3 + (index % 10)) * 86400000 + 8 * 3600000
+    const scannedBy = ['张师傅', '李工', '王师傅', '陈工', '演示管理员'][index % 5]!
+    const start = today - (2 + (index % 10)) * 86400000 + 8 * 3600000 + (index % 5) * 17 * 60000
     const count = batch.status === 'done' ? jobList.length : batch.status === 'in_production' ? 2 + (index % 6) : 0
+    let stepMs = start
+    const stepTimes = jobList.slice(0, count).map((_, step) => {
+      if (step) {
+        const [min, max] = intervals[step - 1] as [number, number]
+        stepMs += (min + (((index * 7 + step * 3) % 11) / 10) * (max - min)) * 3600000
+      }
+      return stepMs
+    })
     return labels
       .filter((label) => label.batchId === batch.id)
       .flatMap((label, labelIndex) => {
-        let scannedMs = start + (labelIndex % 24) * 120000
-        if (count) label.createdAt = new Date(scannedMs - (1 + (labelIndex % 4)) * 3600000).toISOString()
+        const labelOffset = labelIndex * (20 + (index % 21)) * 1000
+        if (count) label.createdAt = new Date(start + labelOffset - 3600000).toISOString()
         return jobList.slice(0, count).map((job, step) => {
-          if (step) {
-            const [min, max] = intervals[step - 1] as [number, number]
-            scannedMs += (min + (((labelIndex * 7 + step * 3) % 11) / 10) * (max - min)) * 3600000
-          }
-          const scannedAt = new Date(scannedMs).toISOString()
+          const scannedAt = new Date(stepTimes[step]! + labelOffset).toISOString()
           label.lastJobId = job.id
           label.lastJobName = job.name
           label.lastScannedAt = scannedAt
@@ -352,7 +366,7 @@ export function seedScans(batches: S['Batch'][], labels: S['Label'][], jobList: 
             pieceIndex: label.pieceIndex,
             jobId: job.id,
             jobName: job.name,
-            scannedBy: '演示管理员',
+            scannedBy,
             scannedAt,
             device: '',
           }
