@@ -1,69 +1,344 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { ReloadOutlined, SettingOutlined } from '@ant-design/icons-vue'
-import { batches, type Batch } from '@/api/demo/batches'
+import type { FormInstance, TablePaginationConfig } from 'ant-design-vue'
+import { ReloadOutlined } from '@ant-design/icons-vue'
+import dayjs from 'dayjs'
+import { call, client, errorMessage, type Schemas } from '@/api/client'
 import { PROCESS_STEPS } from '@/theme'
-import { useAuthStore } from '@/stores/auth'
 import PageCard from '@/components/PageCard.vue'
 import FilterCard from '@/components/FilterCard.vue'
 import TableToolbar from '@/components/TableToolbar.vue'
 import CodeText from '@/components/CodeText.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import ProcessTimeline from '@/components/ProcessTimeline.vue'
-const auth = useAuthStore()
-const form = reactive({ keyword: '', project: '', status: '', date: [] as string[], material: '', color: '' })
-const query = reactive({ ...form })
-const selected = ref<Batch>()
-const checked = ref<string[]>([])
-const tab = ref('基本信息')
+
+type Batch = Schemas['Batch']
+type Schedule = Schemas['BatchSchedule']
+const statusLabels: Record<Batch['status'], string> = {
+  pending: '待排产',
+  scheduled: '已排产',
+  in_production: '生产中',
+  done: '已完工',
+}
+const statusTones = { pending: 'neutral', scheduled: 'processing', in_production: 'processing', done: 'success' } as const
+// 后端尚无逐工序扫描记录；这里只按批次状态显示粗粒度阶段，不代表真实报工进度。
+const stage = (status: Batch['status']) => ({ pending: 0, scheduled: 1, in_production: 5, done: 11 })[status]
+const filters = reactive({
+  keyword: '',
+  status: undefined as Batch['status'] | undefined,
+  urgency: undefined as Batch['urgency'] | undefined,
+  dates: [] as string[],
+  projectId: undefined as number | undefined,
+  contractId: undefined as number | undefined,
+})
+const applied = reactive({ ...filters })
+const rows = ref<Batch[]>([])
+const jobs = ref<Schemas['Job'][]>([])
+const projects = ref<Schemas['Project'][]>([])
+const contracts = ref<Schemas['Contract'][]>([])
+const factories = ref<Schemas['Factory'][]>([])
+const pager = reactive({ current: 1, pageSize: 20, total: 0 })
 const loading = ref(false)
-const page = ref(1)
-const size = ref(20)
-const visible = computed(() =>
-  batches.filter(
-    (b) =>
-      (auth.user?.isAdmin || b.factoryId === 2) &&
-      (!query.keyword || b.id.toLowerCase().includes(query.keyword.toLowerCase())) &&
-      (!query.project || b.project.includes(query.project)) &&
-      (!query.status || b.status === query.status) &&
-      (!query.material || b.thickness.includes(query.material)) &&
-      (!query.color || b.color.includes(query.color)) &&
-      (!query.date?.length || (b.due >= query.date[0]! && b.due <= query.date[1]!)),
-  ),
-)
+const updatedAt = ref('')
+const selected = ref<Batch>()
+const tab = ref('基本信息')
+const items = ref<Schemas['BatchItem'][]>([])
+const itemsLoading = ref(false)
 const totals = computed(() => ({
-  quantity: visible.value.reduce((n, b) => n + b.quantity, 0),
-  area: visible.value.reduce((n, b) => n + b.area, 0).toFixed(2),
-  price: visible.value.reduce((n, b) => n + b.priceArea, 0).toFixed(2),
+  qty: rows.value.reduce((n, b) => n + b.orderQty, 0),
+  area: rows.value.reduce((n, b) => n + b.orderArea, 0).toFixed(2),
+  itemArea: rows.value.reduce((n, b) => n + b.itemArea, 0).toFixed(2),
 }))
 const columns = [
-  { title: '批次编号', dataIndex: 'id', width: 155 },
-  { title: '工程项目', dataIndex: 'project', width: 150 },
-  { title: '规格 / 材质', dataIndex: 'material', width: 110 },
-  { title: '件数', dataIndex: 'quantity', width: 65, align: 'right' as const },
-  { title: '展开面积', dataIndex: 'area', width: 85, align: 'right' as const },
-  { title: '当前工序', dataIndex: 'current', width: 105 },
-  { title: '生产进度', dataIndex: 'progress', width: 110 },
-  { title: '交付日期', dataIndex: 'due', width: 110 },
-  { title: '状态', dataIndex: 'status', width: 95 },
-  { title: '操作', key: 'action', width: 70, fixed: 'right' as const },
+  { title: '批次编号', dataIndex: 'lotNo', width: 155 },
+  { title: '工程项目', dataIndex: 'projectName', width: 170 },
+  { title: '合同号', dataIndex: 'contractNo', width: 150 },
+  { title: '厚度 · 颜色', dataIndex: 'thickness', width: 120 },
+  { title: '订单件数', dataIndex: 'orderQty', width: 90, align: 'right' as const },
+  { title: '订单面积', dataIndex: 'orderArea', width: 100, align: 'right' as const },
+  { title: '构件', dataIndex: 'itemQty', width: 120 },
+  { title: '阶段', dataIndex: 'stage', width: 110 },
+  { title: '需求交期', dataIndex: 'requiredDate', width: 115 },
+  { title: '紧急', dataIndex: 'urgency', width: 70 },
+  { title: '状态', dataIndex: 'status', width: 90 },
+  { title: '操作', key: 'action', width: 105, fixed: 'right' as const },
 ]
-function search() {
-  Object.assign(query, form)
-  page.value = 1
+async function load() {
   loading.value = true
-  setTimeout(() => (loading.value = false), 250)
+  try {
+    const result = await call(
+      client.GET('/batches', {
+        params: {
+          query: {
+            page: pager.current,
+            size: pager.pageSize,
+            keyword: applied.keyword.trim() || undefined,
+            status: applied.status,
+            urgency: applied.urgency,
+            projectId: applied.projectId,
+            contractId: applied.contractId,
+            beginDate: applied.dates?.[0],
+            endDate: applied.dates?.[1],
+          },
+        },
+      }),
+    )
+    rows.value = result.items
+    pager.total = result.total
+    updatedAt.value = dayjs().format('YYYY-MM-DD HH:mm:ss')
+  } catch (e) {
+    message.error(errorMessage(e))
+  } finally {
+    loading.value = false
+  }
+}
+function search() {
+  Object.assign(applied, filters)
+  pager.current = 1
+  void load()
 }
 function reset() {
-  Object.assign(form, { keyword: '', project: '', status: '', date: [], material: '', color: '' })
+  Object.assign(filters, { keyword: '', status: undefined, urgency: undefined, dates: [], projectId: undefined, contractId: undefined })
   search()
 }
-function open(b: Batch) {
-  selected.value = b
-  tab.value = '基本信息'
+function onTableChange(p: TablePaginationConfig) {
+  pager.current = p.current ?? 1
+  pager.pageSize = p.pageSize ?? 20
+  void load()
 }
-const notify = () => message.info('演示模式：此操作暂不保存')
+const scheduleKeys = [
+  'planTechDate',
+  'planDrawingDate',
+  'planCutDate',
+  'planSheetStart',
+  'planSheetDelivery',
+  'planSprayStart',
+  'planSprayDelivery',
+  'outsourceFactoryId',
+  'workshop',
+  'urgency',
+  'remark',
+] as const
+const dateKeys = scheduleKeys.slice(0, 7)
+const schedule = ref<Schedule>({})
+function fillSchedule(b: Batch) {
+  schedule.value = Object.fromEntries(
+    scheduleKeys.map((key) => [key, b[key] ?? (dateKeys.includes(key) || key === 'outsourceFactoryId' ? null : '')]),
+  ) as Schedule
+}
+async function refreshSelected(id: number) {
+  const batch = await call(client.GET('/batches/{id}', { params: { path: { id } } }))
+  if (selected.value?.id === id) {
+    selected.value = batch
+    fillSchedule(batch)
+  }
+  await load()
+}
+async function openBatch(b: Batch, target = '基本信息') {
+  selected.value = b
+  tab.value = target
+  items.value = []
+  fillSchedule(b)
+  try {
+    await refreshSelected(b.id)
+  } catch (e) {
+    message.error(errorMessage(e))
+  }
+}
+watch(tab, async (value) => {
+  if (value !== '构件清单' || !selected.value) return
+  itemsLoading.value = true
+  try {
+    items.value = await call(client.GET('/batches/{id}/items', { params: { path: { id: selected.value.id } } }))
+  } catch (e) {
+    message.error(errorMessage(e))
+  } finally {
+    itemsLoading.value = false
+  }
+})
+const saving = ref(false)
+async function saveSchedule() {
+  const b = selected.value
+  if (!b || b.status === 'done') return
+  const changes: Schedule = {}
+  for (const key of scheduleKeys) {
+    const before = b[key] ?? (dateKeys.includes(key) || key === 'outsourceFactoryId' ? null : '')
+    if (schedule.value[key] !== before) Object.assign(changes, { [key]: schedule.value[key] })
+  }
+  if (!Object.keys(changes).length) {
+    message.info('排程未修改')
+    return
+  }
+  saving.value = true
+  try {
+    await call(client.PUT('/batches/{id}/schedule', { params: { path: { id: b.id } }, body: changes }))
+    await refreshSelected(b.id)
+    message.success('排程已保存')
+  } catch (e) {
+    message.error(errorMessage(e))
+  } finally {
+    saving.value = false
+  }
+}
+const createOpen = ref(false)
+const createRef = ref<FormInstance>()
+const createForm = ref<Schemas['BatchCreate']>({
+  contractId: undefined as unknown as number,
+  lotNo: '',
+  thickness: 0,
+  orderQty: 0,
+  orderArea: 0,
+  urgency: 'normal',
+})
+function openCreate() {
+  createForm.value = { contractId: undefined as unknown as number, lotNo: '', thickness: 0, orderQty: 0, orderArea: 0, urgency: 'normal' }
+  createOpen.value = true
+}
+async function saveCreate() {
+  try {
+    await createRef.value?.validate()
+  } catch {
+    return
+  }
+  saving.value = true
+  try {
+    await call(client.POST('/batches', { body: createForm.value }))
+    message.success('批次已创建')
+    createOpen.value = false
+    search()
+  } catch (e) {
+    message.error(errorMessage(e))
+  } finally {
+    saving.value = false
+  }
+}
+const importOpen = ref(false)
+const importText = ref('')
+const importing = ref(false)
+function openImport() {
+  importText.value = ''
+  importOpen.value = true
+}
+function parseItems(text: string, batch: Batch): Schemas['BatchItemInput'][] {
+  const lines = text.trim().split(/\r?\n/)
+  if (!text.trim()) throw new Error('请粘贴构件清单')
+  if (lines.length > 5000) throw new Error('最多导入 5000 行')
+  const seen = new Set<string>()
+  return lines.map((line, index) => {
+    const fields = line.split(line.includes('\t') ? '\t' : ',').map((x) => x.trim())
+    const [
+      pieceNo = '',
+      drawingNo = '',
+      rawLength = '',
+      rawWidth = '',
+      rawQty = '',
+      pattern = '',
+      color = '',
+      rawPackage = '',
+      rawBending = '',
+      remark = '',
+    ] = fields
+    const length = Number(rawLength),
+      width = Number(rawWidth),
+      qty = Number(rawQty)
+    const packageQty = rawPackage ? Number(rawPackage) : 0,
+      bendingTimes = rawBending ? Number(rawBending) : 0
+    if (
+      fields.length < 5 ||
+      fields.length > 10 ||
+      !pieceNo ||
+      seen.has(pieceNo) ||
+      !rawLength ||
+      !rawWidth ||
+      !rawQty ||
+      !Number.isFinite(length) ||
+      length < 0 ||
+      !Number.isFinite(width) ||
+      width < 0 ||
+      !Number.isInteger(qty) ||
+      qty < 1 ||
+      !Number.isInteger(packageQty) ||
+      packageQty < 0 ||
+      !Number.isInteger(bendingTimes) ||
+      bendingTimes < 0
+    )
+      throw new Error(`第 ${index + 1} 行格式错误或编号重复`)
+    seen.add(pieceNo)
+    const pieceArea = Number(((length * width) / 1e6).toFixed(4))
+    return {
+      pieceNo,
+      drawingNo,
+      length,
+      width,
+      qty,
+      pattern,
+      color: color || batch.color,
+      thickness: batch.thickness,
+      pieceArea,
+      sprayingArea: pieceArea,
+      packageQty,
+      bendingTimes,
+      weldLine: 0,
+      remark,
+    }
+  })
+}
+async function importItems() {
+  const b = selected.value
+  if (!b || b.status === 'done') return
+  let body: Schemas['BatchItemInput'][]
+  try {
+    body = parseItems(importText.value, b)
+  } catch (e) {
+    message.error(errorMessage(e))
+    return
+  }
+  importing.value = true
+  try {
+    items.value = await call(client.PUT('/batches/{id}/items', { params: { path: { id: b.id } }, body }))
+    await refreshSelected(b.id)
+    importOpen.value = false
+    message.success('构件清单已替换')
+  } catch (e) {
+    message.error(errorMessage(e))
+  } finally {
+    importing.value = false
+  }
+}
+onMounted(async () => {
+  await Promise.all([
+    load(),
+    (async () => {
+      try {
+        jobs.value = await call(client.GET('/jobs'))
+      } catch (e) {
+        message.error(errorMessage(e))
+      }
+    })(),
+    (async () => {
+      try {
+        projects.value = (await call(client.GET('/projects', { params: { query: { size: 200 } } }))).items
+      } catch (e) {
+        message.error(errorMessage(e))
+      }
+    })(),
+    (async () => {
+      try {
+        contracts.value = (await call(client.GET('/contracts', { params: { query: { size: 200 } } }))).items
+      } catch (e) {
+        message.error(errorMessage(e))
+      }
+    })(),
+    (async () => {
+      try {
+        factories.value = await call(client.GET('/factories'))
+      } catch (e) {
+        message.error(errorMessage(e))
+      }
+    })(),
+  ])
+})
 </script>
 <template>
   <div class="batches">
@@ -72,213 +347,300 @@ const notify = () => message.info('演示模式：此操作暂不保存')
         <h1>生产批次查询</h1>
         <span>查询排产与工序执行进度，追溯构件全生命周期</span>
       </div>
-      <StatusTag tone="processing" :label="`共 ${visible.length} 个批次`" />
+      <StatusTag tone="processing" :label="`共 ${pager.total} 个批次`" />
     </div>
-    <FilterCard @search="search" @reset="reset">
-      <template #default="{ expanded }">
-        <label>批次号<a-input v-model:value="form.keyword" placeholder="PC-20241018-01" allow-clear /> </label>
-        <label>工程项目<a-input v-model:value="form.project" placeholder="输入项目名称" allow-clear /> </label>
+    <FilterCard @search="search" @reset="reset"
+      ><template #default="{ expanded }">
+        <label
+          >关键字<a-input
+            v-model:value="filters.keyword"
+            placeholder="批次号 / 客户单号 / 合同号 / 客户 / 工程"
+            allow-clear
+            @press-enter="search"
+        /></label>
         <label
           >生产状态<a-select
-            v-model:value="form.status"
+            v-model:value="filters.status"
             allow-clear
             placeholder="全部状态"
-            :options="['生产中', '已完工', '加急逾期', '待排产'].map((x) => ({ label: x, value: x }))"
-          />
-        </label>
-        <label>交付日期<a-range-picker v-model:value="form.date" value-format="YYYY-MM-DD" /> </label>
+            :options="Object.entries(statusLabels).map(([value, label]) => ({ value, label }))"
+        /></label>
+        <label
+          >紧急程度<a-select
+            v-model:value="filters.urgency"
+            allow-clear
+            placeholder="全部"
+            :options="[
+              { value: 'normal', label: '普通' },
+              { value: 'urgent', label: '加急' },
+            ]"
+        /></label>
+        <label>需求交期<a-range-picker v-model:value="filters.dates" value-format="YYYY-MM-DD" /></label>
         <template v-if="expanded">
-          <label>材质厚度<a-input v-model:value="form.material" placeholder="如 3.0" /> </label>
-          <label>颜色色号<a-input v-model:value="form.color" placeholder="如 RAL 7016" /> </label>
-        </template>
-      </template>
-    </FilterCard>
+          <label
+            >项目<a-select
+              v-model:value="filters.projectId"
+              allow-clear
+              show-search
+              option-filter-prop="label"
+              placeholder="全部项目"
+              :options="projects.map((p) => ({ value: p.id, label: p.fullName }))"
+          /></label>
+          <label
+            >合同<a-select
+              v-model:value="filters.contractId"
+              allow-clear
+              show-search
+              option-filter-prop="label"
+              placeholder="全部合同"
+              :options="contracts.map((c) => ({ value: c.id, label: `${c.contractNo} · ${c.customerName} · ${c.projectName}` }))"
+          /></label>
+        </template> </template
+    ></FilterCard>
     <PageCard>
-      <TableToolbar>
-        <template #left>
-          <a-button type="primary" @click="notify">＋ 新建生产批次</a-button>
-          <a-button :disabled="!checked.length" @click="notify">批量审核</a-button>
-          <a-button @click="notify">导入清单</a-button>
-          <a-button @click="notify">导出 ▾</a-button>
-          <StatusTag v-if="query.status" tone="processing" :label="query.status" />
-        </template>
-        <template #right>
-          <a-button aria-label="列设置" @click="notify">
-            <SettingOutlined />
-          </a-button>
-          <a-button @click="size = size === 20 ? 50 : 20">密度</a-button>
-          <a-button aria-label="刷新" @click="search">
-            <ReloadOutlined />
-          </a-button>
-        </template>
-      </TableToolbar>
-      <a-skeleton v-if="loading" active :paragraph="{ rows: 7 }" />
+      <TableToolbar
+        ><template #left
+          ><a-button type="primary" data-testid="batch-new" @click="openCreate">新建生产批次</a-button
+          ><a-button disabled>导出</a-button></template
+        ><template #right
+          ><a-button aria-label="刷新" @click="load"><ReloadOutlined /></a-button></template
+      ></TableToolbar>
       <a-table
-        v-else
         row-key="id"
         size="middle"
         :columns="columns"
-        :data-source="visible"
-        :scroll="{ x: 1150 }"
-        :row-selection="{ selectedRowKeys: checked, onChange: (keys: string[]) => (checked = keys) }"
-        :pagination="{
-          current: page,
-          pageSize: size,
-          total: visible.length,
-          showSizeChanger: true,
-          pageSizeOptions: ['20', '50', '100'],
-          showQuickJumper: true,
-          showTotal: (n: number) => `共 ${n} 条`,
-        }"
-        @change="
-          (p: any) => {
-            page = p.current ?? 1
-            size = p.pageSize ?? 20
-          }
-        "
+        :data-source="rows"
+        :loading="loading"
+        :scroll="{ x: 1440 }"
+        :pagination="{ ...pager, showSizeChanger: true, pageSizeOptions: ['20', '50', '100'], showTotal: (n: number) => `共 ${n} 条` }"
+        data-testid="batch-table"
+        @change="onTableChange"
       >
-        <template #emptyText>
-          <a-empty description="暂无匹配的生产批次数据">
-            <a-button type="primary" @click="reset">重置查询条件</a-button>
-          </a-empty>
-        </template>
-        <template #expandedRowRender="{ record }">
-          <div class="sub-title">构件展开明细</div>
-          <a-table
-            :columns="[
-              { title: '构件编码', dataIndex: 'code' },
-              { title: '规格尺寸', dataIndex: 'spec' },
-              { title: '数量', dataIndex: 'quantity' },
-            ]"
-            :data-source="record.components"
-            row-key="code"
-            size="small"
-            :pagination="false"
-          />
-        </template>
+        <template #emptyText
+          ><a-empty description="暂无匹配的生产批次"><a-button type="primary" @click="reset">重置查询条件</a-button></a-empty></template
+        >
         <template #bodyCell="{ column, record }">
-          <template v-if="column.dataIndex === 'id'">
-            <a @click="open(record)">
-              <CodeText :value="record.id" />
-            </a>
-          </template>
-          <template v-else-if="column.dataIndex === 'project'">
-            <strong>{{ record.project }}</strong>
-            <div class="muted">{{ record.section }}</div>
-          </template>
-          <template v-else-if="column.dataIndex === 'material'">
-            {{ record.thickness }}
-            <div class="muted">{{ record.material }}</div>
-          </template>
-          <template v-else-if="column.dataIndex === 'current'">
-            <StatusTag tone="processing" :label="PROCESS_STEPS[record.current] ?? '—'" />
-          </template>
-          <template v-else-if="column.dataIndex === 'progress'">
-            <a-progress :percent="record.progress" size="small" />
-          </template>
-          <template v-else-if="column.dataIndex === 'status'">
-            <StatusTag :tone="record.tone" :label="record.status" />
-          </template>
-          <template v-else-if="column.key === 'action'">
-            <a @click="open(record)">查看</a>
-          </template>
+          <template v-if="column.dataIndex === 'lotNo'"
+            ><a @click="openBatch(record)"><CodeText :value="record.lotNo" /></a
+          ></template>
+          <template v-else-if="column.dataIndex === 'projectName'"
+            ><strong>{{ record.projectName }}</strong>
+            <div class="muted">{{ record.customerName }}</div></template
+          >
+          <template v-else-if="column.dataIndex === 'contractNo'"><CodeText :value="record.contractNo" /></template>
+          <template v-else-if="column.dataIndex === 'thickness'"
+            >{{ record.thickness }} mm
+            <div class="muted">{{ record.color || '—' }}</div></template
+          >
+          <template v-else-if="column.dataIndex === 'orderArea'">{{ Number(record.orderArea).toFixed(2) }}</template>
+          <template v-else-if="column.dataIndex === 'itemQty'"
+            >{{ record.itemQty }} 件
+            <div class="muted">{{ Number(record.itemArea).toFixed(2) }} m²</div></template
+          >
+          <template v-else-if="column.dataIndex === 'stage'"
+            ><StatusTag tone="processing" :label="PROCESS_STEPS[Math.min(stage(record.status), 10)] ?? '—'"
+          /></template>
+          <template v-else-if="column.dataIndex === 'requiredDate'"
+            ><span :class="{ overdue: record.urgency === 'urgent' }">{{ record.requiredDate || '—' }}</span></template
+          >
+          <template v-else-if="column.dataIndex === 'urgency'"
+            ><StatusTag v-if="record.urgency === 'urgent'" tone="error" label="加急" /><span v-else> </span
+          ></template>
+          <template v-else-if="column.dataIndex === 'status'"
+            ><StatusTag :tone="statusTones[record.status as Batch['status']]" :label="statusLabels[record.status as Batch['status']]"
+          /></template>
+          <template v-else-if="column.key === 'action'"
+            ><a @click="openBatch(record)">查看</a><a-divider type="vertical" /><a @click="openBatch(record, '排程')">排程</a></template
+          >
         </template>
       </a-table>
       <div class="summary">
-        <b>当前页数据汇总合计:</b>
-        <span>当前筛选: {{ visible.length }} 个批次</span>
-        <span
-          >总件数: <b>{{ totals.quantity }}</b> 件</span
-        >
-        <span
-          >总展开面积: <b>{{ totals.area }}</b> m²</span
-        >
-        <span
-          >总计价面积: <b>{{ totals.price }}</b> m²</span
-        >
-        <span
-          >生产中 {{ visible.filter((x) => x.status === '生产中').length }} · 已完工
-          {{ visible.filter((x) => x.status === '已完工').length }} · 加急逾期 {{ visible.filter((x) => x.urgent).length }}</span
-        >
-        <span>数据更新: 10:48</span>
+        <b>当前页数据汇总合计:</b><span>{{ rows.length }} 个批次</span
+        ><span
+          >订单件数: <b>{{ totals.qty }}</b> 件</span
+        ><span
+          >订单面积: <b>{{ totals.area }}</b> m²</span
+        ><span
+          >构件面积: <b>{{ totals.itemArea }}</b> m²</span
+        ><span v-for="(label, key) in statusLabels" :key="key">{{ label }} {{ rows.filter((b) => b.status === key).length }}</span
+        ><span>数据更新: {{ updatedAt || '—' }}</span>
       </div>
     </PageCard>
-    <a-drawer :open="!!selected" :width="720" placement="right" :closable="true" @close="selected = undefined">
-      <template #title>
-        <span>批次详情: {{ selected?.id }}</span>
-        <StatusTag v-if="selected" :tone="selected.tone" :label="selected.status" />
-      </template>
+    <a-drawer :open="!!selected" :width="720" placement="right" @close="selected = undefined">
+      <template #title
+        >批次详情: {{ selected?.lotNo }}
+        <StatusTag v-if="selected" :tone="statusTones[selected.status]" :label="statusLabels[selected.status]"
+      /></template>
       <template v-if="selected">
-        <a-tabs v-model:active-key="tab">
-          <a-tab-pane key="基本信息" tab="基本信息" />
-          <a-tab-pane key="11道工序全景" tab="11道工序全景 ●" />
-          <a-tab-pane key="一物一码构件清单" :tab="`一物一码构件清单(${selected.quantity})`" />
-          <a-tab-pane key="质检记录" tab="质检记录 (QC)" />
-          <a-tab-pane key="发货物流" tab="发货物流" />
-        </a-tabs>
+        <a-tabs v-model:active-key="tab"
+          ><a-tab-pane key="基本信息" tab="基本信息" /><a-tab-pane key="排程" tab="排程" /><a-tab-pane
+            key="构件清单"
+            :tab="`构件清单(${selected.itemCount})`"
+        /></a-tabs>
         <div v-if="tab === '基本信息'" class="drawer-body">
-          <div class="barcode">
-            <div>
-              <small>车间 MES 工单追溯条码 / UID:</small>
-              <div class="uid">{{ selected.uid }}</div>
-              <small>派工时间: {{ selected.start }} 09:30 · 责任班组: {{ selected.team }}</small>
-            </div>
-            <div class="qr">▦<small>扫码报工</small></div>
-          </div>
           <h3>批次工程要素信息</h3>
           <a-descriptions bordered :column="2" size="small">
-            <a-descriptions-item label="所属项目">{{ selected.project }}</a-descriptions-item>
-            <a-descriptions-item label="安装标段">{{ selected.section }}</a-descriptions-item>
-            <a-descriptions-item label="材质厚度">{{ selected.material }} · {{ selected.thickness }}</a-descriptions-item>
-            <a-descriptions-item label="涂层体系">氟碳三涂二烤</a-descriptions-item>
-            <a-descriptions-item label="颜色色号">{{ selected.color }}</a-descriptions-item>
-            <a-descriptions-item label="排产件数">{{ selected.quantity }} 件</a-descriptions-item>
-            <a-descriptions-item label="展开面积">{{ selected.area }} m²</a-descriptions-item>
-            <a-descriptions-item label="计价面积">{{ selected.priceArea }} m²</a-descriptions-item>
-            <a-descriptions-item label="计划开工">{{ selected.start }}</a-descriptions-item>
-            <a-descriptions-item label="最迟交付">
-              <span :class="{ overdue: selected.urgent }">{{ selected.due }}{{ selected.urgent ? ' (逾期风险)' : '' }}</span>
-            </a-descriptions-item>
+            <a-descriptions-item
+              v-for="[label, value] in [
+                ['合同', selected.contractNo],
+                ['客户', selected.customerName],
+                ['工程', selected.projectName],
+                ['批次号', selected.lotNo],
+                ['客户单号', selected.clientOrderNo],
+                ['厚度', `${selected.thickness} mm`],
+                ['颜色', selected.color],
+                ['色号', selected.colorNo],
+                ['材质', selected.texture],
+                ['喷涂类型', selected.sprayingType],
+                ['订单件数', selected.orderQty],
+                ['订单面积', `${Number(selected.orderArea).toFixed(2)} m²`],
+                ['需求交期', selected.requiredDate],
+                ['紧急', selected.urgency === 'urgent' ? '加急' : '普通'],
+                ['发货地址', selected.deliveryAddress],
+                ['特殊要求', selected.specialRequest],
+                ['备注', selected.remark],
+                ['创建人', selected.createdBy],
+                ['创建时间', dayjs(selected.createdAt).format('YYYY-MM-DD HH:mm')],
+              ]"
+              :key="label"
+              :label="label"
+              >{{ value || '—' }}</a-descriptions-item
+            >
           </a-descriptions>
-          <h3>
-            11 道工序作业流转进度 <span class="muted">综合完工率 {{ selected.progress }}%</span>
-          </h3>
-          <ProcessTimeline :current="selected.current" :quantity="selected.quantity" />
-          <h3>最近生产异常与调度备注</h3>
-          <a-alert show-icon type="warning" message="工艺提醒：折弯成型后需复核板面尺寸与角度，误差控制在 ±1.5mm 内。" />
+          <h3>工序阶段</h3>
+          <ProcessTimeline :current="stage(selected.status)" :quantity="selected.orderQty" />
         </div>
-        <div v-else-if="tab === '11道工序全景'" class="drawer-body">
-          <ProcessTimeline :current="selected.current" :quantity="selected.quantity" />
-        </div>
-        <div v-else-if="tab === '一物一码构件清单'" class="drawer-body">
-          <a-list bordered :data-source="selected.components">
-            <template #renderItem="{ item }">
-              <a-list-item> <CodeText :value="item.code" /> · {{ item.spec }} · × {{ item.quantity }} 件 </a-list-item>
-            </template>
-          </a-list>
+        <div v-else-if="tab === '排程'" class="drawer-body">
+          <a-alert v-if="selected.status === 'done'" type="info" show-icon message="已完工批次不可修改排程" class="notice" />
+          <a-form :model="schedule" :label-col="{ span: 7 }" :wrapper-col="{ span: 16 }"
+            ><fieldset :disabled="selected.status === 'done'">
+              <a-form-item
+                v-for="[key, label] in [
+                  ['planTechDate', '计划工艺日期'],
+                  ['planDrawingDate', '计划出图日期'],
+                  ['planCutDate', '计划开料日期'],
+                  ['planSheetStart', '计划钣金开始'],
+                  ['planSheetDelivery', '计划钣金交期'],
+                  ['planSprayStart', '计划喷涂开始'],
+                  ['planSprayDelivery', '计划喷涂交期'],
+                ] as const"
+                :key="key"
+                :label="label"
+                ><a-date-picker
+                  v-model:value="schedule[key]"
+                  value-format="YYYY-MM-DD"
+                  style="width: 100%"
+                  :disabled="selected.status === 'done'"
+              /></a-form-item>
+              <a-form-item label="外协钣金厂"
+                ><a-select
+                  v-model:value="schedule.outsourceFactoryId"
+                  allow-clear
+                  :disabled="selected.status === 'done'"
+                  placeholder="未指定"
+                  :options="factories.filter((f) => f.kind === 'outsource').map((f) => ({ value: f.id, label: f.name }))"
+              /></a-form-item>
+              <a-form-item label="计划钣金车间"><a-input v-model:value="schedule.workshop" /></a-form-item>
+              <a-form-item label="紧急程度"
+                ><a-select
+                  v-model:value="schedule.urgency"
+                  :disabled="selected.status === 'done'"
+                  :options="[
+                    { value: 'normal', label: '普通' },
+                    { value: 'urgent', label: '加急' },
+                  ]"
+              /></a-form-item>
+              <a-form-item label="备注"><a-textarea v-model:value="schedule.remark" :rows="3" /></a-form-item></fieldset
+          ></a-form>
+          <a-button type="primary" :disabled="selected.status === 'done'" :loading="saving" @click="saveSchedule">保存排程</a-button>
         </div>
         <div v-else class="drawer-body">
-          <a-list
-            bordered
-            :data-source="
-              tab === '质检记录' ? ['钣金质检：待复核', '喷涂膜厚：合格', '颜色色差：待检'] : ['发货计划：待装车', '装架：待扫码交接']
-            "
-          >
-            <template #renderItem="{ item }">
-              <a-list-item>{{ item }}</a-list-item>
-            </template>
-          </a-list>
-        </div>
-        <div class="drawer-footer">
-          <span>操作员: 演示操作员</span>
-          <div>
-            <a-button @click="notify">打印批次流转卡</a-button>
-            <a-button @click="notify">生成件标签</a-button>
-            <a-button type="primary" @click="notify">去工位报工</a-button>
+          <div class="item-toolbar">
+            <a-button type="primary" :disabled="selected.status === 'done'" @click="openImport">导入/替换清单</a-button>
           </div>
+          <a-table
+            row-key="id"
+            size="small"
+            :loading="itemsLoading"
+            :data-source="items"
+            :scroll="{ x: 1100 }"
+            :pagination="false"
+            :columns="[
+              { title: '序号', dataIndex: 'seq' },
+              { title: '编号', dataIndex: 'pieceNo' },
+              { title: '图号', dataIndex: 'drawingNo' },
+              { title: '板型', dataIndex: 'pattern' },
+              { title: '厚度', dataIndex: 'thickness' },
+              { title: '长×宽', dataIndex: 'dimension' },
+              { title: '单件面积', dataIndex: 'pieceArea' },
+              { title: '喷涂面积', dataIndex: 'sprayingArea' },
+              { title: '数量', dataIndex: 'qty' },
+              { title: '包装数', dataIndex: 'packageQty' },
+              { title: '刀数', dataIndex: 'bendingTimes' },
+              { title: '备注', dataIndex: 'remark' },
+            ]"
+            ><template #bodyCell="{ column, record }"
+              ><template v-if="column.dataIndex === 'dimension'">{{ record.length }} × {{ record.width }}</template></template
+            ></a-table
+          >
         </div>
+        <div class="drawer-footer"><a-button @click="selected = undefined">关闭</a-button></div>
       </template>
     </a-drawer>
+    <a-modal
+      v-model:open="createOpen"
+      title="新建生产批次"
+      :width="720"
+      :confirm-loading="saving"
+      ok-text="保存"
+      destroy-on-close
+      @ok="saveCreate"
+      ><a-form ref="createRef" :model="createForm" :label-col="{ span: 6 }">
+        <a-form-item label="合同" name="contractId" :rules="[{ required: true, message: '请选择合同' }]"
+          ><a-select
+            v-model:value="createForm.contractId"
+            show-search
+            option-filter-prop="label"
+            :options="contracts.map((c) => ({ value: c.id, label: `${c.contractNo} · ${c.customerName} · ${c.projectName}` }))"
+        /></a-form-item>
+        <a-form-item label="批次号" name="lotNo" :rules="[{ required: true, whitespace: true, message: '请输入批次号' }]"
+          ><a-input v-model:value="createForm.lotNo" :maxlength="64"
+        /></a-form-item>
+        <a-form-item label="客户单号"><a-input v-model:value="createForm.clientOrderNo" /></a-form-item>
+        <a-form-item label="厚度 (mm)"
+          ><a-input-number v-model:value="createForm.thickness" :min="0" :step="0.1" style="width: 100%"
+        /></a-form-item>
+        <a-form-item
+          v-for="[key, label] in [
+            ['color', '颜色'],
+            ['colorNo', '色号'],
+            ['texture', '材质'],
+            ['sprayingType', '喷涂类型'],
+          ] as const"
+          :key="key"
+          :label="label"
+          ><a-input v-model:value="createForm[key]"
+        /></a-form-item>
+        <a-form-item label="订单件数"
+          ><a-input-number v-model:value="createForm.orderQty" :min="0" :precision="0" style="width: 100%"
+        /></a-form-item>
+        <a-form-item label="订单面积"
+          ><a-input-number v-model:value="createForm.orderArea" :min="0" :precision="2" style="width: 100%"
+        /></a-form-item>
+        <a-form-item label="需求交期"
+          ><a-date-picker v-model:value="createForm.requiredDate" value-format="YYYY-MM-DD" style="width: 100%"
+        /></a-form-item>
+        <a-form-item label="紧急"
+          ><a-switch :checked="createForm.urgency === 'urgent'" @change="(v: boolean) => (createForm.urgency = v ? 'urgent' : 'normal')"
+        /></a-form-item>
+        <a-form-item label="发货地址"><a-input v-model:value="createForm.deliveryAddress" /></a-form-item>
+        <a-form-item label="特殊要求"><a-textarea v-model:value="createForm.specialRequest" /></a-form-item>
+        <a-form-item label="备注"><a-textarea v-model:value="createForm.remark" /></a-form-item> </a-form
+    ></a-modal>
+    <a-modal v-model:open="importOpen" title="导入/替换构件清单" :confirm-loading="importing" ok-text="替换清单" @ok="importItems">
+      <p>每行：编号,图号,长,宽,数量[,板型,颜色,包装数,刀数,备注]；支持制表符或逗号分隔，长宽单位 mm。</p>
+      <a-textarea v-model:value="importText" :rows="10" placeholder="P001,D001,1200,600,5" />
+    </a-modal>
   </div>
 </template>
 <style scoped>
@@ -307,10 +669,6 @@ label {
   font-size: 12px;
   min-width: 160px;
 }
-.sub-title {
-  font-weight: 600;
-  margin-bottom: 8px;
-}
 .summary {
   background: var(--gz-bg);
   padding: 12px;
@@ -330,62 +688,21 @@ label {
   font-size: 14px;
   margin: 24px 0 12px;
 }
-.barcode {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  background: var(--gz-bg);
-  border: 1px solid var(--gz-border);
-  border-radius: var(--gz-radius);
-  gap: 12px;
-}
-.barcode small {
-  color: var(--gz-muted);
-}
-.uid {
-  font:
-    600 17px 'JetBrains Mono',
-    Consolas,
-    monospace;
-  margin: 8px 0;
-  word-break: break-all;
-}
-.qr {
-  display: grid;
-  text-align: center;
-  font-size: 38px;
-  background: var(--gz-card);
-  padding: 4px 12px;
-}
-.qr small {
-  font-size: 11px;
-}
 .overdue {
   color: var(--gz-error);
+}
+.notice,
+.item-toolbar {
+  margin-bottom: 16px;
 }
 .drawer-footer {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
   padding: 12px 20px;
   background: var(--gz-card);
   border-top: 1px solid var(--gz-border);
-  font-size: 12px;
-  color: var(--gz-secondary);
-}
-.drawer-footer > div {
-  display: flex;
-  gap: 8px;
-}
-@media (max-width: 768px) {
-  .drawer-footer {
-    flex-wrap: wrap;
-  }
+  text-align: right;
 }
 </style>
