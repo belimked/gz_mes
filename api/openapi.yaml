@@ -640,6 +640,8 @@ paths:
     get:
       operationId: listScans
       tags: [production]
+      description: |
+        Scan records (扫描记录) newest first. beginDate / endDate filter on scanned_at (dates, inclusive).
       parameters:
         - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
@@ -647,6 +649,8 @@ paths:
         - { name: jobId, in: query, schema: { type: integer, format: int64 } }
         - { name: beginDate, in: query, schema: { type: string, format: date } }
         - { name: endDate, in: query, schema: { type: string, format: date } }
+        - { name: keyword, in: query, schema: { type: string }, description: "Matches barCode / lotNo / projectName / pieceNo" }
+        - { name: staff, in: query, schema: { type: string }, description: "Matches operator displayName / staffNo / username" }
       responses:
         "200":
           description: OK
@@ -1677,18 +1681,21 @@ components:
 
     Scan:
       type: object
-      required: [id, labelId, barCode, batchId, lotNo, pieceNo, pieceIndex, jobId, jobName, scannedBy, scannedAt, device]
+      required: [id, labelId, barCode, batchId, lotNo, projectName, pieceNo, pieceIndex, pieceArea, jobId, jobName, scannedBy, staffNo, scannedAt, device]
       properties:
         id: { type: integer, format: int64 }
         labelId: { type: integer, format: int64 }
         barCode: { type: string }
         batchId: { type: integer, format: int64 }
         lotNo: { type: string }
+        projectName: { type: string }
         pieceNo: { type: string }
         pieceIndex: { type: integer }
+        pieceArea: { type: number, format: double, description: "batch_item.piece_area (m²)" }
         jobId: { type: integer, format: int64 }
         jobName: { type: string }
-        scannedBy: { type: string }
+        scannedBy: { type: string, description: "Operator displayName" }
+        staffNo: { type: string, description: "Operator staffNo" }
         scannedAt: { type: string, format: date-time }
         device: { type: string }
 

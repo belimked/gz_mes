@@ -2,6 +2,7 @@ package server_test
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -93,6 +94,15 @@ func TestLabelAndScanFlow(t *testing.T) {
 	var scans api.ScanPage
 	if code := e.do("GET", fmt.Sprintf("/scans?batchId=%d", b.Id), admin, nil, &scans); code != 200 || scans.Total != 55 {
 		t.Fatalf("scans: %d %+v", code, scans)
+	}
+	if s0 := scans.Items[0]; s0.JobName != "发货对账" || s0.ProjectName == "" || s0.ScannedBy != "管理员" || s0.PieceArea <= 0 {
+		t.Fatalf("scan row (newest first, enriched): %+v", s0)
+	}
+	if code := e.do("GET", fmt.Sprintf("/scans?batchId=%d&keyword=%s&staff=%s", b.Id, page.Items[1].BarCode, url.QueryEscape("管理")), admin, nil, &scans); code != 200 || scans.Total != 11 {
+		t.Fatalf("scans keyword/staff: %d %+v", code, scans)
+	}
+	if code := e.do("GET", "/scans?staff=nobody-here", admin, nil, &scans); code != 200 || scans.Total != 0 {
+		t.Fatalf("scans staff miss: %d %+v", code, scans)
 	}
 	barcode = page.Items[0].BarCode
 	if code := e.do("POST", "/labels/"+barcode+"/cancel", admin, nil, &er); code != 409 || er.Code != "has_scans" {

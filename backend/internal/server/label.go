@@ -14,7 +14,7 @@ func toAPILabel(l *store.Label) api.Label {
 	return api.Label{Id: l.ID, BarCode: l.BarCode, FactoryId: l.FactoryID, BatchId: l.BatchID, LotNo: l.LotNo, ProjectName: l.ProjectName, BatchItemId: l.BatchItemID, PieceNo: l.PieceNo, PieceIndex: l.PieceIndex, Qty: l.Qty, DrawingNo: l.DrawingNo, Pattern: l.Pattern, Thickness: l.Thickness, Color: l.Color, PieceArea: l.PieceArea, Cancelled: l.Cancelled, LastJobId: l.LastJobID, LastJobName: l.LastJobName, LastScannedAt: l.LastScannedAt, CreatedAt: l.CreatedAt}
 }
 func toAPIScan(v store.Scan) api.Scan {
-	return api.Scan{Id: v.ID, LabelId: v.LabelID, BarCode: v.BarCode, BatchId: v.BatchID, LotNo: v.LotNo, PieceNo: v.PieceNo, PieceIndex: v.PieceIndex, JobId: v.JobID, JobName: v.JobName, ScannedBy: v.ScannedBy, ScannedAt: v.ScannedAt, Device: v.Device}
+	return api.Scan{Id: v.ID, LabelId: v.LabelID, BarCode: v.BarCode, BatchId: v.BatchID, LotNo: v.LotNo, ProjectName: v.ProjectName, PieceNo: v.PieceNo, PieceIndex: v.PieceIndex, PieceArea: v.PieceArea, JobId: v.JobID, JobName: v.JobName, ScannedBy: v.ScannedBy, StaffNo: v.StaffNo, ScannedAt: v.ScannedAt, Device: v.Device}
 }
 func toAPIProgress(v *store.Progress) api.BatchProgress {
 	p := api.BatchProgress{BatchId: v.BatchID, Status: api.BatchStatus(v.Status), TotalQty: v.TotalQty, TotalArea: v.TotalArea, LabelQty: v.LabelQty, Jobs: make([]api.JobProgress, 0, len(v.Jobs))}
@@ -101,7 +101,7 @@ func (s *Server) CancelLabel(ctx context.Context, req api.CancelLabelRequestObje
 	return api.CancelLabel200JSONResponse(toAPILabel(l)), nil
 }
 func (s *Server) ListScans(ctx context.Context, req api.ListScansRequestObject) (api.ListScansResponseObject, error) {
-	f := store.ScanFilter{BatchID: req.Params.BatchId, JobID: req.Params.JobId, Begin: dateValue(req.Params.BeginDate)}
+	f := store.ScanFilter{BatchID: req.Params.BatchId, JobID: req.Params.JobId, Begin: dateValue(req.Params.BeginDate), Keyword: optionalString(req.Params.Keyword), Staff: optionalString(req.Params.Staff), Newest: true}
 	if req.Params.EndDate != nil {
 		end := req.Params.EndDate.AddDate(0, 0, 1)
 		f.End = &end

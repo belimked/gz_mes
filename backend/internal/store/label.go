@@ -161,20 +161,26 @@ type Scan struct {
 	ID, LabelID        int64
 	BarCode            string
 	BatchID            int64
-	LotNo, PieceNo     string
+	LotNo, ProjectName string
+	PieceNo            string
 	PieceIndex         int
+	PieceArea          float64
 	JobID              int64
 	JobName, ScannedBy string
+	StaffNo            string
 	ScannedAt          time.Time
 	Device             string
 }
 
-const scanFrom = ` FROM scan_record sr JOIN label l ON l.id=sr.label_id JOIN batch b ON b.id=sr.batch_id JOIN batch_item bi ON bi.id=l.batch_item_id JOIN job j ON j.id=sr.job_id JOIN app_user u ON u.id=sr.scanned_by`
-const scanSelect = `SELECT sr.id,l.id,l.bar_code,b.id,b.lot_no,bi.piece_no,l.piece_index,j.id,j.name,u.display_name,sr.scanned_at,sr.device` + scanFrom
+const scanFrom = ` FROM scan_record sr JOIN label l ON l.id=sr.label_id JOIN batch b ON b.id=sr.batch_id JOIN contract c ON c.id=b.contract_id JOIN project p ON p.id=c.project_id JOIN batch_item bi ON bi.id=l.batch_item_id JOIN job j ON j.id=sr.job_id JOIN app_user u ON u.id=sr.scanned_by`
+const scanSelect = `SELECT sr.id,l.id,l.bar_code,b.id,b.lot_no,p.full_name,bi.piece_no,l.piece_index,bi.piece_area::float8,j.id,j.name,u.display_name,u.staff_no,sr.scanned_at,sr.device` + scanFrom
 
 type ScanFilter struct {
 	BatchID, JobID, LabelID *int64
 	Begin, End              *time.Time
+	Keyword, Staff          string
+	// Newest sorts by scanned_at desc (list screens); default is chronological (label timeline).
+	Newest bool
 }
 
 func (s *Store) ListScans(ctx context.Context, sc auth.Scope, f ScanFilter, page, size int) ([]Scan, int64, error) {
@@ -196,12 +202,22 @@ func (s *Store) ListScans(ctx context.Context, sc auth.Scope, f ScanFilter, page
 	if f.End != nil {
 		add(` AND sr.scanned_at < $%d`, *f.End)
 	}
+	if kw := strings.TrimSpace(f.Keyword); kw != "" {
+		add(` AND (l.bar_code ILIKE $%d OR b.lot_no ILIKE $%[1]d OR p.full_name ILIKE $%[1]d OR bi.piece_no ILIKE $%[1]d)`, "%"+kw+"%")
+	}
+	if st := strings.TrimSpace(f.Staff); st != "" {
+		add(` AND (u.display_name ILIKE $%d OR u.staff_no ILIKE $%[1]d OR u.username ILIKE $%[1]d)`, "%"+st+"%")
+	}
 	var total int64
 	if err := s.db.QueryRow(ctx, `SELECT count(*)`+scanFrom+where, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
+	order := ` ORDER BY sr.scanned_at ASC,sr.id ASC`
+	if f.Newest {
+		order = ` ORDER BY sr.scanned_at DESC,sr.id DESC`
+	}
 	args = append(args, size, (page-1)*size)
-	rows, err := s.db.Query(ctx, scanSelect+where+fmt.Sprintf(` ORDER BY sr.scanned_at ASC,sr.id ASC LIMIT $%d OFFSET $%d`, len(args)-1, len(args)), args...)
+	rows, err := s.db.Query(ctx, scanSelect+where+order+fmt.Sprintf(` LIMIT $%d OFFSET $%d`, len(args)-1, len(args)), args...)
 	if err != nil {
 		return nil, 0, err
 	}
