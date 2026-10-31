@@ -1110,6 +1110,65 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /reports/batch-jobs:
+    get:
+      operationId: getBatchJobReport
+      tags: [report]
+      description: |
+        工程日报 (mode=daily) / 工程进度 (mode=progress). One row per batch, one cell per job in job.seq order
+        (jobs lists the columns). Cells count scans of active labels of the batch at that job.
+        daily: only scans with scanned_at in [from, to] (dates, inclusive; both default to today) and only batches
+        that have at least one such scan; rows ordered by last scan desc.
+        progress: all scans; rows are all batches in scope (from/to filter on batch createdAt), ordered by
+        requiredDate asc (nulls last), id desc. pct = qty*100/labelQty (0 when no labels).
+        jobId keeps rows with a counted scan at that job; scanned=false keeps rows without any counted scan.
+      parameters:
+        - { name: mode, in: query, required: true, schema: { type: string, enum: [daily, progress] } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/BatchStatus" } }
+        - { name: workshop, in: query, schema: { type: string } }
+        - { name: outsourceFactoryId, in: query, schema: { type: integer, format: int64 } }
+        - { name: jobId, in: query, schema: { type: integer, format: int64 } }
+        - { name: scanned, in: query, schema: { type: boolean } }
+        - { name: keyword, in: query, schema: { type: string }, description: "lotNo / projectName / customerName / clientOrderNo" }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchJobReport" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /reports/staff-output:
+    get:
+      operationId: getStaffOutputReport
+      tags: [report]
+      description: |
+        员工产量. Scans of active labels in the caller's factories with scanned_at in [from, to] (dates, inclusive;
+        both default to today), grouped by operator × job (detail=true: also × batch). qty counts scans; area /
+        sprayArea / weldLine sum the scanned pieces' batch_item values. Ordered by qty desc, staffNo, job seq, lotNo.
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: jobId, in: query, schema: { type: integer, format: int64 } }
+        - { name: staff, in: query, schema: { type: string }, description: "displayName / staffNo / username" }
+        - { name: batchKeyword, in: query, schema: { type: string }, description: "lotNo / projectName" }
+        - { name: detail, in: query, schema: { type: boolean, default: false }, description: "true → 明细 (per batch), false → 汇总" }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffOutputReport" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -2173,6 +2232,109 @@ components:
         sprayType: { type: string, maxLength: 50, default: "" }
         urgency: { $ref: "#/components/schemas/Urgency" }
         remark: { type: string, maxLength: 500, default: "" }
+
+    JobCell:
+      type: object
+      required: [jobId, qty, area, pct]
+      properties:
+        jobId: { type: integer, format: int64 }
+        qty: { type: integer }
+        area: { type: number, format: double }
+        pct: { type: integer, description: "qty*100/labelQty, 0 when the batch has no labels" }
+
+    BatchJobRow:
+      type: object
+      required: [batchId, lotNo, projectName, customerName, clientOrderNo, thickness, color, status, urgency, workshop, itemQty, itemArea, labelQty, currentJobName, cells]
+      properties:
+        batchId: { type: integer, format: int64 }
+        lotNo: { type: string }
+        projectName: { type: string }
+        customerName: { type: string }
+        clientOrderNo: { type: string }
+        thickness: { type: number, format: double }
+        color: { type: string }
+        status: { $ref: "#/components/schemas/BatchStatus" }
+        urgency: { $ref: "#/components/schemas/Urgency" }
+        workshop: { type: string }
+        outsourceFactoryName: { type: string, nullable: true }
+        requiredDate: { type: string, format: date, nullable: true }
+        itemQty: { type: integer }
+        itemArea: { type: number, format: double }
+        labelQty: { type: integer, description: "active labels" }
+        currentJobName: { type: string, description: "furthest job (by seq) any label of the batch reached, '' when none" }
+        lastScanAt: { type: string, format: date-time, nullable: true, description: "latest counted scan" }
+        cells:
+          type: array
+          description: Same length and order as BatchJobReport.jobs
+          items: { $ref: "#/components/schemas/JobCell" }
+
+    BatchJobReport:
+      type: object
+      required: [jobs, items, total, page, size, summary]
+      properties:
+        jobs:
+          type: array
+          items: { $ref: "#/components/schemas/Job" }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/BatchJobRow" }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+        summary:
+          type: object
+          description: Over the whole filter, not just the page
+          required: [batches, itemQty, itemArea, labelQty, cells]
+          properties:
+            batches: { type: integer }
+            itemQty: { type: integer }
+            itemArea: { type: number, format: double }
+            labelQty: { type: integer }
+            cells:
+              type: array
+              description: Σ per job over all matching rows; pct = qty*100/labelQty
+              items: { $ref: "#/components/schemas/JobCell" }
+
+    StaffOutputRow:
+      type: object
+      required: [userId, staffNo, displayName, jobId, jobName, qty, area, sprayArea, weldLine, firstScanAt, lastScanAt]
+      properties:
+        userId: { type: integer, format: int64 }
+        staffNo: { type: string }
+        displayName: { type: string }
+        jobId: { type: integer, format: int64 }
+        jobName: { type: string }
+        batchId: { type: integer, format: int64, nullable: true, description: "detail rows only" }
+        lotNo: { type: string, nullable: true }
+        projectName: { type: string, nullable: true }
+        qty: { type: integer }
+        area: { type: number, format: double, description: "Σ 单件展开面积" }
+        sprayArea: { type: number, format: double, description: "Σ 喷涂面积" }
+        weldLine: { type: number, format: double, description: "Σ 焊缝" }
+        firstScanAt: { type: string, format: date-time }
+        lastScanAt: { type: string, format: date-time }
+
+    StaffOutputReport:
+      type: object
+      required: [items, total, page, size, summary]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/StaffOutputRow" }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+        summary:
+          type: object
+          description: Over the whole filter, not just the page
+          required: [rows, staff, qty, area, sprayArea, weldLine]
+          properties:
+            rows: { type: integer }
+            staff: { type: integer, description: "distinct operators" }
+            qty: { type: integer }
+            area: { type: number, format: double }
+            sprayArea: { type: number, format: double }
+            weldLine: { type: number, format: double }
 
     PlanUpdate:
       type: object
