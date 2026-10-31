@@ -45,7 +45,7 @@ test('wrong password shows an error', async ({ page }) => {
 })
 
 test('every login style renders a working form', async ({ page }) => {
-  for (const style of ['split', 'card', 'dark', 'industrial', 'minimal']) {
+  for (const style of ['aurora', 'nebula', 'tide', 'ember']) {
     await page.goto(`/login?style=${style}`)
     await expect(page.getByTestId('login-style-switcher')).toBeVisible()
     await expect(page.getByTestId('username')).toBeVisible()
