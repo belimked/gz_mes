@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { PROCESS_STEPS, statusTone, type Tone } from '@/theme'
+import type { Schemas } from '@/api/client'
+import { fmtH } from '@/utils/time'
 import StatusTag from './StatusTag.vue'
 
-const props = defineProps<{ items: { jobCode: string; jobName: string; seq: number; qty: number; area: number }[] }>()
+const props = defineProps<{ items: Schemas['JobLoad'][] }>()
 const steps = computed(() => {
   const maxQty = Math.max(0, ...props.items.map((item) => item.qty))
   return PROCESS_STEPS.map((name, index) => {
@@ -22,7 +24,19 @@ const steps = computed(() => {
       tone = 'processing'
       label = '在制'
     }
-    return { seq, name, qty, area: item?.area ?? 0, tone, label }
+    return {
+      seq,
+      name,
+      qty,
+      area: item?.area ?? 0,
+      cycleSamples: item?.cycleSamples ?? 0,
+      cycleHours: item?.cycleHours ?? null,
+      cycleP90Hours: item?.cycleP90Hours ?? null,
+      dwellHours: item?.dwellHours ?? null,
+      dwellMaxHours: item?.dwellMaxHours ?? null,
+      tone,
+      label,
+    }
   })
 })
 </script>
@@ -41,6 +55,24 @@ const steps = computed(() => {
         <div class="step-name">{{ String(step.seq).padStart(2, '0') }}. {{ step.name }}</div>
         <div class="step-value">{{ step.qty }}<span> 件</span></div>
         <div class="step-area">{{ step.area.toFixed(1) }} m²</div>
+        <div class="step-times">
+          <a-tooltip :title="`近 14 天 ${step.cycleSamples} 件，从上一道扫码到本道扫码的平均/90 分位耗时`">
+            <div>
+              周期
+              {{
+                step.cycleHours == null
+                  ? '—'
+                  : `ø ${fmtH(step.cycleHours)} · P90 ${step.cycleP90Hours == null ? '—' : fmtH(step.cycleP90Hours)}`
+              }}
+            </div>
+          </a-tooltip>
+          <a-tooltip v-if="step.qty > 0" :title="`当前停在本道的 ${step.qty} 件已等待时长`">
+            <div :class="{ 'dwell-alert': (step.dwellMaxHours ?? 0) > 24 }">
+              停留 ø {{ step.dwellHours == null ? '—' : fmtH(step.dwellHours) }} · 最长
+              {{ step.dwellMaxHours == null ? '—' : fmtH(step.dwellMaxHours) }}
+            </div>
+          </a-tooltip>
+        </div>
         <StatusTag :tone="step.tone" :label="step.label" />
       </div>
     </div>
@@ -76,7 +108,7 @@ const steps = computed(() => {
 }
 .step {
   position: relative;
-  min-height: 150px;
+  min-height: 170px;
   border: 1px solid;
   border-radius: var(--gz-radius);
   display: flex;
@@ -100,6 +132,14 @@ const steps = computed(() => {
 .step-area {
   font-size: 12px;
   color: var(--gz-secondary);
+}
+.step-times {
+  font-size: 11px;
+  color: var(--gz-secondary);
+  line-height: 1.4;
+}
+.dwell-alert {
+  color: var(--gz-error);
 }
 .step-value {
   font-size: 26px;

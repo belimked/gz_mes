@@ -24,7 +24,7 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 8
+  version: 9
   factories: S['Factory'][]
   users: DemoUser[]
   nextId: number
@@ -81,7 +81,7 @@ function fresh(): DemoDB {
     for (const note of deliveryNotes) if (note.accountId === oldId) note.accountId = account.id
   }
   return {
-    version: 8,
+    version: 9,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
     nextId,
@@ -107,12 +107,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 8) return parsed
+      if (parsed?.version === 9) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 8) memory = fresh()
+  if (memory?.version !== 9) memory = fresh()
   return memory
 }
 
@@ -690,10 +690,41 @@ export async function demoFetch(req: Request): Promise<Response> {
       count: batches.filter((batch) => batch.status === status).length,
     }))
     const producingIds = new Set(producing.map((batch) => batch.id))
+    const now = Date.now()
+    const hours = (durationMs: number) => durationMs / 3600000
+    const roundHours = (value: number) => Number(value.toFixed(2))
+    const jobBySeq = new Map(jobs.map((job) => [job.seq, job]))
+    const cycleByJob = new Map<number, number[]>()
+    const latestByLabelJob = new Map<number, Map<number, number>>()
+    for (const scan of [...scans].sort((a, b) => a.scannedAt.localeCompare(b.scannedAt) || a.id - b.id)) {
+      const scannedAt = Date.parse(scan.scannedAt)
+      const job = jobs.find((row) => row.id === scan.jobId)
+      if (!job) continue
+      const previous =
+        job.seq === 1
+          ? Date.parse(labelById.get(scan.labelId)?.createdAt ?? '')
+          : latestByLabelJob.get(scan.labelId)?.get(jobBySeq.get(job.seq - 1)?.id ?? -1)
+      if (
+        scan.scannedAt.slice(0, 10) >= start &&
+        scan.scannedAt.slice(0, 10) <= today &&
+        previous !== undefined &&
+        Number.isFinite(previous) &&
+        scannedAt >= previous
+      ) {
+        const samples = cycleByJob.get(job.id) ?? []
+        samples.push(hours(scannedAt - previous))
+        cycleByJob.set(job.id, samples)
+      }
+      const byJob = latestByLabelJob.get(scan.labelId) ?? new Map<number, number>()
+      byJob.set(job.id, scannedAt)
+      latestByLabelJob.set(scan.labelId, byJob)
+    }
     const jobLoad: S['JobLoad'][] = [...jobs]
       .sort((a, b) => a.seq - b.seq)
       .map((job) => {
         const rows = labels.filter((label) => !label.cancelled && producingIds.has(label.batchId) && label.lastJobId === job.id)
+        const cycles = (cycleByJob.get(job.id) ?? []).sort((a, b) => a - b)
+        const waits = rows.map((label) => hours(now - Date.parse(label.lastScannedAt!)))
         return {
           jobId: job.id,
           jobCode: job.code,
@@ -701,6 +732,11 @@ export async function demoFetch(req: Request): Promise<Response> {
           seq: job.seq,
           qty: rows.length,
           area: area(rows.map((l) => l.pieceArea)),
+          cycleSamples: cycles.length,
+          cycleHours: cycles.length ? roundHours(cycles.reduce((sum, value) => sum + value, 0) / cycles.length) : null,
+          cycleP90Hours: cycles.length ? roundHours(cycles[Math.ceil(0.9 * cycles.length) - 1]!) : null,
+          dwellHours: waits.length ? roundHours(waits.reduce((sum, value) => sum + value, 0) / waits.length) : null,
+          dwellMaxHours: waits.length ? roundHours(Math.max(...waits)) : null,
         }
       })
     const scanTrend: S['DailyScan'][] = Array.from({ length: days }, (_, index) => {

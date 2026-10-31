@@ -13,6 +13,7 @@ import CodeText from '@/components/CodeText.vue'
 import EChart from '@/components/EChart.vue'
 import ProcessPipeline from '@/components/ProcessPipeline.vue'
 import { statusTone, type Tone } from '@/theme'
+import { fmtH } from '@/utils/time'
 
 const router = useRouter()
 const dashboard = ref<Schemas['Dashboard']>()
@@ -157,6 +158,50 @@ const pipelineLegend: { tone: Tone; label: string }[] = [
   { tone: 'warning', label: '堆积' },
   { tone: 'success', label: '待对账' },
 ]
+const sortedJobs = computed(() => [...(dashboard.value?.jobLoad ?? [])].sort((a, b) => a.seq - b.seq))
+const cycleSummary = computed(() => {
+  const jobs = sortedJobs.value
+  const bottleneck = jobs.reduce<Schemas['JobLoad'] | undefined>(
+    (best, job) => (job.cycleHours != null && (best?.cycleHours == null || job.cycleHours > best.cycleHours) ? job : best),
+    undefined,
+  )
+  const longestDwell = jobs.reduce<Schemas['JobLoad'] | undefined>(
+    (best, job) => (job.dwellMaxHours != null && (best?.dwellMaxHours == null || job.dwellMaxHours > best.dwellMaxHours) ? job : best),
+    undefined,
+  )
+  return { total: sum(jobs.map((job) => job.cycleHours ?? 0)), bottleneck, longestDwell }
+})
+const cycleOption = computed<EChartsOption>(() => ({
+  grid: { left: 70, right: 24, top: 8, bottom: 8 },
+  xAxis: { type: 'value', show: false, splitLine: { show: false } },
+  yAxis: {
+    type: 'category',
+    inverse: true,
+    data: sortedJobs.value.map((job) => job.jobName),
+    axisTick: { show: false },
+    axisLine: { show: false },
+    axisLabel: { fontSize: 10 },
+  },
+  tooltip: {
+    trigger: 'item',
+    formatter: (param) => {
+      const job = sortedJobs.value[Array.isArray(param) ? (param[0]?.dataIndex ?? -1) : param.dataIndex]
+      if (!job) return ''
+      return `${job.jobName}<br/>周期：${job.cycleHours == null ? '—' : fmtH(job.cycleHours)}<br/>P90：${job.cycleP90Hours == null ? '—' : fmtH(job.cycleP90Hours)}<br/>样本数：${job.cycleSamples} 件`
+    },
+  },
+  series: [
+    {
+      type: 'bar',
+      barMaxWidth: 10,
+      data: sortedJobs.value.map((job) => ({
+        value: job.cycleHours ?? 0,
+        itemStyle: { color: job === cycleSummary.value.bottleneck ? '#faad14' : '#1677ff' },
+      })),
+      label: { show: true, position: 'right', fontSize: 10, formatter: (param) => fmtH(Number(param.value)) },
+    },
+  ],
+}))
 const trendOption = computed<EChartsOption>(() => ({
   color: colors,
   tooltip: { trigger: 'axis' },
@@ -226,6 +271,32 @@ onMounted(() => {
           </div>
         </template>
         <ProcessPipeline :items="dashboard.jobLoad" />
+        <div class="cycle-summary">
+          <a-row :gutter="[16, 12]" align="middle">
+            <a-col :xs="24" :xl="10" class="cycle-facts">
+              <div>
+                全流程平均周期 ≈ <strong>{{ fmtH(cycleSummary.total) }}</strong>
+              </div>
+              <div>
+                瓶颈工序：<strong class="bottleneck"
+                  >{{ cycleSummary.bottleneck?.jobName ?? '—' }}（ø
+                  {{ cycleSummary.bottleneck?.cycleHours == null ? '—' : fmtH(cycleSummary.bottleneck.cycleHours) }}）</strong
+                >
+              </div>
+              <div>
+                最长停留：<strong
+                  >{{ cycleSummary.longestDwell?.jobName ?? '—' }}（{{
+                    cycleSummary.longestDwell?.dwellMaxHours == null ? '—' : fmtH(cycleSummary.longestDwell.dwellMaxHours)
+                  }}）</strong
+                >
+              </div>
+            </a-col>
+            <a-col :xs="24" :xl="14">
+              <div class="cycle-chart-title">各工序平均周期（近 14 天）</div>
+              <EChart :option="cycleOption" :height="150" />
+            </a-col>
+          </a-row>
+        </div>
       </PageCard>
       <a-row :gutter="[16, 16]">
         <a-col :xs="24" :xl="16"
@@ -356,6 +427,27 @@ onMounted(() => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+}
+.cycle-summary {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--gz-border);
+}
+.cycle-facts {
+  display: grid;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--gz-secondary);
+}
+.cycle-facts strong {
+  color: var(--gz-primary);
+}
+.cycle-facts .bottleneck {
+  color: #faad14;
+}
+.cycle-chart-title {
+  font-size: 11px;
+  color: var(--gz-secondary);
 }
 .side-cards {
   display: flex;
