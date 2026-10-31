@@ -77,6 +77,7 @@ export const menus: { id: number; parentId: number | null; title: string; path: 
   { id: 1002, parentId: 1000, title: '工程进度', path: '/report/batch-progress', icon: 'line-chart' },
   { id: 1003, parentId: 1000, title: '员工产量', path: '/report/staff-output', icon: 'team' },
   { id: 1004, parentId: 1000, title: '扫描记录', path: '/report/scans', icon: 'barcode' },
+  { id: 1005, parentId: 1000, title: '生产平衡表', path: '/report/production-balance', icon: 'calculator' },
 ]
 
 export const users: DemoUser[] = [

@@ -3,12 +3,13 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
-import { ReloadOutlined } from '@ant-design/icons-vue'
+import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import { call, client, errorMessage, type Schemas } from '@/api/client'
 import PageCard from '@/components/PageCard.vue'
 import TableToolbar from '@/components/TableToolbar.vue'
 import CodeText from '@/components/CodeText.vue'
+import { downloadCsv, exportFilename, fetchAllPages } from '@/utils/export'
 
 type Row = Schemas['StaffOutputRow']
 type Summary = Schemas['StaffOutputReport']['summary']
@@ -64,6 +65,7 @@ const jobs = ref<Schemas['Job'][]>([])
 const summary = ref<Summary>({ rows: 0, staff: 0, qty: 0, area: 0, sprayArea: 0, weldLine: 0 })
 const pager = reactive({ current: 1, pageSize: 20, total: 0 })
 const loading = ref(false)
+const exporting = ref(false)
 const jobOptions = computed(() => jobs.value.map((j) => ({ value: j.id, label: `${j.code} ${j.name}` })))
 
 const columns = computed(() => [
@@ -85,25 +87,28 @@ const columns = computed(() => [
 ])
 const scrollX = computed(() => columns.value.reduce((n, c) => n + c.width, 0))
 
+function fetchPage(page: number, size: number) {
+  return call(
+    client.GET('/reports/staff-output', {
+      params: {
+        query: {
+          from: range.value[0],
+          to: range.value[1],
+          jobId: applied.jobId,
+          staff: applied.staff.trim() || undefined,
+          batchKeyword: applied.batchKeyword.trim() || undefined,
+          detail: applied.detail,
+          page,
+          size,
+        },
+      },
+    }),
+  )
+}
 async function load() {
   loading.value = true
   try {
-    const result = await call(
-      client.GET('/reports/staff-output', {
-        params: {
-          query: {
-            from: range.value[0],
-            to: range.value[1],
-            jobId: applied.jobId,
-            staff: applied.staff.trim() || undefined,
-            batchKeyword: applied.batchKeyword.trim() || undefined,
-            detail: applied.detail,
-            page: pager.current,
-            size: pager.pageSize,
-          },
-        },
-      }),
-    )
+    const result = await fetchPage(pager.current, pager.pageSize)
     rows.value = result.items
     summary.value = result.summary
     pager.total = result.total
@@ -126,6 +131,38 @@ function onTableChange(p: TablePaginationConfig) {
   pager.current = p.current ?? 1
   pager.pageSize = p.pageSize ?? 20
   void load()
+}
+async function exportCsv() {
+  exporting.value = true
+  try {
+    const all = await fetchAllPages(fetchPage)
+    downloadCsv(
+      exportFilename(applied.detail ? '员工产量明细' : '员工产量', range.value),
+      [
+        { title: '工号', value: (r) => r.staffNo },
+        { title: '员工', value: (r) => r.displayName },
+        { title: '岗位', value: (r) => r.jobName },
+        ...(applied.detail
+          ? [
+              { title: '批次号', value: (r: Row) => r.lotNo },
+              { title: '工程名称', value: (r: Row) => r.projectName },
+            ]
+          : []),
+        { title: '已扫描数量', value: (r) => r.qty },
+        { title: '展开面积', value: (r) => r.area },
+        { title: '喷涂面积', value: (r) => r.sprayArea },
+        { title: '焊缝', value: (r) => r.weldLine },
+        { title: '首次扫描', value: (r) => dayjs(r.firstScanAt).format('YYYY-MM-DD HH:mm:ss') },
+        { title: '最近扫描', value: (r) => dayjs(r.lastScanAt).format('YYYY-MM-DD HH:mm:ss') },
+      ],
+      all,
+    )
+    message.success(`已导出 ${all.length} 条`)
+  } catch (e) {
+    message.error(errorMessage(e))
+  } finally {
+    exporting.value = false
+  }
 }
 function openBatch(r: Row) {
   if (r.lotNo) void router.push({ path: '/scheduling/batches', query: { keyword: r.lotNo } })
@@ -215,6 +252,7 @@ onMounted(() => {
           </div>
         </template>
         <template #right>
+          <a-button :loading="exporting" data-testid="export-csv" @click="exportCsv"><DownloadOutlined />导出</a-button>
           <a-button aria-label="刷新" @click="load"><ReloadOutlined /></a-button>
         </template>
       </TableToolbar>

@@ -106,6 +106,12 @@ const children: RouteRecordRaw[] = [
     meta: { title: '扫描记录', group: '生产报表' },
   },
   {
+    path: 'report/production-balance',
+    name: 'report-production-balance',
+    component: () => import('@/views/report/ProductionBalance.vue'),
+    meta: { title: '生产平衡表', group: '生产报表' },
+  },
+  {
     path: 'system/factories',
     name: 'factories',
     component: () => import('@/views/system/Factories.vue'),

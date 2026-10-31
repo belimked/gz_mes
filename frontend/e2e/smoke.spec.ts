@@ -48,8 +48,25 @@ test('scan records page lists seeded scans and filters by keyword', async ({ pag
   const barCode = (await table.locator('tbody tr.ant-table-row').first().locator('td').nth(3).innerText()).trim()
   await page.getByPlaceholder('条码 / 批次 / 工程 / 编号').fill(barCode)
   await page.getByRole('button', { name: /查\s*询/ }).click()
-  await expect(page.getByTestId('scan-summary')).toContainText('共')
-  for (const cell of await table.locator('tbody tr.ant-table-row td:nth-child(4)').allInnerTexts()) expect(cell.trim()).toBe(barCode)
+  const codeCells = table.locator('tbody tr.ant-table-row td:nth-child(4)')
+  await expect(codeCells.filter({ hasNotText: barCode })).toHaveCount(0)
+  await expect(codeCells).not.toHaveCount(0)
+  await expect(codeCells).not.toHaveCount(20)
+})
+
+test('production balance page and progress summary toggle', async ({ page }) => {
+  await login(page)
+  await page.getByTestId('side-menu').getByText('生产报表').click()
+  await page.getByTestId('side-menu').getByText('生产平衡表').click()
+  await expect(page).toHaveURL(/\/report\/production-balance/)
+  await expect(page.getByTestId('balance-table').locator('tbody tr.ant-table-row')).not.toHaveCount(0)
+  await expect(page.getByTestId('balance-summary')).toContainText('批次')
+
+  await page.getByTestId('side-menu').getByText('工程进度').click()
+  await expect(page).toHaveURL(/\/report\/batch-progress/)
+  await page.getByTestId('progress-view').getByText('工程汇总').click()
+  await expect(page.getByTestId('report-table').locator('thead')).toContainText('完成率')
+  await expect(page.getByTestId('export-csv')).toBeVisible()
 })
 
 test('wrong password shows an error', async ({ page }) => {

@@ -3,12 +3,13 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
-import { ReloadOutlined } from '@ant-design/icons-vue'
+import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import { call, client, errorMessage, type Schemas } from '@/api/client'
 import PageCard from '@/components/PageCard.vue'
 import TableToolbar from '@/components/TableToolbar.vue'
 import CodeText from '@/components/CodeText.vue'
+import { downloadCsv, exportFilename, fetchAllPages } from '@/utils/export'
 
 type Row = Schemas['Scan']
 type Period = 'today' | 'yesterday' | 'week' | 'month' | 'all' | 'custom'
@@ -58,6 +59,7 @@ const rows = ref<Row[]>([])
 const jobs = ref<Schemas['Job'][]>([])
 const pager = reactive({ current: 1, pageSize: 20, total: 0 })
 const loading = ref(false)
+const exporting = ref(false)
 const jobOptions = computed(() => jobs.value.map((j) => ({ value: j.id, label: `${j.code} ${j.name}` })))
 const pageArea = computed(() => rows.value.reduce((n, r) => n + r.pieceArea, 0))
 
@@ -75,24 +77,27 @@ const columns = [
 ]
 const scrollX = columns.reduce((n, c) => n + c.width, 0)
 
+function fetchPage(page: number, size: number) {
+  return call(
+    client.GET('/scans', {
+      params: {
+        query: {
+          beginDate: range.value[0],
+          endDate: range.value[1],
+          jobId: applied.jobId,
+          staff: applied.staff.trim() || undefined,
+          keyword: applied.keyword.trim() || undefined,
+          page,
+          size,
+        },
+      },
+    }),
+  )
+}
 async function load() {
   loading.value = true
   try {
-    const result = await call(
-      client.GET('/scans', {
-        params: {
-          query: {
-            beginDate: range.value[0],
-            endDate: range.value[1],
-            jobId: applied.jobId,
-            staff: applied.staff.trim() || undefined,
-            keyword: applied.keyword.trim() || undefined,
-            page: pager.current,
-            size: pager.pageSize,
-          },
-        },
-      }),
-    )
+    const result = await fetchPage(pager.current, pager.pageSize)
     rows.value = result.items
     pager.total = result.total
   } catch (e) {
@@ -114,6 +119,34 @@ function onTableChange(p: TablePaginationConfig) {
   pager.current = p.current ?? 1
   pager.pageSize = p.pageSize ?? 20
   void load()
+}
+async function exportCsv() {
+  exporting.value = true
+  try {
+    const all = await fetchAllPages(fetchPage)
+    downloadCsv(
+      exportFilename('扫描记录', range.value),
+      [
+        { title: '扫描时间', value: (r) => dayjs(r.scannedAt).format('YYYY-MM-DD HH:mm:ss') },
+        { title: '岗位', value: (r) => r.jobName },
+        { title: '经办人', value: (r) => r.scannedBy },
+        { title: '工号', value: (r) => r.staffNo },
+        { title: '条码号', value: (r) => r.barCode },
+        { title: '工程名称', value: (r) => r.projectName },
+        { title: '批次', value: (r) => r.lotNo },
+        { title: '编号', value: (r) => r.pieceNo },
+        { title: '序号', value: (r) => r.pieceIndex },
+        { title: '单件面积', value: (r) => r.pieceArea },
+        { title: '设备', value: (r) => r.device },
+      ],
+      all,
+    )
+    message.success(`已导出 ${all.length} 条`)
+  } catch (e) {
+    message.error(errorMessage(e))
+  } finally {
+    exporting.value = false
+  }
 }
 function openBatch(r: Row) {
   void router.push({ path: '/scheduling/batches', query: { keyword: r.lotNo } })
@@ -184,6 +217,7 @@ onMounted(() => {
           </div>
         </template>
         <template #right>
+          <a-button :loading="exporting" data-testid="export-csv" @click="exportCsv"><DownloadOutlined />导出</a-button>
           <a-button aria-label="刷新" @click="load"><ReloadOutlined /></a-button>
         </template>
       </TableToolbar>

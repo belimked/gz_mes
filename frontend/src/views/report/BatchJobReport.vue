@@ -3,13 +3,14 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
-import { ReloadOutlined } from '@ant-design/icons-vue'
+import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import { call, client, errorMessage, type Schemas } from '@/api/client'
 import PageCard from '@/components/PageCard.vue'
 import TableToolbar from '@/components/TableToolbar.vue'
 import CodeText from '@/components/CodeText.vue'
 import StatusTag from '@/components/StatusTag.vue'
+import { downloadCsv, exportFilename, fetchAllPages } from '@/utils/export'
 
 type Mode = 'daily' | 'progress'
 type Row = Schemas['BatchJobRow']
@@ -93,7 +94,10 @@ const summary = ref<Summary>({ batches: 0, itemQty: 0, itemArea: 0, labelQty: 0,
 const factories = ref<Schemas['Factory'][]>([])
 const pager = reactive({ current: 1, pageSize: 20, total: 0 })
 const loading = ref(false)
+const exporting = ref(false)
 const showArea = ref(false)
+/** 工程汇总: collapse the per-job matrix into done-count / status (progress mode only). */
+const summaryView = ref(false)
 
 const jobOptions = computed(() => jobs.value.map((j) => ({ value: j.id, label: `${j.code} ${j.name}` })))
 const outsourceOptions = computed(() => factories.value.filter((f) => f.kind === 'outsource').map((f) => ({ value: f.id, label: f.name })))
@@ -127,35 +131,55 @@ const jobColumns = computed(() =>
     className: `stage-${j.stage}`,
   })),
 )
+const summaryColumns = [
+  { title: '完成工序', dataIndex: 'doneJobs', width: 110, align: 'center' as const },
+  { title: '已完工件数', dataIndex: 'doneQty', width: 110, align: 'right' as const },
+  { title: '完成率', dataIndex: 'donePct', width: 160 },
+]
 const columns = computed(() => [
   ...fixedColumns.value,
-  ...jobColumns.value,
+  ...(summaryView.value ? summaryColumns : jobColumns.value),
   { title: '当前工序', dataIndex: 'currentJobName', width: 96, fixed: 'right' as const },
 ])
+/** jobs whose cell is full for the row (all active labels passed). */
+function doneJobs(r: Row) {
+  return r.labelQty > 0 ? r.cells.filter((c) => c.qty >= r.labelQty).length : 0
+}
+/** pieces that passed the last job. */
+function doneQty(r: Row) {
+  return r.cells[r.cells.length - 1]?.qty ?? 0
+}
+function donePct(r: Row) {
+  const total = r.labelQty * Math.max(jobs.value.length, 1)
+  return total ? Math.round((r.cells.reduce((n, c) => n + c.qty, 0) * 100) / total) : 0
+}
 const scrollX = computed(() => columns.value.reduce((n, c) => n + c.width, 0))
 
+function fetchPage(page: number, size: number) {
+  return call(
+    client.GET('/reports/batch-jobs', {
+      params: {
+        query: {
+          mode: props.mode,
+          from: range.value?.[0],
+          to: range.value?.[1],
+          status: applied.status,
+          workshop: applied.workshop,
+          outsourceFactoryId: applied.outsourceFactoryId,
+          jobId: applied.jobId,
+          scanned: applied.scanned === 'all' ? undefined : applied.scanned === 'yes',
+          keyword: applied.keyword.trim() || undefined,
+          page,
+          size,
+        },
+      },
+    }),
+  )
+}
 async function load() {
   loading.value = true
   try {
-    const result = await call(
-      client.GET('/reports/batch-jobs', {
-        params: {
-          query: {
-            mode: props.mode,
-            from: range.value?.[0],
-            to: range.value?.[1],
-            status: applied.status,
-            workshop: applied.workshop,
-            outsourceFactoryId: applied.outsourceFactoryId,
-            jobId: applied.jobId,
-            scanned: applied.scanned === 'all' ? undefined : applied.scanned === 'yes',
-            keyword: applied.keyword.trim() || undefined,
-            page: pager.current,
-            size: pager.pageSize,
-          },
-        },
-      }),
-    )
+    const result = await fetchPage(pager.current, pager.pageSize)
     rows.value = result.items
     jobs.value = result.jobs
     summary.value = result.summary
@@ -179,6 +203,50 @@ function onTableChange(p: TablePaginationConfig) {
   pager.current = p.current ?? 1
   pager.pageSize = p.pageSize ?? 20
   void load()
+}
+async function exportCsv() {
+  exporting.value = true
+  try {
+    const all = await fetchAllPages(fetchPage)
+    const name = summaryView.value ? '工程汇总' : titles[props.mode][0]
+    downloadCsv(
+      exportFilename(name, range.value),
+      [
+        { title: '批次号', value: (r) => r.lotNo },
+        { title: '工程名称', value: (r) => r.projectName },
+        { title: '客户', value: (r) => r.customerName },
+        { title: '客户单号', value: (r) => r.clientOrderNo },
+        { title: '厚度', value: (r) => r.thickness },
+        { title: '颜色', value: (r) => r.color },
+        { title: '状态', value: (r) => statusLabel[r.status] ?? r.status },
+        { title: '加急', value: (r) => (r.urgency === 'urgent' ? '是' : '') },
+        { title: '交期', value: (r) => r.requiredDate ?? '' },
+        { title: '钣金车间', value: (r) => r.workshop },
+        { title: '外协厂', value: (r) => r.outsourceFactoryName ?? '' },
+        { title: '计划数量', value: (r) => r.itemQty },
+        { title: '计划面积', value: (r) => r.itemArea },
+        { title: '标签数', value: (r) => r.labelQty },
+        ...(summaryView.value
+          ? [
+              { title: '完成工序', value: (r: Row) => doneJobs(r) },
+              { title: '已完工件数', value: (r: Row) => doneQty(r) },
+              { title: '完成率%', value: (r: Row) => donePct(r) },
+            ]
+          : jobs.value.map((j, k) => ({
+              title: showArea.value ? `${j.name}面积` : j.name,
+              value: (r: Row) => (showArea.value ? (r.cells[k]?.area ?? 0) : (r.cells[k]?.qty ?? 0)),
+            }))),
+        { title: '当前工序', value: (r) => r.currentJobName },
+        { title: '最近扫描', value: (r) => (r.lastScanAt ? dayjs(r.lastScanAt).format('YYYY-MM-DD HH:mm:ss') : '') },
+      ],
+      all,
+    )
+    message.success(`已导出 ${all.length} 条`)
+  } catch (e) {
+    message.error(errorMessage(e))
+  } finally {
+    exporting.value = false
+  }
 }
 function openBatch(r: Row) {
   void router.push({ path: '/scheduling/batches', query: { keyword: r.lotNo } })
@@ -216,13 +284,25 @@ onMounted(() => {
         <h1>{{ titles[mode][0] }}</h1>
         <span>{{ titles[mode][1] }}</span>
       </div>
-      <a-segmented
-        v-model:value="showArea"
-        :options="[
-          { value: false, label: '按件数' },
-          { value: true, label: '按面积' },
-        ]"
-      />
+      <div class="heading-actions">
+        <a-segmented
+          v-if="!isDaily"
+          v-model:value="summaryView"
+          :options="[
+            { value: false, label: '工序明细' },
+            { value: true, label: '工程汇总' },
+          ]"
+          data-testid="progress-view"
+        />
+        <a-segmented
+          v-if="!summaryView"
+          v-model:value="showArea"
+          :options="[
+            { value: false, label: '按件数' },
+            { value: true, label: '按面积' },
+          ]"
+        />
+      </div>
     </div>
     <PageCard>
       <div class="filters">
@@ -274,6 +354,7 @@ onMounted(() => {
           </div>
         </template>
         <template #right>
+          <a-button :loading="exporting" data-testid="export-csv" @click="exportCsv"><DownloadOutlined />导出</a-button>
           <a-button aria-label="刷新" @click="load"><ReloadOutlined /></a-button>
         </template>
       </TableToolbar>
@@ -345,13 +426,23 @@ onMounted(() => {
               </span>
             </a-tooltip>
           </template>
+          <template v-else-if="column.dataIndex === 'doneJobs'">
+            <b>{{ doneJobs(record) }}</b
+            ><span class="muted"> / {{ jobs.length }}</span>
+          </template>
+          <template v-else-if="column.dataIndex === 'doneQty'">
+            {{ doneQty(record) }}<span class="muted"> / {{ record.labelQty }}</span>
+          </template>
+          <template v-else-if="column.dataIndex === 'donePct'">
+            <a-progress :percent="donePct(record)" size="small" :status="record.status === 'done' ? 'success' : 'normal'" />
+          </template>
           <template v-else-if="column.dataIndex === 'currentJobName'">
             {{ record.currentJobName || '—' }}
             <div class="muted">{{ fmtTime(record.lastScanAt) }}</div>
           </template>
         </template>
       </a-table>
-      <div class="legend">
+      <div v-if="!summaryView" class="legend">
         <span v-for="s in stageSpan" :key="s.stage" class="legend-item" :class="`stage-${s.stage}`"
           >{{ s.label }}工段 · {{ s.count }} 岗位</span
         >
@@ -374,6 +465,10 @@ onMounted(() => {
 .heading h1 {
   margin: 0 0 4px;
   font-size: 20px;
+}
+.heading-actions {
+  display: flex;
+  gap: 8px;
 }
 .heading span,
 .muted {
