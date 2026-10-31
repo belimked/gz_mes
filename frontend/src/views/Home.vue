@@ -11,6 +11,8 @@ import KpiCard from '@/components/KpiCard.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import CodeText from '@/components/CodeText.vue'
 import EChart from '@/components/EChart.vue'
+import ProcessPipeline from '@/components/ProcessPipeline.vue'
+import { statusTone, type Tone } from '@/theme'
 
 const router = useRouter()
 const dashboard = ref<Schemas['Dashboard']>()
@@ -105,21 +107,11 @@ const customerOption = computed<EChartsOption>(() => ({
     },
   ],
 }))
-const jobOption = computed<EChartsOption>(() => ({
-  color: colors,
-  grid: { left: 48, right: 12, top: 24, bottom: 70 },
-  tooltip: {
-    trigger: 'axis',
-    formatter: (params: unknown) => {
-      const p = (params as { dataIndex: number }[])[0]
-      const job = dashboard.value?.jobLoad[p?.dataIndex ?? -1]
-      return job ? `${job.jobName}<br/>${job.qty} 件 · ${job.area.toFixed(2)} m²` : ''
-    },
-  },
-  xAxis: { type: 'category', data: dashboard.value?.jobLoad.map((j) => j.jobName) ?? [], axisLabel: { rotate: 40, interval: 0 } },
-  yAxis: { type: 'value', name: '件' },
-  series: [{ type: 'bar', data: dashboard.value?.jobLoad.map((j) => j.qty) ?? [], barMaxWidth: 24 }],
-}))
+const pipelineLegend: { tone: Tone; label: string }[] = [
+  { tone: 'processing', label: '在制' },
+  { tone: 'warning', label: '堆积' },
+  { tone: 'success', label: '待对账' },
+]
 const trendOption = computed<EChartsOption>(() => ({
   color: colors,
   tooltip: { trigger: 'axis' },
@@ -180,18 +172,24 @@ onMounted(() => {
       <a-row :gutter="[16, 16]">
         <a-col v-for="item in kpis" :key="item.title" :xs="24" :sm="12" :xl="6"><KpiCard v-bind="item" /></a-col>
       </a-row>
+      <PageCard title="铝单板 11 大工序流转全景看板">
+        <template #extra>
+          <div class="pipeline-legend">
+            <span v-for="item in pipelineLegend" :key="item.tone" class="legend-item">
+              <i class="legend-dot" :style="{ background: statusTone[item.tone].text }" />{{ item.label }}
+            </span>
+          </div>
+        </template>
+        <ProcessPipeline :items="dashboard.jobLoad" />
+      </PageCard>
       <a-row :gutter="[16, 16]">
-        <a-col :xs="24" :xl="8"
-          ><PageCard title="批次状态分布"><EChart :option="batchOption" /></PageCard
+        <a-col :xs="24" :xl="16"
+          ><PageCard title="近 14 天报工与发货趋势"><EChart :option="trendOption" :height="300" /></PageCard
         ></a-col>
         <a-col :xs="24" :xl="8"
-          ><PageCard title="在制订单面积·按客户"><EChart :option="customerOption" /></PageCard
-        ></a-col>
-        <a-col :xs="24" :xl="8"
-          ><PageCard title="各工序在制件数"><EChart :option="jobOption" /></PageCard
+          ><PageCard title="批次状态分布"><EChart :option="batchOption" :height="300" /></PageCard
         ></a-col>
       </a-row>
-      <PageCard title="近 14 天报工与发货趋势"><EChart :option="trendOption" :height="320" /></PageCard>
       <a-row :gutter="[16, 16]">
         <a-col :xs="24" :xl="16">
           <PageCard title="在制批次">
@@ -237,7 +235,8 @@ onMounted(() => {
             </a-table>
           </PageCard>
         </a-col>
-        <a-col :xs="24" :xl="8">
+        <a-col :xs="24" :xl="8" class="side-cards">
+          <PageCard title="在制订单面积·按客户"><EChart :option="customerOption" :height="240" /></PageCard>
           <PageCard title="最近报工">
             <a-empty v-if="!dashboard.recentScans.length" description="暂无报工" />
             <div v-for="scan in dashboard.recentScans" :key="scan.id" class="scan-row">
@@ -294,6 +293,29 @@ onMounted(() => {
 .overdue {
   color: #ff4d4f;
   font-weight: 600;
+}
+.pipeline-legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--gz-secondary);
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.side-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 .scan-row {
   display: flex;
