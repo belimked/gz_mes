@@ -188,6 +188,8 @@ func (s *Server) ReplaceBatchItems(ctx context.Context, req api.ReplaceBatchItem
 		return api.ReplaceBatchItems404JSONResponse(apiErr("not_found", "批次不存在")), nil
 	case errors.Is(err, store.ErrConflict):
 		return api.ReplaceBatchItems409JSONResponse(apiErr("batch_done", "批次已完工，不能修改")), nil
+	case errors.Is(err, store.ErrHasLabels):
+		return api.ReplaceBatchItems409JSONResponse(apiErr("has_labels", "已生成标签，不能再替换构件清单")), nil
 	case errors.Is(err, store.ErrDuplicateItem):
 		return api.ReplaceBatchItems400JSONResponse{ErrorJSONResponse: apiErr("duplicate_piece_no", "构件编号重复: "+strings.TrimPrefix(err.Error(), store.ErrDuplicateItem.Error()+": "))}, nil
 	case err != nil:

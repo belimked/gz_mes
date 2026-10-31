@@ -325,6 +325,22 @@ type BatchPage struct {
 	Total int64   `json:"total"`
 }
 
+// BatchProgress defines model for BatchProgress.
+type BatchProgress struct {
+	BatchId int64         `json:"batchId"`
+	Jobs    []JobProgress `json:"jobs"`
+
+	// LabelQty Non-cancelled labels
+	LabelQty int `json:"labelQty"`
+
+	// Status 待排产 / 已排产 / 生产中 / 已完工
+	Status    BatchStatus `json:"status"`
+	TotalArea float64     `json:"totalArea"`
+
+	// TotalQty Σ item qty
+	TotalQty int `json:"totalQty"`
+}
+
 // BatchSchedule Omitted fields are left unchanged; send null to clear a date.
 type BatchSchedule struct {
 	OutsourceFactoryId *int64              `json:"outsourceFactoryId,omitempty"`
@@ -515,6 +531,94 @@ type Job struct {
 // JobStage 钣金工段 / 喷涂工段 / 成品包装发货
 type JobStage string
 
+// JobProgress defines model for JobProgress.
+type JobProgress struct {
+	JobCode     string  `json:"jobCode"`
+	JobId       int64   `json:"jobId"`
+	JobName     string  `json:"jobName"`
+	ScannedArea float64 `json:"scannedArea"`
+	ScannedQty  int     `json:"scannedQty"`
+	Seq         int     `json:"seq"`
+}
+
+// Label defines model for Label.
+type Label struct {
+	// BarCode 13-digit code, unique
+	BarCode     string    `json:"barCode"`
+	BatchId     int64     `json:"batchId"`
+	BatchItemId int64     `json:"batchItemId"`
+	Cancelled   bool      `json:"cancelled"`
+	Color       string    `json:"color"`
+	CreatedAt   time.Time `json:"createdAt"`
+	DrawingNo   string    `json:"drawingNo"`
+	FactoryId   int64     `json:"factoryId"`
+	Id          int64     `json:"id"`
+
+	// LastJobId Highest-seq job scanned
+	LastJobId     *int64     `json:"lastJobId,omitempty"`
+	LastJobName   *string    `json:"lastJobName,omitempty"`
+	LastScannedAt *time.Time `json:"lastScannedAt,omitempty"`
+	LotNo         string     `json:"lotNo"`
+	Pattern       string     `json:"pattern"`
+	PieceArea     float64    `json:"pieceArea"`
+
+	// PieceIndex 1-based index within the item (第几件)
+	PieceIndex  int    `json:"pieceIndex"`
+	PieceNo     string `json:"pieceNo"`
+	ProjectName string `json:"projectName"`
+
+	// Qty Item qty, for display 'n / qty'
+	Qty       int     `json:"qty"`
+	Thickness float64 `json:"thickness"`
+}
+
+// LabelDetail defines model for LabelDetail.
+type LabelDetail struct {
+	// BarCode 13-digit code, unique
+	BarCode     string    `json:"barCode"`
+	BatchId     int64     `json:"batchId"`
+	BatchItemId int64     `json:"batchItemId"`
+	Cancelled   bool      `json:"cancelled"`
+	Color       string    `json:"color"`
+	CreatedAt   time.Time `json:"createdAt"`
+	DrawingNo   string    `json:"drawingNo"`
+	FactoryId   int64     `json:"factoryId"`
+	Id          int64     `json:"id"`
+
+	// LastJobId Highest-seq job scanned
+	LastJobId     *int64     `json:"lastJobId,omitempty"`
+	LastJobName   *string    `json:"lastJobName,omitempty"`
+	LastScannedAt *time.Time `json:"lastScannedAt,omitempty"`
+	LotNo         string     `json:"lotNo"`
+	Pattern       string     `json:"pattern"`
+	PieceArea     float64    `json:"pieceArea"`
+
+	// PieceIndex 1-based index within the item (第几件)
+	PieceIndex  int    `json:"pieceIndex"`
+	PieceNo     string `json:"pieceNo"`
+	ProjectName string `json:"projectName"`
+
+	// Qty Item qty, for display 'n / qty'
+	Qty       int     `json:"qty"`
+	Scans     []Scan  `json:"scans"`
+	Thickness float64 `json:"thickness"`
+}
+
+// LabelGenerateResult defines model for LabelGenerateResult.
+type LabelGenerateResult struct {
+	// Created Labels created by this call
+	Created int `json:"created"`
+
+	// Total Labels now existing for the batch (excluding cancelled)
+	Total int `json:"total"`
+}
+
+// LabelPage defines model for LabelPage.
+type LabelPage struct {
+	Items []Label `json:"items"`
+	Total int64   `json:"total"`
+}
+
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
 	Password string `json:"password"`
@@ -575,6 +679,44 @@ type ProjectKind string
 type ProjectPage struct {
 	Items []Project `json:"items"`
 	Total int64     `json:"total"`
+}
+
+// Scan defines model for Scan.
+type Scan struct {
+	BarCode    string    `json:"barCode"`
+	BatchId    int64     `json:"batchId"`
+	Device     string    `json:"device"`
+	Id         int64     `json:"id"`
+	JobId      int64     `json:"jobId"`
+	JobName    string    `json:"jobName"`
+	LabelId    int64     `json:"labelId"`
+	LotNo      string    `json:"lotNo"`
+	PieceIndex int       `json:"pieceIndex"`
+	PieceNo    string    `json:"pieceNo"`
+	ScannedAt  time.Time `json:"scannedAt"`
+	ScannedBy  string    `json:"scannedBy"`
+}
+
+// ScanPage defines model for ScanPage.
+type ScanPage struct {
+	Items []Scan `json:"items"`
+	Total int64  `json:"total"`
+}
+
+// ScanRequest defines model for ScanRequest.
+type ScanRequest struct {
+	BarCode string  `json:"barCode"`
+	Device  *string `json:"device,omitempty"`
+
+	// JobCode Job code, e.g. "20"
+	JobCode string `json:"jobCode"`
+}
+
+// ScanResult defines model for ScanResult.
+type ScanResult struct {
+	Label    Label         `json:"label"`
+	Progress BatchProgress `json:"progress"`
+	Scan     Scan          `json:"scan"`
 }
 
 // Urgency defines model for Urgency.
@@ -645,11 +787,32 @@ type ListCustomersParams struct {
 	Keyword *string `form:"keyword,omitempty" json:"keyword,omitempty"`
 }
 
+// ListLabelsParams defines parameters for ListLabels.
+type ListLabelsParams struct {
+	Page    *int   `form:"page,omitempty" json:"page,omitempty"`
+	Size    *int   `form:"size,omitempty" json:"size,omitempty"`
+	BatchId *int64 `form:"batchId,omitempty" json:"batchId,omitempty"`
+
+	// Keyword Matches barCode / pieceNo / lotNo / projectName
+	Keyword   *string `form:"keyword,omitempty" json:"keyword,omitempty"`
+	Cancelled *bool   `form:"cancelled,omitempty" json:"cancelled,omitempty"`
+}
+
 // ListProjectsParams defines parameters for ListProjects.
 type ListProjectsParams struct {
 	Page    *int    `form:"page,omitempty" json:"page,omitempty"`
 	Size    *int    `form:"size,omitempty" json:"size,omitempty"`
 	Keyword *string `form:"keyword,omitempty" json:"keyword,omitempty"`
+}
+
+// ListScansParams defines parameters for ListScans.
+type ListScansParams struct {
+	Page      *int                `form:"page,omitempty" json:"page,omitempty"`
+	Size      *int                `form:"size,omitempty" json:"size,omitempty"`
+	BatchId   *int64              `form:"batchId,omitempty" json:"batchId,omitempty"`
+	JobId     *int64              `form:"jobId,omitempty" json:"jobId,omitempty"`
+	BeginDate *openapi_types.Date `form:"beginDate,omitempty" json:"beginDate,omitempty"`
+	EndDate   *openapi_types.Date `form:"endDate,omitempty" json:"endDate,omitempty"`
 }
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
@@ -676,6 +839,9 @@ type CreateCustomerJSONRequestBody = CustomerCreate
 // CreateProjectJSONRequestBody defines body for CreateProject for application/json ContentType.
 type CreateProjectJSONRequestBody = ProjectCreate
 
+// ScanLabelJSONRequestBody defines body for ScanLabel for application/json ContentType.
+type ScanLabelJSONRequestBody = ScanRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
@@ -699,6 +865,12 @@ type ServerInterface interface {
 
 	// (PUT /batches/{id}/items)
 	ReplaceBatchItems(w http.ResponseWriter, r *http.Request, id int64)
+
+	// (POST /batches/{id}/labels/generate)
+	GenerateLabels(w http.ResponseWriter, r *http.Request, id int64)
+
+	// (GET /batches/{id}/progress)
+	GetBatchProgress(w http.ResponseWriter, r *http.Request, id int64)
 
 	// (PUT /batches/{id}/schedule)
 	ScheduleBatch(w http.ResponseWriter, r *http.Request, id int64)
@@ -733,6 +905,15 @@ type ServerInterface interface {
 	// (GET /jobs)
 	ListJobs(w http.ResponseWriter, r *http.Request)
 
+	// (GET /labels)
+	ListLabels(w http.ResponseWriter, r *http.Request, params ListLabelsParams)
+
+	// (GET /labels/{barCode})
+	GetLabel(w http.ResponseWriter, r *http.Request, barCode string)
+
+	// (POST /labels/{barCode}/cancel)
+	CancelLabel(w http.ResponseWriter, r *http.Request, barCode string)
+
 	// (GET /projects)
 	ListProjects(w http.ResponseWriter, r *http.Request, params ListProjectsParams)
 
@@ -741,6 +922,12 @@ type ServerInterface interface {
 
 	// (POST /projects/{id}/confirm)
 	ConfirmProject(w http.ResponseWriter, r *http.Request, id int64)
+
+	// (GET /scans)
+	ListScans(w http.ResponseWriter, r *http.Request, params ListScansParams)
+
+	// (POST /scans)
+	ScanLabel(w http.ResponseWriter, r *http.Request)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -779,6 +966,16 @@ func (_ Unimplemented) ListBatchItems(w http.ResponseWriter, r *http.Request, id
 
 // (PUT /batches/{id}/items)
 func (_ Unimplemented) ReplaceBatchItems(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /batches/{id}/labels/generate)
+func (_ Unimplemented) GenerateLabels(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /batches/{id}/progress)
+func (_ Unimplemented) GetBatchProgress(w http.ResponseWriter, r *http.Request, id int64) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -837,6 +1034,21 @@ func (_ Unimplemented) ListJobs(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// (GET /labels)
+func (_ Unimplemented) ListLabels(w http.ResponseWriter, r *http.Request, params ListLabelsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /labels/{barCode})
+func (_ Unimplemented) GetLabel(w http.ResponseWriter, r *http.Request, barCode string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /labels/{barCode}/cancel)
+func (_ Unimplemented) CancelLabel(w http.ResponseWriter, r *http.Request, barCode string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // (GET /projects)
 func (_ Unimplemented) ListProjects(w http.ResponseWriter, r *http.Request, params ListProjectsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -849,6 +1061,16 @@ func (_ Unimplemented) CreateProject(w http.ResponseWriter, r *http.Request) {
 
 // (POST /projects/{id}/confirm)
 func (_ Unimplemented) ConfirmProject(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /scans)
+func (_ Unimplemented) ListScans(w http.ResponseWriter, r *http.Request, params ListScansParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /scans)
+func (_ Unimplemented) ScanLabel(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1122,6 +1344,58 @@ func (siw *ServerInterfaceWrapper) ReplaceBatchItems(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ReplaceBatchItems(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GenerateLabels operation middleware
+func (siw *ServerInterfaceWrapper) GenerateLabels(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GenerateLabels(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetBatchProgress operation middleware
+func (siw *ServerInterfaceWrapper) GetBatchProgress(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetBatchProgress(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1475,6 +1749,143 @@ func (siw *ServerInterfaceWrapper) ListJobs(w http.ResponseWriter, r *http.Reque
 	handler.ServeHTTP(w, r)
 }
 
+// ListLabels operation middleware
+func (siw *ServerInterfaceWrapper) ListLabels(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListLabelsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "size", r.URL.Query(), &params.Size, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "size"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "size", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "batchId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "batchId", r.URL.Query(), &params.BatchId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "batchId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "batchId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "keyword" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "keyword", r.URL.Query(), &params.Keyword, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "keyword"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "keyword", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cancelled" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cancelled", r.URL.Query(), &params.Cancelled, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cancelled"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cancelled", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListLabels(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetLabel operation middleware
+func (siw *ServerInterfaceWrapper) GetLabel(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "barCode" -------------
+	var barCode string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "barCode", chi.URLParam(r, "barCode"), &barCode, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "barCode", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLabel(w, r, barCode)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelLabel operation middleware
+func (siw *ServerInterfaceWrapper) CancelLabel(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "barCode" -------------
+	var barCode string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "barCode", chi.URLParam(r, "barCode"), &barCode, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "barCode", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelLabel(w, r, barCode)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListProjects operation middleware
 func (siw *ServerInterfaceWrapper) ListProjects(w http.ResponseWriter, r *http.Request) {
 
@@ -1565,6 +1976,118 @@ func (siw *ServerInterfaceWrapper) ConfirmProject(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ConfirmProject(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListScans operation middleware
+func (siw *ServerInterfaceWrapper) ListScans(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListScansParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "size", r.URL.Query(), &params.Size, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "size"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "size", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "batchId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "batchId", r.URL.Query(), &params.BatchId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "batchId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "batchId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "jobId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "jobId", r.URL.Query(), &params.JobId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "jobId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "jobId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "beginDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "beginDate", r.URL.Query(), &params.BeginDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "beginDate"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "beginDate", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "endDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "endDate"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListScans(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ScanLabel operation middleware
+func (siw *ServerInterfaceWrapper) ScanLabel(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ScanLabel(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1749,6 +2272,27 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/batches/{id}/items", wrapper.ReplaceBatchItems)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/batches/{id}/labels/generate", wrapper.GenerateLabels)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/batches/{id}/progress", wrapper.GetBatchProgress)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/labels", wrapper.ListLabels)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/labels/{barCode}", wrapper.GetLabel)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/labels/{barCode}/cancel", wrapper.CancelLabel)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/scans", wrapper.ListScans)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/scans", wrapper.ScanLabel)
 	})
 
 	return r
@@ -2130,6 +2674,120 @@ func (response ReplaceBatchItems409JSONResponse) VisitReplaceBatchItemsResponse(
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GenerateLabelsRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type GenerateLabelsResponseObject interface {
+	VisitGenerateLabelsResponse(w http.ResponseWriter) error
+}
+
+type GenerateLabels200JSONResponse LabelGenerateResult
+
+func (response GenerateLabels200JSONResponse) VisitGenerateLabelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GenerateLabels400JSONResponse struct{ ErrorJSONResponse }
+
+func (response GenerateLabels400JSONResponse) VisitGenerateLabelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GenerateLabels401JSONResponse Error
+
+func (response GenerateLabels401JSONResponse) VisitGenerateLabelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GenerateLabels404JSONResponse Error
+
+func (response GenerateLabels404JSONResponse) VisitGenerateLabelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBatchProgressRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type GetBatchProgressResponseObject interface {
+	VisitGetBatchProgressResponse(w http.ResponseWriter) error
+}
+
+type GetBatchProgress200JSONResponse BatchProgress
+
+func (response GetBatchProgress200JSONResponse) VisitGetBatchProgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBatchProgress401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetBatchProgress401JSONResponse) VisitGetBatchProgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBatchProgress404JSONResponse Error
+
+func (response GetBatchProgress404JSONResponse) VisitGetBatchProgressResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -2739,6 +3397,170 @@ func (response ListJobs401JSONResponse) VisitListJobsResponse(w http.ResponseWri
 	return err
 }
 
+type ListLabelsRequestObject struct {
+	Params ListLabelsParams
+}
+
+type ListLabelsResponseObject interface {
+	VisitListLabelsResponse(w http.ResponseWriter) error
+}
+
+type ListLabels200JSONResponse LabelPage
+
+func (response ListLabels200JSONResponse) VisitListLabelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListLabels400JSONResponse struct{ ErrorJSONResponse }
+
+func (response ListLabels400JSONResponse) VisitListLabelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListLabels401JSONResponse Error
+
+func (response ListLabels401JSONResponse) VisitListLabelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLabelRequestObject struct {
+	BarCode string `json:"barCode"`
+}
+
+type GetLabelResponseObject interface {
+	VisitGetLabelResponse(w http.ResponseWriter) error
+}
+
+type GetLabel200JSONResponse LabelDetail
+
+func (response GetLabel200JSONResponse) VisitGetLabelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLabel401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetLabel401JSONResponse) VisitGetLabelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLabel404JSONResponse Error
+
+func (response GetLabel404JSONResponse) VisitGetLabelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelLabelRequestObject struct {
+	BarCode string `json:"barCode"`
+}
+
+type CancelLabelResponseObject interface {
+	VisitCancelLabelResponse(w http.ResponseWriter) error
+}
+
+type CancelLabel200JSONResponse Label
+
+func (response CancelLabel200JSONResponse) VisitCancelLabelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelLabel401JSONResponse struct{ ErrorJSONResponse }
+
+func (response CancelLabel401JSONResponse) VisitCancelLabelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelLabel404JSONResponse Error
+
+func (response CancelLabel404JSONResponse) VisitCancelLabelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelLabel409JSONResponse Error
+
+func (response CancelLabel409JSONResponse) VisitCancelLabelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListProjectsRequestObject struct {
 	Params ListProjectsParams
 }
@@ -2917,6 +3739,134 @@ func (response ConfirmProject409JSONResponse) VisitConfirmProjectResponse(w http
 	return err
 }
 
+type ListScansRequestObject struct {
+	Params ListScansParams
+}
+
+type ListScansResponseObject interface {
+	VisitListScansResponse(w http.ResponseWriter) error
+}
+
+type ListScans200JSONResponse ScanPage
+
+func (response ListScans200JSONResponse) VisitListScansResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListScans400JSONResponse struct{ ErrorJSONResponse }
+
+func (response ListScans400JSONResponse) VisitListScansResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListScans401JSONResponse Error
+
+func (response ListScans401JSONResponse) VisitListScansResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ScanLabelRequestObject struct {
+	Body *ScanLabelJSONRequestBody
+}
+
+type ScanLabelResponseObject interface {
+	VisitScanLabelResponse(w http.ResponseWriter) error
+}
+
+type ScanLabel201JSONResponse ScanResult
+
+func (response ScanLabel201JSONResponse) VisitScanLabelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ScanLabel400JSONResponse struct{ ErrorJSONResponse }
+
+func (response ScanLabel400JSONResponse) VisitScanLabelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ScanLabel401JSONResponse Error
+
+func (response ScanLabel401JSONResponse) VisitScanLabelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ScanLabel404JSONResponse Error
+
+func (response ScanLabel404JSONResponse) VisitScanLabelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ScanLabel409JSONResponse Error
+
+func (response ScanLabel409JSONResponse) VisitScanLabelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 
@@ -2940,6 +3890,12 @@ type StrictServerInterface interface {
 
 	// (PUT /batches/{id}/items)
 	ReplaceBatchItems(ctx context.Context, request ReplaceBatchItemsRequestObject) (ReplaceBatchItemsResponseObject, error)
+
+	// (POST /batches/{id}/labels/generate)
+	GenerateLabels(ctx context.Context, request GenerateLabelsRequestObject) (GenerateLabelsResponseObject, error)
+
+	// (GET /batches/{id}/progress)
+	GetBatchProgress(ctx context.Context, request GetBatchProgressRequestObject) (GetBatchProgressResponseObject, error)
 
 	// (PUT /batches/{id}/schedule)
 	ScheduleBatch(ctx context.Context, request ScheduleBatchRequestObject) (ScheduleBatchResponseObject, error)
@@ -2974,6 +3930,15 @@ type StrictServerInterface interface {
 	// (GET /jobs)
 	ListJobs(ctx context.Context, request ListJobsRequestObject) (ListJobsResponseObject, error)
 
+	// (GET /labels)
+	ListLabels(ctx context.Context, request ListLabelsRequestObject) (ListLabelsResponseObject, error)
+
+	// (GET /labels/{barCode})
+	GetLabel(ctx context.Context, request GetLabelRequestObject) (GetLabelResponseObject, error)
+
+	// (POST /labels/{barCode}/cancel)
+	CancelLabel(ctx context.Context, request CancelLabelRequestObject) (CancelLabelResponseObject, error)
+
 	// (GET /projects)
 	ListProjects(ctx context.Context, request ListProjectsRequestObject) (ListProjectsResponseObject, error)
 
@@ -2982,6 +3947,12 @@ type StrictServerInterface interface {
 
 	// (POST /projects/{id}/confirm)
 	ConfirmProject(ctx context.Context, request ConfirmProjectRequestObject) (ConfirmProjectResponseObject, error)
+
+	// (GET /scans)
+	ListScans(ctx context.Context, request ListScansRequestObject) (ListScansResponseObject, error)
+
+	// (POST /scans)
+	ScanLabel(ctx context.Context, request ScanLabelRequestObject) (ScanLabelResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -3213,6 +4184,58 @@ func (sh *strictHandler) ReplaceBatchItems(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ReplaceBatchItemsResponseObject); ok {
 		if err := validResponse.VisitReplaceBatchItemsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GenerateLabels operation middleware
+func (sh *strictHandler) GenerateLabels(w http.ResponseWriter, r *http.Request, id int64) {
+	var request GenerateLabelsRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GenerateLabels(ctx, request.(GenerateLabelsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GenerateLabels")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GenerateLabelsResponseObject); ok {
+		if err := validResponse.VisitGenerateLabelsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetBatchProgress operation middleware
+func (sh *strictHandler) GetBatchProgress(w http.ResponseWriter, r *http.Request, id int64) {
+	var request GetBatchProgressRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetBatchProgress(ctx, request.(GetBatchProgressRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetBatchProgress")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetBatchProgressResponseObject); ok {
+		if err := validResponse.VisitGetBatchProgressResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -3524,6 +4547,84 @@ func (sh *strictHandler) ListJobs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListLabels operation middleware
+func (sh *strictHandler) ListLabels(w http.ResponseWriter, r *http.Request, params ListLabelsParams) {
+	var request ListLabelsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListLabels(ctx, request.(ListLabelsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListLabels")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListLabelsResponseObject); ok {
+		if err := validResponse.VisitListLabelsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetLabel operation middleware
+func (sh *strictHandler) GetLabel(w http.ResponseWriter, r *http.Request, barCode string) {
+	var request GetLabelRequestObject
+
+	request.BarCode = barCode
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetLabel(ctx, request.(GetLabelRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetLabel")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetLabelResponseObject); ok {
+		if err := validResponse.VisitGetLabelResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CancelLabel operation middleware
+func (sh *strictHandler) CancelLabel(w http.ResponseWriter, r *http.Request, barCode string) {
+	var request CancelLabelRequestObject
+
+	request.BarCode = barCode
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CancelLabel(ctx, request.(CancelLabelRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CancelLabel")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CancelLabelResponseObject); ok {
+		if err := validResponse.VisitCancelLabelResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListProjects operation middleware
 func (sh *strictHandler) ListProjects(w http.ResponseWriter, r *http.Request, params ListProjectsParams) {
 	var request ListProjectsRequestObject
@@ -3607,81 +4708,159 @@ func (sh *strictHandler) ConfirmProject(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
+// ListScans operation middleware
+func (sh *strictHandler) ListScans(w http.ResponseWriter, r *http.Request, params ListScansParams) {
+	var request ListScansRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListScans(ctx, request.(ListScansRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListScans")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListScansResponseObject); ok {
+		if err := validResponse.VisitListScansResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ScanLabel operation middleware
+func (sh *strictHandler) ScanLabel(w http.ResponseWriter, r *http.Request) {
+	var request ScanLabelRequestObject
+
+	var body ScanLabelJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ScanLabel(ctx, request.(ScanLabelRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ScanLabel")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ScanLabelResponseObject); ok {
+		if err := validResponse.VisitScanLabelResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
 // Stored as a slice of fixed-width chunks rather than one concatenated
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

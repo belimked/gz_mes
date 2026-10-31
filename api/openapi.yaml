@@ -391,6 +391,136 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /batches/{id}/labels/generate:
+    post:
+      operationId: generateLabels
+      tags: [production]
+      description: |
+        Creates one label per piece (batch item × qty) that does not have one yet. Idempotent: re-running
+        after items were appended only creates the missing labels. Requires at least one item (400).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LabelGenerateResult" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /batches/{id}/progress:
+    get:
+      operationId: getBatchProgress
+      tags: [production]
+      description: Scanned piece counts per job for one batch.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchProgress" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /labels:
+    get:
+      operationId: listLabels
+      tags: [production]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+        - { name: batchId, in: query, schema: { type: integer, format: int64 } }
+        - { name: keyword, in: query, schema: { type: string }, description: "Matches barCode / pieceNo / lotNo / projectName" }
+        - { name: cancelled, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LabelPage" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /labels/{barCode}:
+    get:
+      operationId: getLabel
+      tags: [production]
+      description: Label with its scan history, for the handheld screen.
+      parameters:
+        - { name: barCode, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LabelDetail" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /labels/{barCode}/cancel:
+    post:
+      operationId: cancelLabel
+      tags: [production]
+      description: Voids a label (e.g. misprint). Not allowed once it has scans (409).
+      parameters:
+        - { name: barCode, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Label" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /scans:
+    get:
+      operationId: listScans
+      tags: [production]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+        - { name: batchId, in: query, schema: { type: integer, format: int64 } }
+        - { name: jobId, in: query, schema: { type: integer, format: int64 } }
+        - { name: beginDate, in: query, schema: { type: string, format: date } }
+        - { name: endDate, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScanPage" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: scanLabel
+      tags: [production]
+      description: |
+        Records that a piece passed a job (扫码报工). Rules: label must exist in scope and not be cancelled;
+        the same label is counted once per job (409 already_scanned); jobs must be scanned in seq order —
+        the previous job must already be scanned unless this is seq 1 (409 out_of_order). The first scan
+        moves the batch to in_production; when every label has passed the last job the batch becomes done.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScanRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScanResult" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -775,3 +905,120 @@ components:
             id: { type: integer, format: int64 }
             batchId: { type: integer, format: int64 }
             seq: { type: integer, description: "Row order as imported, 1-based" }
+
+    Label:
+      type: object
+      required: [id, barCode, factoryId, batchId, lotNo, projectName, batchItemId, pieceNo, pieceIndex, qty, drawingNo, pattern, thickness, color, pieceArea, cancelled, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        barCode: { type: string, description: "13-digit code, unique" }
+        factoryId: { type: integer, format: int64 }
+        batchId: { type: integer, format: int64 }
+        lotNo: { type: string }
+        projectName: { type: string }
+        batchItemId: { type: integer, format: int64 }
+        pieceNo: { type: string }
+        pieceIndex: { type: integer, description: "1-based index within the item (第几件)" }
+        qty: { type: integer, description: "Item qty, for display 'n / qty'" }
+        drawingNo: { type: string }
+        pattern: { type: string }
+        thickness: { type: number, format: double }
+        color: { type: string }
+        pieceArea: { type: number, format: double }
+        cancelled: { type: boolean }
+        lastJobId: { type: integer, format: int64, nullable: true, description: "Highest-seq job scanned" }
+        lastJobName: { type: string, nullable: true }
+        lastScannedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    LabelPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Label" }
+        total: { type: integer, format: int64 }
+
+    LabelGenerateResult:
+      type: object
+      required: [created, total]
+      properties:
+        created: { type: integer, description: "Labels created by this call" }
+        total: { type: integer, description: "Labels now existing for the batch (excluding cancelled)" }
+
+    Scan:
+      type: object
+      required: [id, labelId, barCode, batchId, lotNo, pieceNo, pieceIndex, jobId, jobName, scannedBy, scannedAt, device]
+      properties:
+        id: { type: integer, format: int64 }
+        labelId: { type: integer, format: int64 }
+        barCode: { type: string }
+        batchId: { type: integer, format: int64 }
+        lotNo: { type: string }
+        pieceNo: { type: string }
+        pieceIndex: { type: integer }
+        jobId: { type: integer, format: int64 }
+        jobName: { type: string }
+        scannedBy: { type: string }
+        scannedAt: { type: string, format: date-time }
+        device: { type: string }
+
+    ScanPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Scan" }
+        total: { type: integer, format: int64 }
+
+    LabelDetail:
+      allOf:
+        - $ref: "#/components/schemas/Label"
+        - type: object
+          required: [scans]
+          properties:
+            scans:
+              type: array
+              items: { $ref: "#/components/schemas/Scan" }
+
+    ScanRequest:
+      type: object
+      required: [barCode, jobCode]
+      properties:
+        barCode: { type: string, minLength: 1, maxLength: 64 }
+        jobCode: { type: string, minLength: 1, maxLength: 16, description: "Job code, e.g. \"20\"" }
+        device: { type: string, maxLength: 64 }
+
+    JobProgress:
+      type: object
+      required: [jobId, jobCode, jobName, seq, scannedQty, scannedArea]
+      properties:
+        jobId: { type: integer, format: int64 }
+        jobCode: { type: string }
+        jobName: { type: string }
+        seq: { type: integer }
+        scannedQty: { type: integer }
+        scannedArea: { type: number, format: double }
+
+    BatchProgress:
+      type: object
+      required: [batchId, status, totalQty, totalArea, labelQty, jobs]
+      properties:
+        batchId: { type: integer, format: int64 }
+        status: { $ref: "#/components/schemas/BatchStatus" }
+        totalQty: { type: integer, description: "Σ item qty" }
+        totalArea: { type: number, format: double }
+        labelQty: { type: integer, description: "Non-cancelled labels" }
+        jobs:
+          type: array
+          items: { $ref: "#/components/schemas/JobProgress" }
+
+    ScanResult:
+      type: object
+      required: [scan, label, progress]
+      properties:
+        scan: { $ref: "#/components/schemas/Scan" }
+        label: { $ref: "#/components/schemas/Label" }
+        progress: { $ref: "#/components/schemas/BatchProgress" }

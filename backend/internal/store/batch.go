@@ -12,6 +12,7 @@ import (
 )
 
 var ErrDuplicateItem = errors.New("duplicate item")
+var ErrHasLabels = errors.New("batch has labels")
 
 type Job struct {
 	ID         int64
@@ -266,6 +267,13 @@ func (s *Store) ReplaceBatchItems(ctx context.Context, sc auth.Scope, id int64, 
 	}
 	if status == "done" {
 		return nil, ErrConflict
+	}
+	var hasLabels bool
+	if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM label WHERE batch_id=$1 AND NOT cancelled)", id).Scan(&hasLabels); err != nil {
+		return nil, err
+	}
+	if hasLabels {
+		return nil, ErrHasLabels
 	}
 	seen := make(map[string]bool, len(items))
 	rows := make([][]any, 0, len(items))

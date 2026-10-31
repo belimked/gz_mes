@@ -274,6 +274,115 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/batches/{id}/labels/generate': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * @description Creates one label per piece (batch item × qty) that does not have one yet. Idempotent: re-running
+     *     after items were appended only creates the missing labels. Requires at least one item (400).
+     */
+    post: operations['generateLabels']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/batches/{id}/progress': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** @description Scanned piece counts per job for one batch. */
+    get: operations['getBatchProgress']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/labels': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['listLabels']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/labels/{barCode}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** @description Label with its scan history, for the handheld screen. */
+    get: operations['getLabel']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/labels/{barCode}/cancel': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** @description Voids a label (e.g. misprint). Not allowed once it has scans (409). */
+    post: operations['cancelLabel']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/scans': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['listScans']
+    put?: never
+    /**
+     * @description Records that a piece passed a job (扫码报工). Rules: label must exist in scope and not be cancelled;
+     *     the same label is counted once per job (409 already_scanned); jobs must be scanned in seq order —
+     *     the previous job must already be scanned unless this is seq 1 (409 out_of_order). The first scan
+     *     moves the batch to in_production; when every label has passed the last job the batch becomes done.
+     */
+    post: operations['scanLabel']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -719,6 +828,114 @@ export interface components {
       batchId: number
       /** @description Row order as imported, 1-based */
       seq: number
+    }
+    Label: {
+      /** Format: int64 */
+      id: number
+      /** @description 13-digit code, unique */
+      barCode: string
+      /** Format: int64 */
+      factoryId: number
+      /** Format: int64 */
+      batchId: number
+      lotNo: string
+      projectName: string
+      /** Format: int64 */
+      batchItemId: number
+      pieceNo: string
+      /** @description 1-based index within the item (第几件) */
+      pieceIndex: number
+      /** @description Item qty, for display 'n / qty' */
+      qty: number
+      drawingNo: string
+      pattern: string
+      /** Format: double */
+      thickness: number
+      color: string
+      /** Format: double */
+      pieceArea: number
+      cancelled: boolean
+      /**
+       * Format: int64
+       * @description Highest-seq job scanned
+       */
+      lastJobId?: number | null
+      lastJobName?: string | null
+      /** Format: date-time */
+      lastScannedAt?: string | null
+      /** Format: date-time */
+      createdAt: string
+    }
+    LabelPage: {
+      items: components['schemas']['Label'][]
+      /** Format: int64 */
+      total: number
+    }
+    LabelGenerateResult: {
+      /** @description Labels created by this call */
+      created: number
+      /** @description Labels now existing for the batch (excluding cancelled) */
+      total: number
+    }
+    Scan: {
+      /** Format: int64 */
+      id: number
+      /** Format: int64 */
+      labelId: number
+      barCode: string
+      /** Format: int64 */
+      batchId: number
+      lotNo: string
+      pieceNo: string
+      pieceIndex: number
+      /** Format: int64 */
+      jobId: number
+      jobName: string
+      scannedBy: string
+      /** Format: date-time */
+      scannedAt: string
+      device: string
+    }
+    ScanPage: {
+      items: components['schemas']['Scan'][]
+      /** Format: int64 */
+      total: number
+    }
+    LabelDetail: components['schemas']['Label'] & {
+      scans: components['schemas']['Scan'][]
+    }
+    ScanRequest: {
+      barCode: string
+      /** @description Job code, e.g. "20" */
+      jobCode: string
+      device?: string
+    }
+    JobProgress: {
+      /** Format: int64 */
+      jobId: number
+      jobCode: string
+      jobName: string
+      seq: number
+      scannedQty: number
+      /** Format: double */
+      scannedArea: number
+    }
+    BatchProgress: {
+      /** Format: int64 */
+      batchId: number
+      status: components['schemas']['BatchStatus']
+      /** @description Σ item qty */
+      totalQty: number
+      /** Format: double */
+      totalArea: number
+      /** @description Non-cancelled labels */
+      labelQty: number
+      jobs: components['schemas']['JobProgress'][]
+    }
+    ScanResult: {
+      scan: components['schemas']['Scan']
+      label: components['schemas']['Label']
+      progress: components['schemas']['BatchProgress']
     }
   }
   responses: {
@@ -1283,6 +1500,190 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['BatchItem'][]
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  generateLabels: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['LabelGenerateResult']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+    }
+  }
+  getBatchProgress: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['BatchProgress']
+        }
+      }
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+    }
+  }
+  listLabels: {
+    parameters: {
+      query?: {
+        page?: number
+        size?: number
+        batchId?: number
+        /** @description Matches barCode / pieceNo / lotNo / projectName */
+        keyword?: string
+        cancelled?: boolean
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['LabelPage']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+    }
+  }
+  getLabel: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        barCode: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['LabelDetail']
+        }
+      }
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+    }
+  }
+  cancelLabel: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        barCode: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Label']
+        }
+      }
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  listScans: {
+    parameters: {
+      query?: {
+        page?: number
+        size?: number
+        batchId?: number
+        jobId?: number
+        beginDate?: string
+        endDate?: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ScanPage']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+    }
+  }
+  scanLabel: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ScanRequest']
+      }
+    }
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ScanResult']
         }
       }
       400: components['responses']['Error']

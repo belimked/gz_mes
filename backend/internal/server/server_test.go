@@ -64,7 +64,7 @@ type env struct {
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	ctx := context.Background()
-	_, err := pool.Exec(ctx, "TRUNCATE batch_item, batch, contract, customer, project, user_role, role_menu, role, user_factory, app_user, factory RESTART IDENTITY CASCADE")
+	_, err := pool.Exec(ctx, "TRUNCATE scan_record, label, batch_item, batch, contract, customer, project, user_role, role_menu, role, user_factory, app_user, factory RESTART IDENTITY CASCADE")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -487,6 +487,13 @@ func TestBatchLifecycle(t *testing.T) {
 	input = append(input, api.BatchItemInput{PieceNo: "B", Qty: 1})
 	if code := e.do("PUT", path+"/items", admin, input, &er); code != 400 || er.Code != "duplicate_piece_no" || er.Message != "构件编号重复: B" {
 		t.Fatalf("duplicate item: %d %+v", code, er)
+	}
+	var generated api.LabelGenerateResult
+	if code := e.do("POST", path+"/labels/generate", admin, nil, &generated); code != 200 || generated.Total != 6 {
+		t.Fatalf("generate: %d %+v", code, generated)
+	}
+	if code := e.do("PUT", path+"/items", admin, input[:3], &er); code != 409 || er.Code != "has_labels" || er.Message != "已生成标签，不能再替换构件清单" {
+		t.Fatalf("labelled items: %d %+v", code, er)
 	}
 	if _, err := pool.Exec(context.Background(), "UPDATE batch SET status='done' WHERE id=$1", batch.Id); err != nil {
 		t.Fatal(err)
