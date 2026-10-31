@@ -59,7 +59,8 @@ func TestFactoryCrud(t *testing.T) {
 func TestUserLifecycle(t *testing.T) {
 	e := newEnv(t)
 	admin := e.login("admin", "admin-pass")
-	body := api.UserCreate{Username: "worker", DisplayName: "工人", Password: "old-pass"}
+	staffNo := "0072"
+	body := api.UserCreate{Username: "worker", DisplayName: "工人", Password: "old-pass", StaffNo: &staffNo}
 	var er api.Error
 	if code := e.do("POST", "/users", admin, body, &er); code != 400 {
 		t.Fatalf("no factory: %d %+v", code, er)
@@ -67,18 +68,23 @@ func TestUserLifecycle(t *testing.T) {
 	factories, menus := []int64{e.plant}, []int64{201, 203}
 	body.FactoryIds, body.MenuIds = &factories, &menus
 	var u api.UserDetail
-	if code := e.do("POST", "/users", admin, body, &u); code != 201 || len(u.FactoryIds) != 1 || len(u.MenuIds) != 2 {
+	if code := e.do("POST", "/users", admin, body, &u); code != 201 || len(u.FactoryIds) != 1 || len(u.MenuIds) != 2 || u.StaffNo != staffNo {
 		t.Fatalf("create: %d %+v", code, u)
 	}
 	worker := e.login("worker", "old-pass")
 	var me api.MeResponse
-	if code := e.do("GET", "/auth/me", worker, nil, &me); code != 200 || len(me.Menus) != 1 || me.Menus[0].Children == nil || len(*me.Menus[0].Children) != len(menus) {
+	if code := e.do("GET", "/auth/me", worker, nil, &me); code != 200 || len(me.Menus) != 1 || me.Menus[0].Children == nil || len(*me.Menus[0].Children) != len(menus) || me.User.StaffNo != staffNo {
 		t.Fatalf("menus: %d %+v", code, me)
 	}
 	path := fmt.Sprintf("/users/%d", u.Id)
-	update := api.UserUpdate{DisplayName: "工人", Enabled: false, IsAdmin: false, FactoryIds: factories, MenuIds: []int64{}}
-	if code := e.do("PUT", path, admin, update, &u); code != 200 || u.Enabled || len(u.MenuIds) != 0 {
+	newStaffNo := "0083"
+	update := api.UserUpdate{DisplayName: "工人", StaffNo: &newStaffNo, Enabled: false, IsAdmin: false, FactoryIds: factories, MenuIds: []int64{}}
+	if code := e.do("PUT", path, admin, update, &u); code != 200 || u.Enabled || len(u.MenuIds) != 0 || u.StaffNo != newStaffNo {
 		t.Fatalf("disable: %d %+v", code, u)
+	}
+	var fetched api.UserDetail
+	if code := e.do("GET", path, admin, nil, &fetched); code != 200 || fetched.StaffNo != newStaffNo {
+		t.Fatalf("get staffNo: %d %+v", code, fetched)
 	}
 	if code := e.do("POST", "/auth/login", "", api.LoginRequest{Username: "worker", Password: "old-pass"}, &er); code != 401 || er.Code != "invalid_credentials" {
 		t.Fatalf("disabled login: %d %+v", code, er)
@@ -99,9 +105,12 @@ func TestUserLifecycle(t *testing.T) {
 	if code := e.do("PUT", path, admin, update, &u); code != 200 {
 		t.Fatalf("enable: %d", code)
 	}
-	e.login("worker", "new-pass")
+	worker = e.login("worker", "new-pass")
+	if code := e.do("GET", "/auth/me", worker, nil, &me); code != 200 || me.User.StaffNo != newStaffNo {
+		t.Fatalf("updated me staffNo: %d %+v", code, me.User)
+	}
 	var page api.UserPage
-	if code := e.do("GET", "/users?keyword=worker", admin, nil, &page); code != 200 || page.Total != 1 || len(page.Items) != 1 {
+	if code := e.do("GET", "/users?keyword=worker", admin, nil, &page); code != 200 || page.Total != 1 || len(page.Items) != 1 || page.Items[0].StaffNo != newStaffNo {
 		t.Fatalf("filter: %d %+v", code, page)
 	}
 	var all []api.MenuItem

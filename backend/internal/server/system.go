@@ -22,7 +22,7 @@ func toAPIFactory(f *store.Factory) api.Factory {
 	return api.Factory{Id: f.ID, Code: f.Code, Name: f.Name, Kind: api.FactoryKind(f.Kind), IsStop: f.IsStop}
 }
 func toAPIUserDetail(d *store.UserDetail) api.UserDetail {
-	return api.UserDetail{Id: d.ID, Username: d.Username, DisplayName: d.DisplayName, IsAdmin: d.IsAdmin, Enabled: d.Enabled, FactoryIds: d.FactoryIDs, MenuIds: d.MenuIDs, CreatedAt: d.CreatedAt}
+	return api.UserDetail{Id: d.ID, Username: d.Username, DisplayName: d.DisplayName, StaffNo: d.StaffNo, IsAdmin: d.IsAdmin, Enabled: d.Enabled, FactoryIds: d.FactoryIDs, MenuIds: d.MenuIDs, CreatedAt: d.CreatedAt}
 }
 func validPassword(p string) bool { return len(p) >= 6 && len(p) <= 72 }
 
@@ -109,6 +109,9 @@ func (s *Server) CreateUser(ctx context.Context, req api.CreateUserRequestObject
 	}
 	b := req.Body
 	in := store.UserCreate{Username: strings.TrimSpace(b.Username), DisplayName: strings.TrimSpace(b.DisplayName), Password: b.Password}
+	if b.StaffNo != nil {
+		in.StaffNo = strings.TrimSpace(*b.StaffNo)
+	}
 	if b.IsAdmin != nil {
 		in.IsAdmin = *b.IsAdmin
 	}
@@ -165,7 +168,11 @@ func (s *Server) UpdateUser(ctx context.Context, req api.UpdateUserRequestObject
 	if name == "" || len(name) > 50 {
 		return api.UpdateUser400JSONResponse{ErrorJSONResponse: apiErr("invalid_request", "显示名称不能为空")}, nil
 	}
-	d, err := s.store.UpdateUser(ctx, req.Id, store.UserUpdate{DisplayName: name, Enabled: b.Enabled, IsAdmin: b.IsAdmin, FactoryIDs: b.FactoryIds, MenuIDs: b.MenuIds})
+	staffNo := ""
+	if b.StaffNo != nil {
+		staffNo = strings.TrimSpace(*b.StaffNo)
+	}
+	d, err := s.store.UpdateUser(ctx, req.Id, store.UserUpdate{DisplayName: name, StaffNo: staffNo, Enabled: b.Enabled, IsAdmin: b.IsAdmin, FactoryIDs: b.FactoryIds, MenuIDs: b.MenuIds})
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		return api.UpdateUser404JSONResponse(apiErr("not_found", "用户不存在")), nil

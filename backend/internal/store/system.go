@@ -28,6 +28,7 @@ type UserDetail struct {
 	ID          int64
 	Username    string
 	DisplayName string
+	StaffNo     string
 	IsAdmin     bool
 	Enabled     bool
 	FactoryIDs  []int64
@@ -43,6 +44,7 @@ type UserFilter struct {
 type UserCreate struct {
 	Username    string
 	DisplayName string
+	StaffNo     string
 	Password    string
 	IsAdmin     bool
 	FactoryIDs  []int64
@@ -51,6 +53,7 @@ type UserCreate struct {
 
 type UserUpdate struct {
 	DisplayName string
+	StaffNo     string
 	Enabled     bool
 	IsAdmin     bool
 	FactoryIDs  []int64
@@ -60,11 +63,11 @@ type UserUpdate struct {
 const detailSelect = `SELECT u.id, u.username, u.display_name, u.is_admin, u.enabled,
  COALESCE((SELECT array_agg(uf.factory_id ORDER BY uf.factory_id) FROM user_factory uf WHERE uf.user_id = u.id), ARRAY[]::bigint[]),
  COALESCE((SELECT array_agg(rm.menu_id ORDER BY rm.menu_id) FROM user_role ur JOIN role r ON r.id = ur.role_id JOIN role_menu rm ON rm.role_id = r.id WHERE ur.user_id = u.id AND r.code = 'user:' || u.username), ARRAY[]::bigint[]),
- u.created_at FROM app_user u`
+ u.created_at, u.staff_no FROM app_user u`
 
 func scanDetail(row pgx.Row) (*UserDetail, error) {
 	d := &UserDetail{}
-	err := row.Scan(&d.ID, &d.Username, &d.DisplayName, &d.IsAdmin, &d.Enabled, &d.FactoryIDs, &d.MenuIDs, &d.CreatedAt)
+	err := row.Scan(&d.ID, &d.Username, &d.DisplayName, &d.IsAdmin, &d.Enabled, &d.FactoryIDs, &d.MenuIDs, &d.CreatedAt, &d.StaffNo)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -148,7 +151,7 @@ func (s *Store) CreateUserFull(ctx context.Context, in UserCreate) (*UserDetail,
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	var id int64
-	err = tx.QueryRow(ctx, "INSERT INTO app_user (username, display_name, password_hash, is_admin) VALUES ($1,$2,$3,$4) RETURNING id", in.Username, in.DisplayName, hash, in.IsAdmin).Scan(&id)
+	err = tx.QueryRow(ctx, "INSERT INTO app_user (username, display_name, password_hash, is_admin, staff_no) VALUES ($1,$2,$3,$4,$5) RETURNING id", in.Username, in.DisplayName, hash, in.IsAdmin, in.StaffNo).Scan(&id)
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -179,7 +182,7 @@ func (s *Store) UpdateUser(ctx context.Context, id int64, in UserUpdate) (*UserD
 	if err != nil {
 		return nil, err
 	}
-	if _, err := tx.Exec(ctx, "UPDATE app_user SET display_name=$2, enabled=$3, is_admin=$4, updated_at=now() WHERE id=$1", id, in.DisplayName, in.Enabled, in.IsAdmin); err != nil {
+	if _, err := tx.Exec(ctx, "UPDATE app_user SET display_name=$2, enabled=$3, is_admin=$4, staff_no=$5, updated_at=now() WHERE id=$1", id, in.DisplayName, in.Enabled, in.IsAdmin, in.StaffNo); err != nil {
 		return nil, err
 	}
 	if err := replaceUserGrants(ctx, tx, id, username, in.FactoryIDs, in.MenuIDs); err != nil {

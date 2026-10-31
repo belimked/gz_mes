@@ -157,7 +157,7 @@ func (s *Server) Login(ctx context.Context, req api.LoginRequestObject) (api.Log
 	if err != nil {
 		return nil, err
 	}
-	return api.Login200JSONResponse{Token: tok, User: toAPIUser(u.ID, u.Username, u.DisplayName, u.IsAdmin)}, nil
+	return api.Login200JSONResponse{Token: tok, User: toAPIUser(u.ID, u.Username, u.DisplayName, u.StaffNo, u.IsAdmin)}, nil
 }
 
 // GetMe implements GET /auth/me.
@@ -168,13 +168,13 @@ func (s *Server) GetMe(ctx context.Context, _ api.GetMeRequestObject) (api.GetMe
 		return nil, err
 	}
 	return api.GetMe200JSONResponse{
-		User:  toAPIUser(p.UserID, p.Username, p.DisplayName, p.IsAdmin),
+		User:  toAPIUser(p.UserID, p.Username, p.DisplayName, p.StaffNo, p.IsAdmin),
 		Menus: toAPIMenus(menus),
 	}, nil
 }
 
-func toAPIUser(id int64, username, name string, admin bool) api.User {
-	return api.User{Id: id, Username: username, DisplayName: name, IsAdmin: admin}
+func toAPIUser(id int64, username, name, staffNo string, admin bool) api.User {
+	return api.User{Id: id, Username: username, DisplayName: name, StaffNo: staffNo, IsAdmin: admin}
 }
 
 func toAPIMenus(ms []*store.Menu) []api.MenuItem {

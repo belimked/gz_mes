@@ -34,7 +34,7 @@ func (s *Server) GetDashboard(ctx context.Context, req api.GetDashboardRequestOb
 	}
 	out := api.Dashboard{GeneratedAt: d.GeneratedAt,
 		Kpi:         api.DashboardKpi{InProduction: d.KPI.InProduction, PendingSchedule: d.KPI.PendingSchedule, DoneToday: d.KPI.DoneToday, TodayScanQty: d.KPI.TodayScanQty, TodayScanArea: d.KPI.TodayScanArea, LabelQty: d.KPI.LabelQty, DeliveredQty: d.KPI.DeliveredQty, DeliveredArea: d.KPI.DeliveredArea, UnaccountedNotes: d.KPI.UnaccountedNotes, UnaccountedArea: d.KPI.UnaccountedArea, UrgentOpen: d.KPI.UrgentOpen, OverdueOpen: d.KPI.OverdueOpen},
-		BatchStatus: make([]api.StatusCount, 0, len(d.BatchStatus)), JobLoad: make([]api.JobLoad, 0, len(d.JobLoad)), ScanTrend: make([]api.DailyScan, 0, len(d.ScanTrend)), CustomerArea: make([]api.CustomerArea, 0, len(d.CustomerArea)), ActiveBatches: make([]api.ActiveBatch, 0, len(d.ActiveBatches)), RecentScans: make([]api.Scan, 0, len(d.RecentScans)), RecentActivity: make([]api.ScanActivity, 0, len(d.RecentActivity))}
+		BatchStatus: make([]api.StatusCount, 0, len(d.BatchStatus)), JobLoad: make([]api.JobLoad, 0, len(d.JobLoad)), ScanTrend: make([]api.DailyScan, 0, len(d.ScanTrend)), CustomerArea: make([]api.CustomerArea, 0, len(d.CustomerArea)), ActiveBatches: make([]api.ActiveBatch, 0, len(d.ActiveBatches)), RecentScans: make([]api.Scan, 0, len(d.RecentScans)), RecentActivity: make([]api.ScanActivity, 0, len(d.RecentActivity)), Alerts: make([]api.DashboardAlert, 0, len(d.Alerts))}
 	for _, v := range d.BatchStatus {
 		out.BatchStatus = append(out.BatchStatus, api.StatusCount{Status: api.BatchStatus(v.Status), Count: v.Count})
 	}
@@ -55,7 +55,10 @@ func (s *Server) GetDashboard(ctx context.Context, req api.GetDashboardRequestOb
 		out.ActiveBatches = append(out.ActiveBatches, api.ActiveBatch{Id: v.ID, LotNo: v.LotNo, ProjectName: v.ProjectName, CustomerName: v.CustomerName, Thickness: v.Thickness, Color: v.Color, ItemQty: v.ItemQty, ItemArea: v.ItemArea, LabelQty: v.LabelQty, CurrentSeq: v.CurrentSeq, CurrentJobName: v.CurrentJobName, Progress: v.Progress, RequiredDate: required, Urgency: api.Urgency(v.Urgency)})
 	}
 	for _, v := range d.RecentActivity {
-		out.RecentActivity = append(out.RecentActivity, api.ScanActivity{BatchId: v.BatchID, LotNo: v.LotNo, JobId: v.JobID, JobName: v.JobName, ScannedBy: v.ScannedBy, Qty: v.Qty, Area: v.Area, LastScannedAt: v.LastScannedAt})
+		out.RecentActivity = append(out.RecentActivity, api.ScanActivity{BatchId: v.BatchID, LotNo: v.LotNo, JobId: v.JobID, JobName: v.JobName, ScannedBy: v.ScannedBy, StaffNo: v.StaffNo, Qty: v.Qty, Area: v.Area, LastScannedAt: v.LastScannedAt})
+	}
+	for _, v := range d.Alerts {
+		out.Alerts = append(out.Alerts, api.DashboardAlert{Rule: api.DashboardAlertRule(v.Rule), Level: api.DashboardAlertLevel(v.Level), Title: v.Title, Detail: v.Detail, Link: v.Link, BatchId: v.BatchID, LotNo: v.LotNo, JobId: v.JobID, Count: v.Count, Hours: v.Hours, Days: v.Days})
 	}
 	for _, v := range d.RecentScans {
 		out.RecentScans = append(out.RecentScans, toAPIScan(v))

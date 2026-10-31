@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -12,12 +13,18 @@ import (
 func TestDashboard(t *testing.T) {
 	e := newEnv(t)
 	admin := e.login("admin", "admin-pass")
+	if _, err := pool.Exec(context.Background(), "UPDATE app_user SET staff_no='0001' WHERE username='admin'"); err != nil {
+		t.Fatal(err)
+	}
 	var d api.Dashboard
 	if code := e.do("GET", "/dashboard", admin, nil, &d); code != 200 || len(d.BatchStatus) != 4 || len(d.JobLoad) != 11 || len(d.ScanTrend) != 14 {
 		t.Fatalf("empty dashboard: %d %+v", code, d)
 	}
 	if len(d.RecentActivity) != 0 {
 		t.Fatalf("empty recent activity: %+v", d.RecentActivity)
+	}
+	if d.Alerts == nil || len(d.Alerts) != 0 {
+		t.Fatalf("empty alerts must be []: %+v", d.Alerts)
 	}
 	for _, v := range d.BatchStatus {
 		if v.Count != 0 {
@@ -66,10 +73,22 @@ func TestDashboard(t *testing.T) {
 	if code := e.do("POST", "/batches", admin, api.BatchCreate{ContractId: contract.Id, LotNo: "DASH-2", RequiredDate: &yesterday}, &b); code != 201 {
 		t.Fatalf("create overdue: %d", code)
 	}
+	if _, err := pool.Exec(context.Background(), "UPDATE batch SET status='scheduled' WHERE id=$1", b.Id); err != nil {
+		t.Fatal(err)
+	}
 	if code := e.do("GET", "/dashboard", admin, nil, &d); code != 200 {
 		t.Fatalf("dashboard: %d", code)
 	}
-	if d.Kpi.InProduction != 1 || d.Kpi.PendingSchedule != 1 || d.Kpi.UrgentOpen != 1 || d.Kpi.OverdueOpen != 1 || d.Kpi.TodayScanQty != 4 || d.Kpi.LabelQty != 2 || d.Kpi.TodayScanArea != 6 {
+	foundOverdue := false
+	for _, alert := range d.Alerts {
+		if alert.Rule == api.Overdue && alert.BatchId != nil && *alert.BatchId == b.Id && alert.Days != nil && *alert.Days == 1 {
+			foundOverdue = true
+		}
+	}
+	if !foundOverdue {
+		t.Errorf("missing overdue alert: %+v", d.Alerts)
+	}
+	if d.Kpi.InProduction != 1 || d.Kpi.PendingSchedule != 0 || d.Kpi.UrgentOpen != 1 || d.Kpi.OverdueOpen != 1 || d.Kpi.TodayScanQty != 4 || d.Kpi.LabelQty != 2 || d.Kpi.TodayScanArea != 6 {
 		t.Errorf("kpi: %+v", d.Kpi)
 	}
 	if len(d.ActiveBatches) != 1 || d.ActiveBatches[0].CurrentSeq != 2 || d.ActiveBatches[0].Progress <= 0 {
@@ -85,7 +104,7 @@ func TestDashboard(t *testing.T) {
 	if len(d.RecentActivity) == 0 {
 		t.Fatal("missing recent activity")
 	}
-	if first := d.RecentActivity[0]; first.Qty < 1 || first.LastScannedAt.IsZero() {
+	if first := d.RecentActivity[0]; first.Qty < 1 || first.LastScannedAt.IsZero() || first.StaffNo != "0001" {
 		t.Errorf("recent activity first: %+v", first)
 	}
 	activityQty := 0
@@ -115,7 +134,7 @@ func TestDashboard(t *testing.T) {
 	}
 	e.outsourceUser("dashboard-wa", e.outA)
 	d = api.Dashboard{} // Optional JSON fields are omitted; discard values from the previous response.
-	if code := e.do("GET", "/dashboard", e.login("dashboard-wa", "pw-dashboard-wa"), nil, &d); code != 200 || d.Kpi.InProduction != 0 || len(d.RecentScans) != 0 || len(d.RecentActivity) != 0 {
+	if code := e.do("GET", "/dashboard", e.login("dashboard-wa", "pw-dashboard-wa"), nil, &d); code != 200 || d.Kpi.InProduction != 0 || len(d.RecentScans) != 0 || len(d.RecentActivity) != 0 || len(d.Alerts) != 0 {
 		t.Errorf("scope: %d %+v", code, d)
 	}
 	for _, v := range d.ScanTrend {

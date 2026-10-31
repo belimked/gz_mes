@@ -83,6 +83,7 @@ type Principal struct {
 	UserID      int64
 	Username    string
 	DisplayName string
+	StaffNo     string
 	IsAdmin     bool
 	Scope       Scope
 }

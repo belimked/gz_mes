@@ -1014,11 +1014,12 @@ components:
 
     User:
       type: object
-      required: [id, username, displayName, isAdmin]
+      required: [id, username, displayName, isAdmin, staffNo]
       properties:
         id: { type: integer, format: int64 }
         username: { type: string }
         displayName: { type: string }
+        staffNo: { type: string, description: "工号，可为空" }
         isAdmin: { type: boolean }
 
     MenuItem:
@@ -1101,6 +1102,7 @@ components:
       properties:
         username: { type: string, minLength: 2, maxLength: 32, pattern: "^[a-zA-Z0-9_.-]+$" }
         displayName: { type: string, minLength: 1, maxLength: 50 }
+        staffNo: { type: string, maxLength: 20, default: "" }
         password: { type: string, minLength: 6, maxLength: 72 }
         isAdmin: { type: boolean, default: false }
         factoryIds:
@@ -1115,6 +1117,7 @@ components:
       required: [displayName, enabled, isAdmin, factoryIds, menuIds]
       properties:
         displayName: { type: string, minLength: 1, maxLength: 50 }
+        staffNo: { type: string, maxLength: 20, default: "" }
         enabled: { type: boolean }
         isAdmin: { type: boolean }
         factoryIds:
@@ -1785,7 +1788,7 @@ components:
 
     Dashboard:
       type: object
-      required: [generatedAt, kpi, batchStatus, jobLoad, scanTrend, customerArea, activeBatches, recentScans, recentActivity]
+      required: [generatedAt, kpi, batchStatus, jobLoad, scanTrend, customerArea, activeBatches, recentScans, recentActivity, alerts]
       properties:
         generatedAt: { type: string, format: date-time }
         kpi: { $ref: "#/components/schemas/DashboardKpi" }
@@ -1817,16 +1820,43 @@ components:
           type: array
           description: Latest 8 scan groups — scans by the same (batch, job, scannedBy) within the same 10-minute bucket are merged
           items: { $ref: "#/components/schemas/ScanActivity" }
+        alerts:
+          type: array
+          description: |
+            Rule-based alerts, most severe first, max 20. Rules:
+            overdue — open batch past requiredDate (error); due_soon — open batch due within 3 days (warning);
+            stalled — pieces sitting at a job for over 24h (error when > 72h, else warning);
+            unaccounted — delivery notes with no account for over 7 days (warning);
+            idle — scheduled batch whose planSheetStart is past but has no scan (warning);
+            no_labels — scheduled batch with items but no labels and planCutDate past (info).
+          items: { $ref: "#/components/schemas/DashboardAlert" }
+
+    DashboardAlert:
+      type: object
+      required: [rule, level, title, detail, link]
+      properties:
+        rule: { type: string, enum: [overdue, due_soon, stalled, unaccounted, idle, no_labels] }
+        level: { type: string, enum: [error, warning, info] }
+        title: { type: string }
+        detail: { type: string }
+        link: { type: string, description: "Frontend route to act on it, e.g. /scheduling/batches?keyword=PC-1" }
+        batchId: { type: integer, format: int64, nullable: true }
+        lotNo: { type: string, nullable: true }
+        jobId: { type: integer, format: int64, nullable: true }
+        count: { type: integer, nullable: true, description: "pieces / notes affected" }
+        hours: { type: number, format: double, nullable: true, description: "age for stalled/unaccounted" }
+        days: { type: integer, nullable: true, description: "overdue / due_soon days" }
 
     ScanActivity:
       type: object
-      required: [batchId, lotNo, jobId, jobName, scannedBy, qty, area, lastScannedAt]
+      required: [batchId, lotNo, jobId, jobName, scannedBy, staffNo, qty, area, lastScannedAt]
       properties:
         batchId: { type: integer, format: int64 }
         lotNo: { type: string }
         jobId: { type: integer, format: int64 }
         jobName: { type: string }
         scannedBy: { type: string }
+        staffNo: { type: string }
         qty: { type: integer }
         area: { type: number, format: double }
         lastScannedAt: { type: string, format: date-time }

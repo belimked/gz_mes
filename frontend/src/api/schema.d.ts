@@ -724,6 +724,8 @@ export interface components {
       id: number
       username: string
       displayName: string
+      /** @description 工号，可为空 */
+      staffNo: string
       isAdmin: boolean
     }
     MenuItem: {
@@ -773,6 +775,8 @@ export interface components {
     UserCreate: {
       username: string
       displayName: string
+      /** @default  */
+      staffNo: string
       password: string
       /** @default false */
       isAdmin: boolean
@@ -781,6 +785,8 @@ export interface components {
     }
     UserUpdate: {
       displayName: string
+      /** @default  */
+      staffNo: string
       enabled: boolean
       isAdmin: boolean
       factoryIds: number[]
@@ -1551,6 +1557,39 @@ export interface components {
       recentScans: components['schemas']['Scan'][]
       /** @description Latest 8 scan groups — scans by the same (batch, job, scannedBy) within the same 10-minute bucket are merged */
       recentActivity: components['schemas']['ScanActivity'][]
+      /**
+       * @description Rule-based alerts, most severe first, max 20. Rules:
+       *     overdue — open batch past requiredDate (error); due_soon — open batch due within 3 days (warning);
+       *     stalled — pieces sitting at a job for over 24h (error when > 72h, else warning);
+       *     unaccounted — delivery notes with no account for over 7 days (warning);
+       *     idle — scheduled batch whose planSheetStart is past but has no scan (warning);
+       *     no_labels — scheduled batch with items but no labels and planCutDate past (info).
+       */
+      alerts: components['schemas']['DashboardAlert'][]
+    }
+    DashboardAlert: {
+      /** @enum {string} */
+      rule: 'overdue' | 'due_soon' | 'stalled' | 'unaccounted' | 'idle' | 'no_labels'
+      /** @enum {string} */
+      level: 'error' | 'warning' | 'info'
+      title: string
+      detail: string
+      /** @description Frontend route to act on it, e.g. /scheduling/batches?keyword=PC-1 */
+      link: string
+      /** Format: int64 */
+      batchId?: number | null
+      lotNo?: string | null
+      /** Format: int64 */
+      jobId?: number | null
+      /** @description pieces / notes affected */
+      count?: number | null
+      /**
+       * Format: double
+       * @description age for stalled/unaccounted
+       */
+      hours?: number | null
+      /** @description overdue / due_soon days */
+      days?: number | null
     }
     ScanActivity: {
       /** Format: int64 */
@@ -1560,6 +1599,7 @@ export interface components {
       jobId: number
       jobName: string
       scannedBy: string
+      staffNo: string
       qty: number
       /** Format: double */
       area: number

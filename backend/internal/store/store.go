@@ -34,16 +34,17 @@ type User struct {
 	ID           int64
 	Username     string
 	DisplayName  string
+	StaffNo      string
 	PasswordHash string
 	IsAdmin      bool
 	Enabled      bool
 }
 
-const userCols = "id, username, display_name, password_hash, is_admin, enabled"
+const userCols = "id, username, display_name, password_hash, is_admin, enabled, staff_no"
 
 func scanUser(row pgx.Row) (*User, error) {
 	var u User
-	err := row.Scan(&u.ID, &u.Username, &u.DisplayName, &u.PasswordHash, &u.IsAdmin, &u.Enabled)
+	err := row.Scan(&u.ID, &u.Username, &u.DisplayName, &u.PasswordHash, &u.IsAdmin, &u.Enabled, &u.StaffNo)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -61,7 +62,7 @@ func (s *Store) Principal(ctx context.Context, userID int64) (*auth.Principal, e
 	if err != nil {
 		return nil, err
 	}
-	p := &auth.Principal{UserID: u.ID, Username: u.Username, DisplayName: u.DisplayName, IsAdmin: u.IsAdmin}
+	p := &auth.Principal{UserID: u.ID, Username: u.Username, DisplayName: u.DisplayName, StaffNo: u.StaffNo, IsAdmin: u.IsAdmin}
 	if u.IsAdmin {
 		p.Scope = auth.Scope{All: true}
 		return p, nil
