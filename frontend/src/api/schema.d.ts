@@ -1549,6 +1549,22 @@ export interface components {
       activeBatches: components['schemas']['ActiveBatch'][]
       /** @description Latest 8 scans */
       recentScans: components['schemas']['Scan'][]
+      /** @description Latest 8 scan groups — scans by the same (batch, job, scannedBy) within the same 10-minute bucket are merged */
+      recentActivity: components['schemas']['ScanActivity'][]
+    }
+    ScanActivity: {
+      /** Format: int64 */
+      batchId: number
+      lotNo: string
+      /** Format: int64 */
+      jobId: number
+      jobName: string
+      scannedBy: string
+      qty: number
+      /** Format: double */
+      area: number
+      /** Format: date-time */
+      lastScannedAt: string
     }
     DashboardKpi: {
       /** @description Batches in_production */

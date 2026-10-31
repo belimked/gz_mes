@@ -1785,7 +1785,7 @@ components:
 
     Dashboard:
       type: object
-      required: [generatedAt, kpi, batchStatus, jobLoad, scanTrend, customerArea, activeBatches, recentScans]
+      required: [generatedAt, kpi, batchStatus, jobLoad, scanTrend, customerArea, activeBatches, recentScans, recentActivity]
       properties:
         generatedAt: { type: string, format: date-time }
         kpi: { $ref: "#/components/schemas/DashboardKpi" }
@@ -1813,6 +1813,23 @@ components:
           type: array
           description: Latest 8 scans
           items: { $ref: "#/components/schemas/Scan" }
+        recentActivity:
+          type: array
+          description: Latest 8 scan groups — scans by the same (batch, job, scannedBy) within the same 10-minute bucket are merged
+          items: { $ref: "#/components/schemas/ScanActivity" }
+
+    ScanActivity:
+      type: object
+      required: [batchId, lotNo, jobId, jobName, scannedBy, qty, area, lastScannedAt]
+      properties:
+        batchId: { type: integer, format: int64 }
+        lotNo: { type: string }
+        jobId: { type: integer, format: int64 }
+        jobName: { type: string }
+        scannedBy: { type: string }
+        qty: { type: integer }
+        area: { type: number, format: double }
+        lastScannedAt: { type: string, format: date-time }
 
     DashboardKpi:
       type: object

@@ -61,20 +61,31 @@ type ActiveBatch struct {
 	RequiredDate                     *time.Time
 	Urgency                          string
 }
+type ScanActivity struct {
+	BatchID       int64
+	LotNo         string
+	JobID         int64
+	JobName       string
+	ScannedBy     string
+	Qty           int
+	Area          float64
+	LastScannedAt time.Time
+}
 type Dashboard struct {
-	GeneratedAt   time.Time
-	KPI           DashboardKPI
-	BatchStatus   []StatusCount
-	JobLoad       []JobLoad
-	ScanTrend     []DailyScan
-	CustomerArea  []CustomerArea
-	ActiveBatches []ActiveBatch
-	RecentScans   []Scan
+	GeneratedAt    time.Time
+	KPI            DashboardKPI
+	BatchStatus    []StatusCount
+	JobLoad        []JobLoad
+	ScanTrend      []DailyScan
+	CustomerArea   []CustomerArea
+	ActiveBatches  []ActiveBatch
+	RecentScans    []Scan
+	RecentActivity []ScanActivity
 }
 
 // GetDashboard computes each metric from the source rows, restricting every batch to the caller's scope.
 func (s *Store) GetDashboard(ctx context.Context, sc auth.Scope, days int) (*Dashboard, error) {
-	d := &Dashboard{GeneratedAt: time.Now(), BatchStatus: []StatusCount{}, JobLoad: []JobLoad{}, ScanTrend: []DailyScan{}, CustomerArea: []CustomerArea{}, ActiveBatches: []ActiveBatch{}, RecentScans: []Scan{}}
+	d := &Dashboard{GeneratedAt: time.Now(), BatchStatus: []StatusCount{}, JobLoad: []JobLoad{}, ScanTrend: []DailyScan{}, CustomerArea: []CustomerArea{}, ActiveBatches: []ActiveBatch{}, RecentScans: []Scan{}, RecentActivity: []ScanActivity{}}
 	args := []any{sc.All, sc.FactoryIDs}
 	err := s.db.QueryRow(ctx, `SELECT count(*) FILTER (WHERE status='in_production')::int,
  count(*) FILTER (WHERE status='pending')::int,
@@ -192,6 +203,22 @@ func (s *Store) GetDashboard(ctx context.Context, sc auth.Scope, days int) (*Das
 		return nil, err
 	}
 	d.RecentScans, err = pgx.CollectRows(rows, pgx.RowToStructByPos[Scan])
+	if err != nil {
+		return nil, err
+	}
+	rows, err = s.db.Query(ctx, `SELECT sr.batch_id,b.lot_no,sr.job_id,j.name,u.display_name,
+ count(*)::int,sum(bi.piece_area)::float8,max(sr.scanned_at)
+ FROM scan_record sr JOIN batch b ON b.id=sr.batch_id JOIN job j ON j.id=sr.job_id
+ JOIN app_user u ON u.id=sr.scanned_by JOIN label l ON l.id=sr.label_id
+ JOIN batch_item bi ON bi.id=l.batch_item_id
+ WHERE ($1 OR b.factory_id=ANY($2))
+ GROUP BY sr.batch_id,b.lot_no,sr.job_id,j.name,sr.scanned_by,u.display_name,
+ to_timestamp(floor(extract(epoch from sr.scanned_at)/600)*600)
+ ORDER BY max(sr.scanned_at) DESC LIMIT 8`, args...)
+	if err != nil {
+		return nil, err
+	}
+	d.RecentActivity, err = pgx.CollectRows(rows, pgx.RowToStructByPos[ScanActivity])
 	if err != nil {
 		return nil, err
 	}

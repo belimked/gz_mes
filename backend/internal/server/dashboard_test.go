@@ -16,6 +16,9 @@ func TestDashboard(t *testing.T) {
 	if code := e.do("GET", "/dashboard", admin, nil, &d); code != 200 || len(d.BatchStatus) != 4 || len(d.JobLoad) != 11 || len(d.ScanTrend) != 14 {
 		t.Fatalf("empty dashboard: %d %+v", code, d)
 	}
+	if len(d.RecentActivity) != 0 {
+		t.Fatalf("empty recent activity: %+v", d.RecentActivity)
+	}
 	for _, v := range d.BatchStatus {
 		if v.Count != 0 {
 			t.Fatalf("nonempty status: %+v", v)
@@ -79,6 +82,19 @@ func TestDashboard(t *testing.T) {
 	if len(d.CustomerArea) == 0 || len(d.RecentScans) != 4 {
 		t.Errorf("customer / scans: %+v %+v", d.CustomerArea, d.RecentScans)
 	}
+	if len(d.RecentActivity) == 0 {
+		t.Fatal("missing recent activity")
+	}
+	if first := d.RecentActivity[0]; first.Qty < 1 || first.LastScannedAt.IsZero() {
+		t.Errorf("recent activity first: %+v", first)
+	}
+	activityQty := 0
+	for _, v := range d.RecentActivity {
+		activityQty += v.Qty
+	}
+	if activityQty != d.Kpi.TodayScanQty {
+		t.Errorf("recent activity qty: %d, scans: %d", activityQty, d.Kpi.TodayScanQty)
+	}
 	for _, j := range d.JobLoad {
 		switch j.JobCode {
 		case "10":
@@ -99,7 +115,7 @@ func TestDashboard(t *testing.T) {
 	}
 	e.outsourceUser("dashboard-wa", e.outA)
 	d = api.Dashboard{} // Optional JSON fields are omitted; discard values from the previous response.
-	if code := e.do("GET", "/dashboard", e.login("dashboard-wa", "pw-dashboard-wa"), nil, &d); code != 200 || d.Kpi.InProduction != 0 || len(d.RecentScans) != 0 {
+	if code := e.do("GET", "/dashboard", e.login("dashboard-wa", "pw-dashboard-wa"), nil, &d); code != 200 || d.Kpi.InProduction != 0 || len(d.RecentScans) != 0 || len(d.RecentActivity) != 0 {
 		t.Errorf("scope: %d %+v", code, d)
 	}
 	for _, v := range d.ScanTrend {
