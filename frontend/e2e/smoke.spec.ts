@@ -38,6 +38,20 @@ test('login, create and confirm a project, logout', async ({ page }) => {
   await expect(page).toHaveURL(/\/login/)
 })
 
+test('scan records page lists seeded scans and filters by keyword', async ({ page }) => {
+  await login(page)
+  await page.getByTestId('side-menu').getByText('生产报表').click()
+  await page.getByTestId('side-menu').getByText('扫描记录').click()
+  await expect(page).toHaveURL(/\/report\/scans/)
+  const table = page.getByTestId('scan-table')
+  await expect(table.locator('tbody tr.ant-table-row')).not.toHaveCount(0)
+  const barCode = (await table.locator('tbody tr.ant-table-row').first().locator('td').nth(3).innerText()).trim()
+  await page.getByPlaceholder('条码 / 批次 / 工程 / 编号').fill(barCode)
+  await page.getByRole('button', { name: /查\s*询/ }).click()
+  await expect(page.getByTestId('scan-summary')).toContainText('共')
+  for (const cell of await table.locator('tbody tr.ant-table-row td:nth-child(4)').allInnerTexts()) expect(cell.trim()).toBe(barCode)
+})
+
 test('wrong password shows an error', async ({ page }) => {
   await login(page, user, 'definitely-wrong')
   await expect(page.getByText('用户名或密码错误')).toBeVisible()

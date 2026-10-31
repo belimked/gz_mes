@@ -3,12 +3,12 @@
 对照线上系统页面规格（`docs/spec/00-overview.md`，本地）逐模块记录实现状态。
 状态：✅ 已完成 · 🟡 已做但有简化 · ⬜ 未做 · ➖ 不做（依赖我们没有的实体 / 硬件 / 外部系统）
 
-最后更新：2026-10-31（commit `ea97761`）
+最后更新：2026-10-31（扫描记录页）
 
 ## 基础设施 ✅
 
 - ✅ Go API（chi + oapi-codegen + pgx + goose）、PostgreSQL 16、`api/openapi.yaml` 单一契约
-- ✅ Vue 3 + AntD 前端，统一主题 `src/theme.ts`，demo 模式（浏览器内模拟后端，DemoDB v14）
+- ✅ Vue 3 + AntD 前端，统一主题 `src/theme.ts`，demo 模式（浏览器内模拟后端，DemoDB v15）
 - ✅ JWT 登录、厂区隔离（admin 全部 / 普通用户按 user_factory）、菜单权限（role_menu）
 - ✅ CI（gen 一致性、go test -race、lint、typecheck、vitest、demo E2E、compose 全栈 E2E）、Demo 自动部署 Cloudflare Pages、tag 发版推 GHCR
 - ✅ 登录页 4 套 aurora 风格切换
@@ -85,7 +85,8 @@
 - ✅ 工程进度（mode=progress，累计 × 工序矩阵）
 - ✅ 员工产量（员工 × 岗位，汇总 / 明细）
   - 简化：无自定义列配置、无导出模板、无部门筛选
-- ⬜ 扫描记录（GET /scans 已有，缺带批次 / 工序 / 操作员 / 日期筛选的独立页）—— **最简单，建议下一个**
+- ✅ 扫描记录（`/report/scans`：日期 / 岗位 / 经办人 / 快速查询，最新在前；Scan 补 projectName / pieceArea / staffNo，条码跳标签、批次跳排程）
+  - 简化：无机台 / 车间 / 交接单号 / EAS 单号列、无「重复扫描」「质检结果」筛选（依赖机台表与质检结果字段）
 - ⬜ 工程汇总（批次 × 工序完成数 + 工程状态，和工程进度大部分重合，可作为进度页的「汇总」开关）
 - ⬜ 项目汇总（按项目聚合批次进度）
 - ⬜ 机台产量 —— 需要先加 machine 表 + scan_record.machine_id，扫码界面选机台
@@ -111,7 +112,7 @@
 
 ## 建议顺序
 
-1. 扫描记录页（半天）
+1. ~~扫描记录页~~ ✅
 2. 通用导出 + 生产平衡表 + 工程汇总开关（1 天）
 3. 扫码质检结果 → 质检扫描记录 / 质量报表 / 不良品日报（2 天）
 4. 外协单查看 + 发货计划（1 天）

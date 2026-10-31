@@ -461,6 +461,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description Scan records (扫描记录) newest first. beginDate / endDate filter on scanned_at (dates, inclusive). */
         get: operations["listScans"];
         put?: never;
         /**
@@ -1379,12 +1380,21 @@ export interface components {
             /** Format: int64 */
             batchId: number;
             lotNo: string;
+            projectName: string;
             pieceNo: string;
             pieceIndex: number;
+            /**
+             * Format: double
+             * @description batch_item.piece_area (m²)
+             */
+            pieceArea: number;
             /** Format: int64 */
             jobId: number;
             jobName: string;
+            /** @description Operator displayName */
             scannedBy: string;
+            /** @description Operator staffNo */
+            staffNo: string;
             /** Format: date-time */
             scannedAt: string;
             device: string;
@@ -3017,6 +3027,10 @@ export interface operations {
                 jobId?: number;
                 beginDate?: string;
                 endDate?: string;
+                /** @description Matches barCode / lotNo / projectName / pieceNo */
+                keyword?: string;
+                /** @description Matches operator displayName / staffNo / username */
+                staff?: string;
             };
             header?: never;
             path?: never;

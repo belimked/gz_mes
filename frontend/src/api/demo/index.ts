@@ -27,7 +27,7 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 14
+  version: 15
   factories: S['Factory'][]
   users: DemoUser[]
   nextId: number
@@ -87,7 +87,7 @@ function fresh(): DemoDB {
   const plans = seedPlans(batches, jobs, scans)
   for (const plan of plans) plan.id = nextId++
   return {
-    version: 14,
+    version: 15,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
     nextId,
@@ -114,12 +114,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 14) return parsed
+      if (parsed?.version === 15) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 14) memory = fresh()
+  if (memory?.version !== 15) memory = fresh()
   return memory
 }
 
@@ -1379,6 +1379,9 @@ export async function demoFetch(req: Request): Promise<Response> {
     const begin = beginDate !== null ? dateStart(beginDate) : null
     const end = endDate !== null ? dateStart(endDate) + 86400000 : null
     if (Number.isNaN(begin) || Number.isNaN(end)) return fail(400, 'invalid_request', '日期参数不合法')
+    const kw = (url.searchParams.get('keyword') ?? '').trim().toLowerCase()
+    const staff = (url.searchParams.get('staff') ?? '').trim().toLowerCase()
+    const staffUsers = db.users.filter((x) => [x.displayName, x.staffNo, x.username].some((s) => s.toLowerCase().includes(staff)))
     const scopedBatches = new Set(db.batches.filter((batch) => inScope(u, batch.factoryId)).map((batch) => batch.id))
     const all = db.scans
       .filter((scan) => scopedBatches.has(scan.batchId))
@@ -1386,6 +1389,14 @@ export async function demoFetch(req: Request): Promise<Response> {
       .filter((scan) => jobId === null || scan.jobId === Number(jobId))
       .filter((scan) => begin === null || Date.parse(scan.scannedAt) >= begin)
       .filter((scan) => end === null || Date.parse(scan.scannedAt) < end)
+      .filter((scan) => !kw || [scan.barCode, scan.lotNo, scan.projectName, scan.pieceNo].some((s) => s.toLowerCase().includes(kw)))
+      .filter(
+        (scan) =>
+          !staff ||
+          scan.scannedBy.toLowerCase().includes(staff) ||
+          scan.staffNo.toLowerCase().includes(staff) ||
+          staffUsers.some((x) => x.displayName === scan.scannedBy),
+      )
       .sort((a, b) => b.scannedAt.localeCompare(a.scannedAt) || b.id - a.id)
     return json(200, { items: all.slice((page - 1) * size, page * size), total: all.length })
   }
@@ -1412,11 +1423,14 @@ export async function demoFetch(req: Request): Promise<Response> {
       barCode: label.barCode,
       batchId: label.batchId,
       lotNo: label.lotNo,
+      projectName: label.projectName,
       pieceNo: label.pieceNo,
       pieceIndex: label.pieceIndex,
+      pieceArea: label.pieceArea,
       jobId: job.id,
       jobName: job.name,
       scannedBy: u.displayName,
+      staffNo: u.staffNo,
       scannedAt,
       device: str(b.device),
     }
@@ -1579,11 +1593,14 @@ export async function demoFetch(req: Request): Promise<Response> {
         barCode: label.barCode,
         batchId: batch.id,
         lotNo: batch.lotNo,
+        projectName: label.projectName,
         pieceNo: label.pieceNo,
         pieceIndex: label.pieceIndex,
+        pieceArea: label.pieceArea,
         jobId: job60.id,
         jobName: job60.name,
         scannedBy: u.displayName,
+        staffNo: u.staffNo,
         scannedAt: now,
         device: 'delivery',
       })

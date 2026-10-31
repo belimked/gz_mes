@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
 import dayjs from 'dayjs'
@@ -11,7 +12,9 @@ import CodeText from '@/components/CodeText.vue'
 import StatusTag from '@/components/StatusTag.vue'
 
 type Label = Schemas['Label']
-const filters = reactive({ keyword: '', batchId: undefined as number | undefined, cancelled: undefined as boolean | undefined })
+const route = useRoute()
+const initialKeyword = typeof route.query.keyword === 'string' ? route.query.keyword : ''
+const filters = reactive({ keyword: initialKeyword, batchId: undefined as number | undefined, cancelled: undefined as boolean | undefined })
 const applied = reactive({ ...filters })
 const batches = ref<Schemas['Batch'][]>([])
 const rows = ref<Label[]>([])

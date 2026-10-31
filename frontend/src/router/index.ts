@@ -100,6 +100,12 @@ const children: RouteRecordRaw[] = [
     meta: { title: '员工产量', group: '生产报表' },
   },
   {
+    path: 'report/scans',
+    name: 'report-scans',
+    component: () => import('@/views/report/ScanRecords.vue'),
+    meta: { title: '扫描记录', group: '生产报表' },
+  },
+  {
     path: 'system/factories',
     name: 'factories',
     component: () => import('@/views/system/Factories.vue'),

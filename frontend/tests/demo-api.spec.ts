@@ -80,4 +80,29 @@ describe('demo api', () => {
     resetDemo()
     expect((await call(api.GET('/projects', admin))).total).toBe(5)
   })
+
+  it('lists scan records newest first with keyword / staff filters', async () => {
+    const admin = await login('admin', 'admin123')
+    const page = await call(api.GET('/scans', { ...admin, params: { query: { size: 5 } } }))
+    expect(page.total).toBeGreaterThan(5)
+    expect(page.items).toHaveLength(5)
+    for (let i = 1; i < page.items.length; i++) expect(page.items[i - 1]!.scannedAt >= page.items[i]!.scannedAt).toBe(true)
+    const first = page.items[0]!
+    expect(first.projectName).not.toBe('')
+    expect(first.staffNo).not.toBe('')
+    expect(first.pieceArea).toBeGreaterThan(0)
+
+    const byCode = await call(api.GET('/scans', { ...admin, params: { query: { keyword: first.barCode } } }))
+    expect(byCode.items.every((s) => s.barCode === first.barCode)).toBe(true)
+    expect(byCode.total).toBeGreaterThan(0)
+
+    const byStaff = await call(api.GET('/scans', { ...admin, params: { query: { staff: first.staffNo } } }))
+    expect(byStaff.items.every((s) => s.staffNo === first.staffNo)).toBe(true)
+    const none = await call(api.GET('/scans', { ...admin, params: { query: { staff: 'nobody-here' } } }))
+    expect(none.total).toBe(0)
+
+    const wx = await login('waixie', 'demo123')
+    const scoped = await call(api.GET('/scans', { ...wx, params: { query: { size: 200 } } }))
+    expect(scoped.total).toBeLessThan(page.total)
+  })
 })

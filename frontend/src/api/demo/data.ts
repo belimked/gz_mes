@@ -76,6 +76,7 @@ export const menus: { id: number; parentId: number | null; title: string; path: 
   { id: 1001, parentId: 1000, title: '工程日报', path: '/report/batch-daily', icon: 'file-text' },
   { id: 1002, parentId: 1000, title: '工程进度', path: '/report/batch-progress', icon: 'line-chart' },
   { id: 1003, parentId: 1000, title: '员工产量', path: '/report/staff-output', icon: 'team' },
+  { id: 1004, parentId: 1000, title: '扫描记录', path: '/report/scans', icon: 'barcode' },
 ]
 
 export const users: DemoUser[] = [
@@ -403,11 +404,14 @@ export function seedScans(batches: S['Batch'][], labels: S['Label'][], jobList: 
             barCode: label.barCode,
             batchId: batch.id,
             lotNo: label.lotNo,
+            projectName: label.projectName,
             pieceNo: label.pieceNo,
             pieceIndex: label.pieceIndex,
+            pieceArea: label.pieceArea,
             jobId: job.id,
             jobName: job.name,
             scannedBy,
+            staffNo: operators[index % operators.length]!.staffNo,
             scannedAt,
             device: '',
           }
