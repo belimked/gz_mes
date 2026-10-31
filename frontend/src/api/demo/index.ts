@@ -9,7 +9,9 @@ import {
   seedBatches,
   seedContracts,
   seedCustomers,
+  seedLabels,
   seedProjects,
+  seedScans,
   users,
   type DemoUser,
 } from './data'
@@ -17,13 +19,15 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 3
+  version: 4
   nextId: number
   projects: S['Project'][]
   customers: S['Customer'][]
   contracts: S['Contract'][]
   batches: S['Batch'][]
   batchItems: S['BatchItem'][]
+  labels: S['Label'][]
+  scans: S['Scan'][]
 }
 
 const KEY = 'gz-mes-demo-v1'
@@ -43,14 +47,19 @@ function fresh(): DemoDB {
   const contracts = seedContracts(projects, customers)
   const batches = seedBatches(contracts)
   const batchItems = seedBatchItems(batches)
+  const labels = seedLabels(batches, batchItems)
+  const scans = seedScans(batches, labels, jobs)
   return {
-    version: 3,
-    nextId: Math.max(...[...projects, ...customers, ...contracts, ...batches, ...batchItems].map((item) => item.id)) + 1,
+    version: 4,
+    nextId:
+      Math.max(...[...projects, ...customers, ...contracts, ...batches, ...batchItems, ...labels, ...scans].map((item) => item.id)) + 1,
     projects,
     customers,
     contracts,
     batches,
     batchItems,
+    labels,
+    scans,
   }
 }
 
@@ -59,12 +68,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 3) return parsed
+      if (parsed?.version === 4) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 3) memory = fresh()
+  if (memory?.version !== 4) memory = fresh()
   return memory
 }
 
@@ -124,6 +133,38 @@ async function body(req: Request): Promise<Record<string, unknown> | null> {
 }
 
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+
+function progress(db: DemoDB, batch: S['Batch']): S['BatchProgress'] {
+  const labels = db.labels.filter((label) => label.batchId === batch.id)
+  const byId = new Map(labels.map((label) => [label.id, label]))
+  const scans = db.scans.filter((scan) => scan.batchId === batch.id)
+  return {
+    batchId: batch.id,
+    status: batch.status,
+    totalQty: batch.itemQty,
+    totalArea: batch.itemArea,
+    labelQty: labels.filter((label) => !label.cancelled).length,
+    jobs: jobs.map((job) => {
+      const rows = scans.filter((scan) => scan.jobId === job.id)
+      return {
+        jobId: job.id,
+        jobCode: job.code,
+        jobName: job.name,
+        seq: job.seq,
+        scannedQty: rows.length,
+        scannedArea: Number(rows.reduce((sum, scan) => sum + (byId.get(scan.labelId)?.pieceArea ?? 0), 0).toFixed(4)),
+      }
+    }),
+  }
+}
+
+const validPage = (page: number, size: number) => Number.isInteger(page) && page >= 1 && Number.isInteger(size) && size >= 1 && size <= 200
+const validId = (value: string | null) => value === null || (/^-?\d+$/.test(value) && Number.isSafeInteger(Number(value)))
+const dateStart = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return NaN
+  const ms = Date.parse(`${value}T00:00:00Z`)
+  return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === value ? ms : NaN
+}
 
 export async function demoFetch(req: Request): Promise<Response> {
   if (import.meta.env.MODE !== 'test') await new Promise((r) => setTimeout(r, 120))
@@ -507,6 +548,158 @@ export async function demoFetch(req: Request): Promise<Response> {
     return json(201, batch)
   }
 
+  const batchLabels = /^POST \/batches\/(\d+)\/labels\/generate$/.exec(route)
+  if (batchLabels) {
+    const batch = db.batches.find((x) => x.id === Number(batchLabels[1]) && inScope(u, x.factoryId))
+    if (!batch) return fail(404, 'not_found', '批次不存在')
+    if (batch.itemCount === 0) return fail(400, 'no_items', '批次尚无构件清单')
+    let created = 0
+    const existing = new Set(
+      db.labels.filter((label) => label.batchId === batch.id).map((label) => `${label.batchItemId}:${label.pieceIndex}`),
+    )
+    for (const item of db.batchItems.filter((x) => x.batchId === batch.id)) {
+      for (let pieceIndex = 1; pieceIndex <= item.qty; pieceIndex++) {
+        if (existing.has(`${item.id}:${pieceIndex}`)) continue
+        db.labels.push({
+          id: db.nextId++,
+          barCode: `${String(batch.id % 10000).padStart(4, '0')}${String(item.seq).padStart(3, '0')}${String(pieceIndex).padStart(3, '0')}${String(Math.floor(batch.id / 10000) % 1000).padStart(3, '0')}`,
+          factoryId: batch.factoryId,
+          batchId: batch.id,
+          lotNo: batch.lotNo,
+          projectName: batch.projectName,
+          batchItemId: item.id,
+          pieceNo: item.pieceNo,
+          pieceIndex,
+          qty: item.qty,
+          drawingNo: item.drawingNo ?? '',
+          pattern: item.pattern ?? '',
+          thickness: item.thickness,
+          color: item.color ?? '',
+          pieceArea: item.pieceArea,
+          cancelled: false,
+          lastJobId: null,
+          lastJobName: null,
+          lastScannedAt: null,
+          createdAt: new Date().toISOString(),
+        })
+        created++
+      }
+    }
+    if (created) save(db)
+    return json(200, { created, total: db.labels.filter((label) => label.batchId === batch.id && !label.cancelled).length })
+  }
+
+  const batchProgress = /^GET \/batches\/(\d+)\/progress$/.exec(route)
+  if (batchProgress) {
+    const batch = db.batches.find((x) => x.id === Number(batchProgress[1]) && inScope(u, x.factoryId))
+    return batch ? json(200, progress(db, batch)) : fail(404, 'not_found', '批次不存在')
+  }
+
+  if (route === 'GET /labels') {
+    const page = Number(url.searchParams.get('page') ?? 1)
+    const size = Number(url.searchParams.get('size') ?? 20)
+    if (!validPage(page, size)) return fail(400, 'invalid_request', 'page/size 参数不合法')
+    const batchId = url.searchParams.get('batchId')
+    if (!validId(batchId)) return fail(400, 'invalid_request', '批次参数不合法')
+    const cancelled = url.searchParams.get('cancelled')
+    if (cancelled !== null && cancelled !== 'true' && cancelled !== 'false') return fail(400, 'invalid_request', '作废参数不合法')
+    const kw = (url.searchParams.get('keyword') ?? '').trim().toLowerCase()
+    const all = db.labels
+      .filter((label) => inScope(u, label.factoryId))
+      .filter((label) => batchId === null || label.batchId === Number(batchId))
+      .filter((label) => cancelled === null || label.cancelled === (cancelled === 'true'))
+      .filter((label) => !kw || [label.barCode, label.pieceNo, label.lotNo, label.projectName].some((s) => s.toLowerCase().includes(kw)))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id)
+    return json(200, { items: all.slice((page - 1) * size, page * size), total: all.length })
+  }
+
+  const labelRoute = /^(GET|POST) \/labels\/([^/]+?)(\/cancel)?$/.exec(route)
+  if (labelRoute) {
+    const label = db.labels.find((x) => x.barCode === decodeURIComponent(labelRoute[2]!) && inScope(u, x.factoryId))
+    if (!label) return fail(404, 'not_found', '标签不存在')
+    if (labelRoute[1] === 'GET' && !labelRoute[3]) {
+      const scans = db.scans
+        .filter((scan) => scan.labelId === label.id)
+        .sort((a, b) => a.scannedAt.localeCompare(b.scannedAt) || a.id - b.id)
+      return json(200, { ...label, scans })
+    }
+    if (labelRoute[1] === 'POST' && labelRoute[3]) {
+      if (label.cancelled) return fail(409, 'already_cancelled', '标签已作废')
+      if (db.scans.some((scan) => scan.labelId === label.id)) return fail(409, 'has_scans', '标签已有扫描记录，不能作废')
+      label.cancelled = true
+      save(db)
+      return json(200, label)
+    }
+  }
+
+  if (route === 'GET /scans') {
+    const page = Number(url.searchParams.get('page') ?? 1)
+    const size = Number(url.searchParams.get('size') ?? 20)
+    if (!validPage(page, size)) return fail(400, 'invalid_request', 'page/size 参数不合法')
+    const batchId = url.searchParams.get('batchId')
+    const jobId = url.searchParams.get('jobId')
+    if (!validId(batchId) || !validId(jobId)) return fail(400, 'invalid_request', '批次/工序参数不合法')
+    const beginDate = url.searchParams.get('beginDate')
+    const endDate = url.searchParams.get('endDate')
+    const begin = beginDate !== null ? dateStart(beginDate) : null
+    const end = endDate !== null ? dateStart(endDate) + 86400000 : null
+    if (Number.isNaN(begin) || Number.isNaN(end)) return fail(400, 'invalid_request', '日期参数不合法')
+    const scopedBatches = new Set(db.batches.filter((batch) => inScope(u, batch.factoryId)).map((batch) => batch.id))
+    const all = db.scans
+      .filter((scan) => scopedBatches.has(scan.batchId))
+      .filter((scan) => batchId === null || scan.batchId === Number(batchId))
+      .filter((scan) => jobId === null || scan.jobId === Number(jobId))
+      .filter((scan) => begin === null || Date.parse(scan.scannedAt) >= begin)
+      .filter((scan) => end === null || Date.parse(scan.scannedAt) < end)
+      .sort((a, b) => b.scannedAt.localeCompare(a.scannedAt) || b.id - a.id)
+    return json(200, { items: all.slice((page - 1) * size, page * size), total: all.length })
+  }
+
+  if (route === 'POST /scans') {
+    const b = await body(req)
+    if (!b || !str(b.barCode) || !str(b.jobCode)) return fail(400, 'invalid_request', '条码和工序代码不能为空')
+    const label = db.labels.find((x) => x.barCode === str(b.barCode) && inScope(u, x.factoryId))
+    if (!label) return fail(404, 'not_found', '标签不存在')
+    const job = jobs.find((x) => x.code === str(b.jobCode))
+    if (!job) return fail(400, 'invalid_job', '工序代码不存在')
+    if (label.cancelled) return fail(409, 'label_cancelled', '标签已作废')
+    if (db.scans.some((scan) => scan.labelId === label.id && scan.jobId === job.id))
+      return fail(409, 'already_scanned', '该标签在此工序已扫描')
+    if (job.seq > 1) {
+      const previous = jobs.find((x) => x.seq === job.seq - 1)!
+      if (!db.scans.some((scan) => scan.labelId === label.id && scan.jobId === previous.id))
+        return fail(409, 'out_of_order', `请先完成上一道工序: ${previous.name}`)
+    }
+    const scannedAt = new Date().toISOString()
+    const scan: S['Scan'] = {
+      id: db.nextId++,
+      labelId: label.id,
+      barCode: label.barCode,
+      batchId: label.batchId,
+      lotNo: label.lotNo,
+      pieceNo: label.pieceNo,
+      pieceIndex: label.pieceIndex,
+      jobId: job.id,
+      jobName: job.name,
+      scannedBy: u.displayName,
+      scannedAt,
+      device: str(b.device),
+    }
+    db.scans.push(scan)
+    label.lastJobId = job.id
+    label.lastJobName = job.name
+    label.lastScannedAt = scannedAt
+    const batch = db.batches.find((x) => x.id === label.batchId)!
+    if (batch.status === 'pending' || batch.status === 'scheduled') batch.status = 'in_production'
+    if (job.seq === jobs.length) {
+      const completed = new Set(db.scans.filter((row) => row.batchId === batch.id && row.jobId === job.id).map((row) => row.labelId))
+      if (db.labels.filter((x) => x.batchId === batch.id && !x.cancelled).every((x) => completed.has(x.id))) batch.status = 'done'
+    }
+    batch.updatedAt = scannedAt
+    save(db)
+    return json(201, { scan, label, progress: progress(db, batch) })
+  }
+
   const batchRoute = /^(GET|PUT) \/batches\/(\d+)(?:\/(schedule|items))?$/.exec(route)
   if (batchRoute) {
     const batch = db.batches.find((x) => x.id === Number(batchRoute[2]) && inScope(u, x.factoryId))
@@ -549,6 +742,8 @@ export async function demoFetch(req: Request): Promise<Response> {
         save(db)
         return json(200, batch)
       }
+      if (db.labels.some((label) => label.batchId === batch.id && !label.cancelled))
+        return fail(409, 'has_labels', '已生成标签，不能再替换构件清单')
       let input: unknown
       try {
         input = await req.json()

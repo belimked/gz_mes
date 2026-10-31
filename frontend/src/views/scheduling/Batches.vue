@@ -22,8 +22,6 @@ const statusLabels: Record<Batch['status'], string> = {
   done: '已完工',
 }
 const statusTones = { pending: 'neutral', scheduled: 'processing', in_production: 'processing', done: 'success' } as const
-// 后端尚无逐工序扫描记录；这里只按批次状态显示粗粒度阶段，不代表真实报工进度。
-const stage = (status: Batch['status']) => ({ pending: 0, scheduled: 1, in_production: 5, done: 11 })[status]
 const filters = reactive({
   keyword: '',
   status: undefined as Batch['status'] | undefined,
@@ -45,6 +43,36 @@ const selected = ref<Batch>()
 const tab = ref('基本信息')
 const items = ref<Schemas['BatchItem'][]>([])
 const itemsLoading = ref(false)
+const progress = ref<Schemas['BatchProgress']>()
+const progressLoading = ref(false)
+const generating = ref(false)
+const currentStage = computed(() => Math.max(0, ...(progress.value?.jobs.filter((j) => j.scannedQty > 0).map((j) => j.seq) ?? [])))
+async function loadProgress(id: number) {
+  progressLoading.value = true
+  progress.value = undefined
+  try {
+    const result = await call(client.GET('/batches/{id}/progress', { params: { path: { id } } }))
+    if (selected.value?.id === id) progress.value = result
+  } catch (e) {
+    message.error(errorMessage(e))
+  } finally {
+    progressLoading.value = false
+  }
+}
+async function generateLabels() {
+  if (!selected.value) return
+  const id = selected.value.id
+  generating.value = true
+  try {
+    const result = await call(client.POST('/batches/{id}/labels/generate', { params: { path: { id } } }))
+    message.success(`新建 ${result.created} 张，共 ${result.total} 张`)
+    await loadProgress(id)
+  } catch (e) {
+    message.error(errorMessage(e))
+  } finally {
+    generating.value = false
+  }
+}
 const totals = computed(() => ({
   qty: rows.value.reduce((n, b) => n + b.orderQty, 0),
   area: rows.value.reduce((n, b) => n + b.orderArea, 0).toFixed(2),
@@ -140,6 +168,7 @@ async function openBatch(b: Batch, target = '基本信息') {
   tab.value = target
   items.value = []
   fillSchedule(b)
+  void loadProgress(b.id)
   try {
     await refreshSelected(b.id)
   } catch (e) {
@@ -438,7 +467,13 @@ onMounted(async () => {
             <div class="muted">{{ Number(record.itemArea).toFixed(2) }} m²</div></template
           >
           <template v-else-if="column.dataIndex === 'stage'"
-            ><StatusTag tone="processing" :label="PROCESS_STEPS[Math.min(stage(record.status), 10)] ?? '—'"
+            ><StatusTag
+              tone="processing"
+              :label="
+                PROCESS_STEPS[
+                  Math.min(({ pending: 0, scheduled: 1, in_production: 5, done: 10 } as const)[record.status as Batch['status']], 10)
+                ] ?? '—'
+              "
           /></template>
           <template v-else-if="column.dataIndex === 'requiredDate'"
             ><span :class="{ overdue: record.urgency === 'urgent' }">{{ record.requiredDate || '—' }}</span></template
@@ -475,7 +510,7 @@ onMounted(async () => {
         <a-tabs v-model:active-key="tab"
           ><a-tab-pane key="基本信息" tab="基本信息" /><a-tab-pane key="排程" tab="排程" /><a-tab-pane
             key="构件清单"
-            :tab="`构件清单(${selected.itemCount})`"
+            :tab="`构件清单(${selected.itemCount})`" /><a-tab-pane key="工序进度" tab="工序进度"
         /></a-tabs>
         <div v-if="tab === '基本信息'" class="drawer-body">
           <h3>批次工程要素信息</h3>
@@ -508,7 +543,9 @@ onMounted(async () => {
             >
           </a-descriptions>
           <h3>工序阶段</h3>
-          <ProcessTimeline :current="stage(selected.status)" :quantity="selected.orderQty" />
+          <a-spin :spinning="progressLoading"
+            ><ProcessTimeline v-if="progress" :current="currentStage" :quantity="progress.totalQty"
+          /></a-spin>
         </div>
         <div v-else-if="tab === '排程'" class="drawer-body">
           <a-alert v-if="selected.status === 'done'" type="info" show-icon message="已完工批次不可修改排程" class="notice" />
@@ -553,6 +590,39 @@ onMounted(async () => {
               <a-form-item label="备注"><a-textarea v-model:value="schedule.remark" :rows="3" /></a-form-item></fieldset
           ></a-form>
           <a-button type="primary" :disabled="selected.status === 'done'" :loading="saving" @click="saveSchedule">保存排程</a-button>
+        </div>
+        <div v-else-if="tab === '工序进度'" class="drawer-body">
+          <a-spin :spinning="progressLoading">
+            <div v-if="progress">
+              <div class="item-toolbar">
+                标签 {{ progress.labelQty }} 张 / 总件数 {{ progress.totalQty }} 件
+                <a-button v-if="progress.labelQty === 0" type="primary" :loading="generating" style="float: right" @click="generateLabels"
+                  >生成标签</a-button
+                >
+              </div>
+              <a-table
+                row-key="jobId"
+                size="small"
+                :data-source="progress.jobs"
+                :pagination="false"
+                :columns="[
+                  { title: '工序', dataIndex: 'jobName' },
+                  { title: '已扫件数 / 总件数', dataIndex: 'scannedQty' },
+                  { title: '已扫面积', dataIndex: 'scannedArea' },
+                  { title: '进度', dataIndex: 'percent' },
+                ]"
+              >
+                <template #bodyCell="{ column, record }">
+                  <template v-if="column.dataIndex === 'jobName'">{{ record.seq }}. {{ record.jobName }}</template>
+                  <template v-else-if="column.dataIndex === 'scannedQty'">{{ record.scannedQty }} / {{ progress.totalQty }}</template>
+                  <template v-else-if="column.dataIndex === 'scannedArea'">{{ Number(record.scannedArea).toFixed(2) }} m²</template>
+                  <template v-else-if="column.dataIndex === 'percent'"
+                    ><a-progress :percent="progress.totalQty ? Math.round((record.scannedQty / progress.totalQty) * 100) : 0" size="small"
+                  /></template>
+                </template>
+              </a-table>
+            </div>
+          </a-spin>
         </div>
         <div v-else class="drawer-body">
           <div class="item-toolbar">

@@ -41,8 +41,9 @@ export const menus: { id: number; parentId: number | null; title: string; path: 
   { id: 300, parentId: null, title: '排程管理', path: '/scheduling', icon: 'schedule' },
   { id: 301, parentId: 300, title: '订单批次排程', path: '/scheduling/batches' },
   { id: 400, parentId: null, title: '生产管理', path: '/production', icon: 'build' },
-  { id: 401, parentId: 400, title: '面积表查询', path: '/production/area-tables' },
+  { id: 401, parentId: 400, title: '标签管理', path: '/production/labels' },
   { id: 402, parentId: 400, title: '交接单管理', path: '/production/handovers' },
+  { id: 403, parentId: 400, title: '扫码报工', path: '/production/scan' },
   { id: 800, parentId: null, title: '发货管理', path: '/delivery', icon: 'car' },
   { id: 801, parentId: 800, title: '发货查询', path: '/delivery/notes' },
   { id: 900, parentId: null, title: '财务管理', path: '/finance', icon: 'account-book' },
@@ -221,6 +222,73 @@ export function seedBatchItems(batches: S['Batch'][]): S['BatchItem'][] {
       }
     }),
   )
+}
+
+export function seedLabels(batches: S['Batch'][], batchItems: S['BatchItem'][]): S['Label'][] {
+  let id = Math.max(0, ...batchItems.map((item) => item.id)) + 1
+  return batches
+    .filter((batch) => batch.status !== 'pending')
+    .flatMap((batch) =>
+      batchItems
+        .filter((item) => item.batchId === batch.id)
+        .flatMap((item) =>
+          Array.from({ length: item.qty }, (_, i) => ({
+            id: id++,
+            barCode: `${String(batch.id % 10000).padStart(4, '0')}${String(item.seq).padStart(3, '0')}${String(i + 1).padStart(3, '0')}${String(Math.floor(batch.id / 10000) % 1000).padStart(3, '0')}`,
+            factoryId: batch.factoryId,
+            batchId: batch.id,
+            lotNo: batch.lotNo,
+            projectName: batch.projectName,
+            batchItemId: item.id,
+            pieceNo: item.pieceNo,
+            pieceIndex: i + 1,
+            qty: item.qty,
+            drawingNo: item.drawingNo ?? '',
+            pattern: item.pattern ?? '',
+            thickness: item.thickness,
+            color: item.color ?? '',
+            pieceArea: item.pieceArea,
+            cancelled: false,
+            lastJobId: null,
+            lastJobName: null,
+            lastScannedAt: null,
+            createdAt: batch.createdAt,
+          })),
+        ),
+    )
+}
+
+export function seedScans(batches: S['Batch'][], labels: S['Label'][], jobList: S['Job'][]): S['Scan'][] {
+  let id = Math.max(0, ...labels.map((label) => label.id)) + 1
+  let tick = 0
+  const start = Date.now() - 7 * 86400000
+  return batches.flatMap((batch, index) => {
+    const count = batch.status === 'done' ? jobList.length : batch.status === 'in_production' ? 2 + (index % 6) : 0
+    return labels
+      .filter((label) => label.batchId === batch.id)
+      .flatMap((label) =>
+        jobList.slice(0, count).map((job) => {
+          const scannedAt = new Date(start + tick++ * 1000).toISOString()
+          label.lastJobId = job.id
+          label.lastJobName = job.name
+          label.lastScannedAt = scannedAt
+          return {
+            id: id++,
+            labelId: label.id,
+            barCode: label.barCode,
+            batchId: batch.id,
+            lotNo: label.lotNo,
+            pieceNo: label.pieceNo,
+            pieceIndex: label.pieceIndex,
+            jobId: job.id,
+            jobName: job.name,
+            scannedBy: '演示管理员',
+            scannedAt,
+            device: '',
+          }
+        }),
+      )
+  })
 }
 
 export function seedProjects(): S['Project'][] {

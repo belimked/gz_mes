@@ -7,7 +7,6 @@ const placeholder = () => import('@/views/Placeholder.vue')
 const planned: [string, string][] = [
   ['system/factories', '厂区管理'],
   ['system/users', '用户管理'],
-  ['production/area-tables', '面积表查询'],
   ['production/handovers', '交接单管理'],
   ['delivery/notes', '发货查询'],
   ['finance/batch-valuation', '工程批次对账'],
@@ -39,6 +38,18 @@ const children: RouteRecordRaw[] = [
     name: 'batches',
     component: () => import('@/views/scheduling/Batches.vue'),
     meta: { title: '生产批次查询', group: '排程管理' },
+  },
+  {
+    path: 'production/labels',
+    name: 'labels',
+    component: () => import('@/views/production/Labels.vue'),
+    meta: { title: '标签管理', group: '生产管理' },
+  },
+  {
+    path: 'production/scan',
+    name: 'scan',
+    component: () => import('@/views/production/Scan.vue'),
+    meta: { title: '扫码报工', group: '生产管理' },
   },
   ...planned.map(([path, title]): RouteRecordRaw => ({ path, component: placeholder, meta: { title } })),
 ]
