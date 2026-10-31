@@ -697,6 +697,91 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/plans': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * @description Production plans (钣金周计划 / 钣金日计划 / 喷涂日计划), scoped to the caller's factories.
+     *     Rows carry live progress from scan_record: doneQty/doneArea = labels of the batch scanned at
+     *     targetJob (sheet_week → 钣金下线 "20", sheet_daily → the plan's jobId, spray_daily → 下挂冷却 "40").
+     *     from/to filter on overlap with [startDate, endDate].
+     */
+    get: operations['listPlans']
+    put?: never
+    /**
+     * @description Create a plan row for a batch. 400 invalid_request on bad dates (endDate < startDate), missing jobId for
+     *     sheet_daily, or paintLine/shift missing for spray_daily; 403 forbidden_factory; 404 not_found (batch);
+     *     409 duplicate_plan when the same kind+batch(+jobId for sheet_daily) already has an un-stopped plan overlapping the dates.
+     */
+    post: operations['createPlan']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/plans/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    get: operations['getPlan']
+    /** @description Edit dates / workshop / line / shift / urgency / remark. 409 already_audited when auditState is audited. */
+    put: operations['updatePlan']
+    post?: never
+    /** @description 409 already_audited when audited. */
+    delete: operations['deletePlan']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/plans/{id}/audit': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** @description action audit → audited (409 already_audited); unaudit → draft (409 not_audited). */
+    post: operations['auditPlan']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/plans/{id}/stop-state': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** @description pause: normal→paused; resume: paused→normal; stop: any→stopped (terminal). Otherwise 409 invalid_transition. */
+    post: operations['setPlanStopState']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -1715,6 +1800,136 @@ export interface components {
       /** Format: date */
       requiredDate: string | null
       urgency: components['schemas']['Urgency']
+    }
+    /** @enum {string} */
+    PlanKind: 'sheet_week' | 'sheet_daily' | 'spray_daily'
+    /** @enum {string} */
+    AuditState: 'draft' | 'audited'
+    /** @enum {string} */
+    StopState: 'normal' | 'paused' | 'stopped'
+    Plan: {
+      /** Format: int64 */
+      id: number
+      kind: components['schemas']['PlanKind']
+      /** Format: int64 */
+      factoryId: number
+      /** Format: int64 */
+      batchId: number
+      lotNo: string
+      projectName: string
+      customerName: string
+      /** Format: double */
+      thickness: number
+      color: string
+      orderQty: number
+      /** Format: double */
+      orderArea: number
+      itemQty: number
+      /** Format: double */
+      itemArea: number
+      /** @description active labels */
+      labelQty: number
+      /** Format: date */
+      startDate: string
+      /** Format: date */
+      endDate: string
+      /** @description sheet plans */
+      workshop: string
+      /**
+       * Format: int64
+       * @description sheet_daily only
+       */
+      jobId?: number | null
+      jobName?: string | null
+      /** @description spray_daily */
+      paintLine: string
+      /** @description spray_daily: 早班/中班/晚班 */
+      shift: string
+      /** @description spray_daily, copied from batch when empty */
+      sprayType?: string
+      urgency: components['schemas']['Urgency']
+      auditState: components['schemas']['AuditState']
+      auditedBy?: string | null
+      /** Format: date-time */
+      auditedAt?: string | null
+      stopState: components['schemas']['StopState']
+      stopReason?: string
+      remark: string
+      /** Format: int64 */
+      targetJobId: number
+      targetJobName: string
+      /** @description labels scanned at targetJob */
+      doneQty: number
+      /** Format: double */
+      doneArea: number
+      /** @description 0-100 = doneQty / labelQty (0 when no labels) */
+      progress: number
+      /**
+       * Format: date-time
+       * @description latest scan at targetJob
+       */
+      lastScanAt?: string | null
+      /** @description today > endDate and progress < 100 and not stopped */
+      overdue: boolean
+      createdBy: string
+      /** Format: date-time */
+      createdAt: string
+      /** Format: date-time */
+      updatedAt: string
+    }
+    PlanPage: {
+      items: components['schemas']['Plan'][]
+      total: number
+      page: number
+      size: number
+      /** @description Over the whole filter, not just the page */
+      summary: {
+        plans: number
+        /** @description Σ itemQty */
+        qty: number
+        /** Format: double */
+        area: number
+        doneQty: number
+        /** Format: double */
+        doneArea: number
+        overdue: number
+      }
+    }
+    PlanCreate: {
+      kind: components['schemas']['PlanKind']
+      /** Format: int64 */
+      batchId: number
+      /** Format: date */
+      startDate: string
+      /** Format: date */
+      endDate: string
+      /** @default  */
+      workshop: string
+      /** Format: int64 */
+      jobId?: number | null
+      /** @default  */
+      paintLine: string
+      /** @default  */
+      shift: string
+      /** @default  */
+      sprayType: string
+      urgency?: components['schemas']['Urgency']
+      /** @default  */
+      remark: string
+    }
+    PlanUpdate: {
+      /** Format: date */
+      startDate: string
+      /** Format: date */
+      endDate: string
+      workshop?: string
+      /** Format: int64 */
+      jobId?: number | null
+      paintLine?: string
+      shift?: string
+      sprayType?: string
+      urgency?: components['schemas']['Urgency']
+      remark?: string
     }
   }
   responses: {
@@ -3099,6 +3314,208 @@ export interface operations {
         }
       }
       401: components['responses']['Error']
+    }
+  }
+  listPlans: {
+    parameters: {
+      query: {
+        kind: components['schemas']['PlanKind']
+        from?: string
+        to?: string
+        auditState?: components['schemas']['AuditState']
+        stopState?: components['schemas']['StopState']
+        workshop?: string
+        jobId?: number
+        paintLine?: string
+        /** @description true → progress 100, false → < 100 */
+        completed?: boolean
+        /** @description lotNo / projectName / customerName */
+        keyword?: string
+        page?: number
+        size?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['PlanPage']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+    }
+  }
+  createPlan: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PlanCreate']
+      }
+    }
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Plan']
+        }
+      }
+      400: components['responses']['Error']
+      403: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  getPlan: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Plan']
+        }
+      }
+      404: components['responses']['Error']
+    }
+  }
+  updatePlan: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PlanUpdate']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Plan']
+        }
+      }
+      400: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  deletePlan: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Deleted */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  auditPlan: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @enum {string} */
+          action: 'audit' | 'unaudit'
+        }
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Plan']
+        }
+      }
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  setPlanStopState: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @enum {string} */
+          action: 'pause' | 'resume' | 'stop'
+          reason?: string
+        }
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Plan']
+        }
+      }
+      404: components['responses']['Error']
+      409: components['responses']['Error']
     }
   }
 }

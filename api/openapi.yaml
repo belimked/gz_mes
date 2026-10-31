@@ -969,6 +969,147 @@ paths:
               schema: { $ref: "#/components/schemas/Dashboard" }
         "401": { $ref: "#/components/responses/Error" }
 
+  /plans:
+    get:
+      operationId: listPlans
+      tags: [scheduling]
+      description: |
+        Production plans (钣金周计划 / 钣金日计划 / 喷涂日计划), scoped to the caller's factories.
+        Rows carry live progress from scan_record: doneQty/doneArea = labels of the batch scanned at
+        targetJob (sheet_week → 钣金下线 "20", sheet_daily → the plan's jobId, spray_daily → 下挂冷却 "40").
+        from/to filter on overlap with [startDate, endDate].
+      parameters:
+        - { name: kind, in: query, required: true, schema: { $ref: "#/components/schemas/PlanKind" } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: auditState, in: query, schema: { $ref: "#/components/schemas/AuditState" } }
+        - { name: stopState, in: query, schema: { $ref: "#/components/schemas/StopState" } }
+        - { name: workshop, in: query, schema: { type: string } }
+        - { name: jobId, in: query, schema: { type: integer, format: int64 } }
+        - { name: paintLine, in: query, schema: { type: string } }
+        - { name: completed, in: query, schema: { type: boolean }, description: "true → progress 100, false → < 100" }
+        - { name: keyword, in: query, schema: { type: string }, description: "lotNo / projectName / customerName" }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanPage" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createPlan
+      tags: [scheduling]
+      description: |
+        Create a plan row for a batch. 400 invalid_request on bad dates (endDate < startDate), missing jobId for
+        sheet_daily, or paintLine/shift missing for spray_daily; 403 forbidden_factory; 404 not_found (batch);
+        409 duplicate_plan when the same kind+batch(+jobId for sheet_daily) already has an un-stopped plan overlapping the dates.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Plan" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /plans/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    get:
+      operationId: getPlan
+      tags: [scheduling]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Plan" }
+        "404": { $ref: "#/components/responses/Error" }
+    put:
+      operationId: updatePlan
+      tags: [scheduling]
+      description: Edit dates / workshop / line / shift / urgency / remark. 409 already_audited when auditState is audited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanUpdate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Plan" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deletePlan
+      tags: [scheduling]
+      description: 409 already_audited when audited.
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /plans/{id}/audit:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    post:
+      operationId: auditPlan
+      tags: [scheduling]
+      description: "action audit → audited (409 already_audited); unaudit → draft (409 not_audited)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [audit, unaudit] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Plan" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /plans/{id}/stop-state:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    post:
+      operationId: setPlanStopState
+      tags: [scheduling]
+      description: "pause: normal→paused; resume: paused→normal; stop: any→stopped (terminal). Otherwise 409 invalid_transition."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [pause, resume, stop] }
+                reason: { type: string, maxLength: 200 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Plan" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1940,3 +2081,109 @@ components:
         progress: { type: integer, description: "0-100: Σ(scans) / (labelQty × 11)" }
         requiredDate: { type: string, format: date, nullable: true }
         urgency: { $ref: "#/components/schemas/Urgency" }
+
+    PlanKind:
+      type: string
+      enum: [sheet_week, sheet_daily, spray_daily]
+    AuditState:
+      type: string
+      enum: [draft, audited]
+    StopState:
+      type: string
+      enum: [normal, paused, stopped]
+
+    Plan:
+      type: object
+      required: [id, kind, factoryId, batchId, lotNo, projectName, customerName, thickness, color, orderQty, orderArea, itemQty, itemArea, labelQty, startDate, endDate, workshop, paintLine, shift, urgency, auditState, stopState, remark, targetJobId, targetJobName, doneQty, doneArea, progress, overdue, createdBy, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int64 }
+        kind: { $ref: "#/components/schemas/PlanKind" }
+        factoryId: { type: integer, format: int64 }
+        batchId: { type: integer, format: int64 }
+        lotNo: { type: string }
+        projectName: { type: string }
+        customerName: { type: string }
+        thickness: { type: number, format: double }
+        color: { type: string }
+        orderQty: { type: integer }
+        orderArea: { type: number, format: double }
+        itemQty: { type: integer }
+        itemArea: { type: number, format: double }
+        labelQty: { type: integer, description: "active labels" }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        workshop: { type: string, description: "sheet plans" }
+        jobId: { type: integer, format: int64, nullable: true, description: "sheet_daily only" }
+        jobName: { type: string, nullable: true }
+        paintLine: { type: string, description: "spray_daily" }
+        shift: { type: string, description: "spray_daily: 早班/中班/晚班" }
+        sprayType: { type: string, description: "spray_daily, copied from batch when empty" }
+        urgency: { $ref: "#/components/schemas/Urgency" }
+        auditState: { $ref: "#/components/schemas/AuditState" }
+        auditedBy: { type: string, nullable: true }
+        auditedAt: { type: string, format: date-time, nullable: true }
+        stopState: { $ref: "#/components/schemas/StopState" }
+        stopReason: { type: string }
+        remark: { type: string }
+        targetJobId: { type: integer, format: int64 }
+        targetJobName: { type: string }
+        doneQty: { type: integer, description: "labels scanned at targetJob" }
+        doneArea: { type: number, format: double }
+        progress: { type: integer, description: "0-100 = doneQty / labelQty (0 when no labels)" }
+        lastScanAt: { type: string, format: date-time, nullable: true, description: "latest scan at targetJob" }
+        overdue: { type: boolean, description: "today > endDate and progress < 100 and not stopped" }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    PlanPage:
+      type: object
+      required: [items, total, page, size, summary]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Plan" }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+        summary:
+          type: object
+          description: Over the whole filter, not just the page
+          required: [plans, qty, area, doneQty, doneArea, overdue]
+          properties:
+            plans: { type: integer }
+            qty: { type: integer, description: "Σ itemQty" }
+            area: { type: number, format: double }
+            doneQty: { type: integer }
+            doneArea: { type: number, format: double }
+            overdue: { type: integer }
+
+    PlanCreate:
+      type: object
+      required: [kind, batchId, startDate, endDate]
+      properties:
+        kind: { $ref: "#/components/schemas/PlanKind" }
+        batchId: { type: integer, format: int64 }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        workshop: { type: string, maxLength: 50, default: "" }
+        jobId: { type: integer, format: int64, nullable: true }
+        paintLine: { type: string, maxLength: 50, default: "" }
+        shift: { type: string, maxLength: 20, default: "" }
+        sprayType: { type: string, maxLength: 50, default: "" }
+        urgency: { $ref: "#/components/schemas/Urgency" }
+        remark: { type: string, maxLength: 500, default: "" }
+
+    PlanUpdate:
+      type: object
+      required: [startDate, endDate]
+      properties:
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        workshop: { type: string, maxLength: 50 }
+        jobId: { type: integer, format: int64, nullable: true }
+        paintLine: { type: string, maxLength: 50 }
+        shift: { type: string, maxLength: 20 }
+        sprayType: { type: string, maxLength: 50 }
+        urgency: { $ref: "#/components/schemas/Urgency" }
+        remark: { type: string, maxLength: 500 }
