@@ -554,3 +554,13 @@ func TestEnsureDefaultFactory(t *testing.T) {
 		t.Fatalf("empty: created=%v err=%v", created, err)
 	}
 }
+
+// scanReq builds a scan request; QC jobs (25 / 45) default to a pass result.
+func scanReq(bar, job string) api.ScanRequest {
+	r := api.ScanRequest{BarCode: bar, JobCode: job}
+	if job == "25" || job == "45" {
+		pass := api.Pass
+		r.Result = &pass
+	}
+	return r
+}

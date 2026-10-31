@@ -48,7 +48,7 @@ func TestBatchValuationFlow(t *testing.T) {
 	for _, bar := range codes {
 		for _, job := range []string{"10", "15", "20", "25", "30", "35", "40", "45", "50", "55"} {
 			var scan api.ScanResult
-			if code := e.do("POST", "/scans", admin, api.ScanRequest{BarCode: bar, JobCode: job}, &scan); code != 201 {
+			if code := e.do("POST", "/scans", admin, scanReq(bar, job), &scan); code != 201 {
 				t.Fatalf("scan %s: %d", job, code)
 			}
 		}

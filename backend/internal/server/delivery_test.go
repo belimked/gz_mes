@@ -43,7 +43,7 @@ func TestHandoverAndDeliveryFlow(t *testing.T) {
 	}
 	for _, bar := range codes {
 		var r api.ScanResult
-		if code := e.do("POST", "/scans", admin, api.ScanRequest{BarCode: bar, JobCode: "10"}, &r); code != 201 {
+		if code := e.do("POST", "/scans", admin, scanReq(bar, "10"), &r); code != 201 {
 			t.Fatalf("scan 10: %d", code)
 		}
 	}
@@ -73,7 +73,7 @@ func TestHandoverAndDeliveryFlow(t *testing.T) {
 	for _, bar := range codes {
 		for _, job := range []string{"15", "20", "25", "30", "35", "40", "45", "50", "55"} {
 			var r api.ScanResult
-			if code := e.do("POST", "/scans", admin, api.ScanRequest{BarCode: bar, JobCode: job}, &r); code != 201 {
+			if code := e.do("POST", "/scans", admin, scanReq(bar, job), &r); code != 201 {
 				t.Fatalf("scan %s: %d", job, code)
 			}
 		}

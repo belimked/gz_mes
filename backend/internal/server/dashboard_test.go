@@ -65,7 +65,7 @@ func TestDashboard(t *testing.T) {
 	for _, l := range labels.Items {
 		for _, job := range []string{"10", "15"} {
 			var scan api.ScanResult
-			if code := e.do("POST", "/scans", admin, api.ScanRequest{BarCode: l.BarCode, JobCode: job}, &scan); code != 201 {
+			if code := e.do("POST", "/scans", admin, scanReq(l.BarCode, job), &scan); code != 201 {
 				t.Fatalf("scan %s: %d", job, code)
 			}
 		}

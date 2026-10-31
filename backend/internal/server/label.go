@@ -16,6 +16,9 @@ func toAPILabel(l *store.Label) api.Label {
 func toAPIScan(v store.Scan) api.Scan {
 	return api.Scan{Id: v.ID, LabelId: v.LabelID, BarCode: v.BarCode, BatchId: v.BatchID, LotNo: v.LotNo, ProjectName: v.ProjectName, PieceNo: v.PieceNo, PieceIndex: v.PieceIndex, PieceArea: v.PieceArea, JobId: v.JobID, JobName: v.JobName, ScannedBy: v.ScannedBy, StaffNo: v.StaffNo, ScannedAt: v.ScannedAt, Device: v.Device}
 }
+func toAPIJob(j store.Job) api.Job {
+	return api.Job{Id: j.ID, Code: j.Code, Name: j.Name, Seq: j.Seq, Stage: api.JobStage(j.Stage), IsQc: j.IsQc}
+}
 func toAPIProgress(v *store.Progress) api.BatchProgress {
 	p := api.BatchProgress{BatchId: v.BatchID, Status: api.BatchStatus(v.Status), TotalQty: v.TotalQty, TotalArea: v.TotalArea, LabelQty: v.LabelQty, Jobs: make([]api.JobProgress, 0, len(v.Jobs))}
 	for _, j := range v.Jobs {
@@ -123,12 +126,21 @@ func (s *Server) ListScans(ctx context.Context, req api.ListScansRequestObject) 
 func (s *Server) ScanLabel(ctx context.Context, req api.ScanLabelRequestObject) (api.ScanLabelResponseObject, error) {
 	p := auth.FromContext(ctx)
 	b := req.Body
-	scan, label, progress, err := s.store.Scan(ctx, p.Scope, strings.TrimSpace(b.BarCode), strings.TrimSpace(b.JobCode), p.UserID, optionalString(b.Device))
+	in := store.ScanInput{BarCode: strings.TrimSpace(b.BarCode), JobCode: strings.TrimSpace(b.JobCode), Device: optionalString(b.Device), UserID: p.UserID, DefectJobID: b.DefectJobId, DefectCategory: optionalString(b.DefectCategory), DefectReason: optionalString(b.DefectReason)}
+	if b.Result != nil {
+		in.Result = string(*b.Result)
+	}
+	if in.Result != "fail" {
+		in.DefectJobID, in.DefectCategory, in.DefectReason = nil, "", ""
+	}
+	scan, qc, label, progress, err := s.store.Scan(ctx, p.Scope, in)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		return api.ScanLabel404JSONResponse(apiErr("not_found", "标签不存在")), nil
 	case errors.Is(err, store.ErrBadRef):
 		return api.ScanLabel400JSONResponse{ErrorJSONResponse: apiErr("invalid_job", "工序代码不存在")}, nil
+	case errors.Is(err, store.ErrQcResultRequired):
+		return api.ScanLabel400JSONResponse{ErrorJSONResponse: apiErr("qc_result_required", "质检岗位必须选择合格 / 不合格")}, nil
 	case errors.Is(err, store.ErrLabelCancelled):
 		return api.ScanLabel409JSONResponse(apiErr("label_cancelled", "标签已作废")), nil
 	case errors.Is(err, store.ErrAlreadyScanned):
@@ -138,5 +150,14 @@ func (s *Server) ScanLabel(ctx context.Context, req api.ScanLabelRequestObject) 
 	case err != nil:
 		return nil, err
 	}
-	return api.ScanLabel201JSONResponse{Scan: toAPIScan(*scan), Label: toAPILabel(label), Progress: toAPIProgress(progress)}, nil
+	out := api.ScanLabel201JSONResponse{Label: toAPILabel(label), Progress: toAPIProgress(progress)}
+	if scan != nil {
+		v := toAPIScan(*scan)
+		out.Scan = &v
+	}
+	if qc != nil {
+		v := toAPIQc(*qc)
+		out.Qc = &v
+	}
+	return out, nil
 }

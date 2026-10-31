@@ -57,24 +57,24 @@ func TestLabelAndScanFlow(t *testing.T) {
 	scan := func(code string) api.ScanResult {
 		t.Helper()
 		var r api.ScanResult
-		if status := e.do("POST", "/scans", admin, api.ScanRequest{BarCode: barcode, JobCode: code}, &r); status != 201 {
+		if status := e.do("POST", "/scans", admin, scanReq(barcode, code), &r); status != 201 {
 			t.Fatalf("scan %s: %d", code, status)
 		}
 		return r
 	}
-	if code := e.do("POST", "/scans", admin, api.ScanRequest{BarCode: barcode, JobCode: "20"}, &er); code != 409 || er.Code != "out_of_order" || !strings.Contains(er.Message, "折弯") {
+	if code := e.do("POST", "/scans", admin, scanReq(barcode, "20"), &er); code != 409 || er.Code != "out_of_order" || !strings.Contains(er.Message, "折弯") {
 		t.Fatalf("out of order: %d %+v", code, er)
 	}
 	first := scan("10")
 	if first.Progress.Status != "in_production" || first.Progress.Jobs[0].ScannedQty != 1 {
 		t.Fatalf("first: %+v", first.Progress)
 	}
-	if code := e.do("POST", "/scans", admin, api.ScanRequest{BarCode: barcode, JobCode: "10"}, &er); code != 409 || er.Code != "already_scanned" {
+	if code := e.do("POST", "/scans", admin, scanReq(barcode, "10"), &er); code != 409 || er.Code != "already_scanned" {
 		t.Fatalf("duplicate: %d %+v", code, er)
 	}
 	e.outsourceUser("label-wa", e.outA)
 	wa := e.login("label-wa", "pw-label-wa")
-	if code := e.do("POST", "/scans", wa, api.ScanRequest{BarCode: barcode, JobCode: "15"}, &er); code != 404 || er.Code != "not_found" {
+	if code := e.do("POST", "/scans", wa, scanReq(barcode, "15"), &er); code != 404 || er.Code != "not_found" {
 		t.Fatalf("scope: %d %+v", code, er)
 	}
 	codes := []string{"10", "15", "20", "25", "30", "35", "40", "45", "50", "55", "60"}
@@ -132,7 +132,7 @@ func TestLabelAndScanFlow(t *testing.T) {
 	if code := e.do("POST", "/labels/"+barcode+"/cancel", admin, nil, &cancelled); code != 200 || !cancelled.Cancelled {
 		t.Fatalf("cancel: %d %+v", code, cancelled)
 	}
-	if code := e.do("POST", "/scans", admin, api.ScanRequest{BarCode: barcode, JobCode: "10"}, &er); code != 409 || er.Code != "label_cancelled" {
+	if code := e.do("POST", "/scans", admin, scanReq(barcode, "10"), &er); code != 409 || er.Code != "label_cancelled" {
 		t.Fatalf("cancelled scan: %d %+v", code, er)
 	}
 }

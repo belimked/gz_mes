@@ -683,6 +683,35 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /qc-scans:
+    get:
+      operationId: listQcScans
+      tags: [quality]
+      description: |
+        质检扫描记录: every inspection at a QC job (pass and fail), newest first. beginDate / endDate filter on
+        inspectedAt (dates, inclusive). reinspected=true keeps fail rows that later passed; false keeps fail rows still
+        pending. Summary covers the whole filter.
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+        - { name: batchId, in: query, schema: { type: integer, format: int64 } }
+        - { name: jobId, in: query, schema: { type: integer, format: int64 }, description: "QC job" }
+        - { name: defectJobId, in: query, schema: { type: integer, format: int64 } }
+        - { name: result, in: query, schema: { $ref: "#/components/schemas/QcResult" } }
+        - { name: reinspected, in: query, schema: { type: boolean } }
+        - { name: beginDate, in: query, schema: { type: string, format: date } }
+        - { name: endDate, in: query, schema: { type: string, format: date } }
+        - { name: keyword, in: query, schema: { type: string }, description: "barCode / lotNo / projectName / pieceNo / defectCategory / defectReason" }
+        - { name: staff, in: query, schema: { type: string }, description: "inspector displayName / staffNo / username" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QcRecordPage" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
   /handovers:
     get:
       operationId: listHandovers
@@ -1147,6 +1176,56 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
 
+  /reports/quality:
+    get:
+      operationId: getQualityReport
+      tags: [quality]
+      description: |
+        质量报表: fail inspections with inspectedAt in [from, to] (dates, inclusive; both default to today), grouped by
+        date × QC job × batch × defect job × defect category × defect reason. qty counts pieces, area sums piece_area,
+        reinspectedQty counts pieces that later passed. Ordered by date desc, qty desc.
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: jobId, in: query, schema: { type: integer, format: int64 }, description: "QC job" }
+        - { name: defectJobId, in: query, schema: { type: integer, format: int64 } }
+        - { name: keyword, in: query, schema: { type: string }, description: "lotNo / projectName / defectCategory / defectReason" }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QualityReport" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /reports/defect-daily:
+    get:
+      operationId: getDefectDailyReport
+      tags: [quality]
+      description: |
+        不良品日报: one row per batch that had at least one fail inspection with inspectedAt in [from, to] (dates,
+        inclusive; both default to today), with per-QC-job fail / reinspected / pending counts and areas. pending =
+        fail rows (in range) whose label has not passed that job yet. Ordered by failedQty desc, lotNo.
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: workshop, in: query, schema: { type: string } }
+        - { name: outsourceFactoryId, in: query, schema: { type: integer, format: int64 } }
+        - { name: keyword, in: query, schema: { type: string }, description: "lotNo / projectName / customerName / clientOrderNo" }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DefectDailyReport" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
   /reports/staff-output:
     get:
       operationId: getStaffOutputReport
@@ -1497,12 +1576,13 @@ components:
 
     Job:
       type: object
-      required: [id, code, name, seq, stage]
+      required: [id, code, name, seq, stage, isQc]
       properties:
         id: { type: integer, format: int64 }
         code: { type: string, example: "20" }
         name: { type: string, example: 钣金下线 }
         seq: { type: integer, description: "Execution order, 1-based" }
+        isQc: { type: boolean, description: "质检岗位 (25 钣金质检 / 45 喷涂质检): scans carry a pass / fail result" }
         stage:
           type: string
           enum: [sheet_metal, spray, finished]
@@ -1725,6 +1805,63 @@ components:
         barCode: { type: string, minLength: 1, maxLength: 64 }
         jobCode: { type: string, minLength: 1, maxLength: 16, description: "Job code, e.g. \"20\"" }
         device: { type: string, maxLength: 64 }
+        result: { $ref: "#/components/schemas/QcResult" }
+        defectJobId: { type: integer, format: int64, description: "不良工序 (fail only)" }
+        defectCategory: { type: string, maxLength: 50, description: "不良分类 (fail only)" }
+        defectReason: { type: string, maxLength: 200, description: "不良原因 (fail only)" }
+
+    QcResult:
+      type: string
+      enum: [pass, fail]
+
+    QcRecord:
+      type: object
+      required: [id, labelId, barCode, batchId, lotNo, projectName, outsourceFactoryName, pieceNo, pieceIndex, pieceArea, color, jobId, jobName, result, defectJobId, defectJobName, defectCategory, defectReason, inspectedBy, staffNo, inspectedAt, device, reinspected, reinspectedAt]
+      properties:
+        id: { type: integer, format: int64 }
+        labelId: { type: integer, format: int64 }
+        barCode: { type: string }
+        batchId: { type: integer, format: int64 }
+        lotNo: { type: string }
+        projectName: { type: string }
+        outsourceFactoryName: { type: string, nullable: true }
+        pieceNo: { type: string }
+        pieceIndex: { type: integer }
+        pieceArea: { type: number, format: double }
+        color: { type: string }
+        jobId: { type: integer, format: int64, description: "QC job" }
+        jobName: { type: string }
+        result: { $ref: "#/components/schemas/QcResult" }
+        defectJobId: { type: integer, format: int64, nullable: true }
+        defectJobName: { type: string, nullable: true }
+        defectCategory: { type: string }
+        defectReason: { type: string }
+        inspectedBy: { type: string }
+        staffNo: { type: string }
+        inspectedAt: { type: string, format: date-time }
+        device: { type: string }
+        reinspected: { type: boolean, description: "fail rows: a later pass exists at the same job" }
+        reinspectedAt: { type: string, format: date-time, nullable: true }
+
+    QcRecordPage:
+      type: object
+      required: [items, total, summary]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/QcRecord" }
+        total: { type: integer, format: int64 }
+        summary:
+          type: object
+          description: Over the whole filter
+          required: [inspected, passed, failed, failedArea, reinspected, pending]
+          properties:
+            inspected: { type: integer }
+            passed: { type: integer }
+            failed: { type: integer }
+            failedArea: { type: number, format: double }
+            reinspected: { type: integer, description: "fail rows that later passed" }
+            pending: { type: integer, description: "fail rows not yet re-passed" }
 
     JobProgress:
       type: object
@@ -1752,9 +1889,16 @@ components:
 
     ScanResult:
       type: object
-      required: [scan, label, progress]
+      required: [scan, qc, label, progress]
       properties:
-        scan: { $ref: "#/components/schemas/Scan" }
+        scan:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/Scan" }]
+          description: "null when a QC scan failed (the piece did not advance)"
+        qc:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/QcRecord" }]
+          description: "set for scans at a QC job"
         label: { $ref: "#/components/schemas/Label" }
         progress: { $ref: "#/components/schemas/BatchProgress" }
 
@@ -2301,6 +2445,105 @@ components:
               type: array
               description: Σ per job over all matching rows; pct = qty*100/labelQty
               items: { $ref: "#/components/schemas/JobCell" }
+
+    QualityReportRow:
+      type: object
+      required: [date, jobId, jobName, batchId, lotNo, projectName, outsourceFactoryName, defectJobId, defectJobName, defectCategory, defectReason, qty, area, reinspectedQty, pieceNos, inspectors]
+      properties:
+        date: { type: string, format: date }
+        jobId: { type: integer, format: int64 }
+        jobName: { type: string }
+        batchId: { type: integer, format: int64 }
+        lotNo: { type: string }
+        projectName: { type: string }
+        outsourceFactoryName: { type: string, nullable: true }
+        defectJobId: { type: integer, format: int64, nullable: true }
+        defectJobName: { type: string, nullable: true }
+        defectCategory: { type: string }
+        defectReason: { type: string }
+        qty: { type: integer }
+        area: { type: number, format: double }
+        reinspectedQty: { type: integer }
+        pieceNos: { type: string, description: "distinct pieceNo, comma separated" }
+        inspectors: { type: string, description: "distinct inspector names, comma separated" }
+
+    QualityReport:
+      type: object
+      required: [items, total, summary]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/QualityReportRow" }
+        total: { type: integer }
+        summary:
+          type: object
+          required: [inspected, passed, failed, failedArea, reinspected, passRate]
+          properties:
+            inspected: { type: integer, description: "all inspections in range (pass + fail)" }
+            passed: { type: integer }
+            failed: { type: integer }
+            failedArea: { type: number, format: double }
+            reinspected: { type: integer }
+            passRate: { type: integer, description: "0-100, passed*100/inspected" }
+
+    DefectJobCell:
+      type: object
+      required: [jobId, jobName, failedQty, failedArea, reinspectedQty, reinspectedArea, pendingQty, pendingArea]
+      properties:
+        jobId: { type: integer, format: int64 }
+        jobName: { type: string }
+        failedQty: { type: integer }
+        failedArea: { type: number, format: double }
+        reinspectedQty: { type: integer }
+        reinspectedArea: { type: number, format: double }
+        pendingQty: { type: integer }
+        pendingArea: { type: number, format: double }
+
+    DefectDailyRow:
+      type: object
+      required: [batchId, lotNo, projectName, customerName, clientOrderNo, thickness, color, workshop, outsourceFactoryName, itemQty, itemArea, failedQty, failedArea, pendingQty, cells]
+      properties:
+        batchId: { type: integer, format: int64 }
+        lotNo: { type: string }
+        projectName: { type: string }
+        customerName: { type: string }
+        clientOrderNo: { type: string }
+        thickness: { type: number, format: double }
+        color: { type: string }
+        workshop: { type: string }
+        outsourceFactoryName: { type: string, nullable: true }
+        itemQty: { type: integer }
+        itemArea: { type: number, format: double }
+        failedQty: { type: integer, description: "Σ over QC jobs" }
+        failedArea: { type: number, format: double }
+        pendingQty: { type: integer }
+        cells:
+          type: array
+          description: Same length and order as DefectDailyReport.jobs
+          items: { $ref: "#/components/schemas/DefectJobCell" }
+
+    DefectDailyReport:
+      type: object
+      required: [jobs, items, total, summary]
+      properties:
+        jobs:
+          type: array
+          description: QC jobs in seq order
+          items: { $ref: "#/components/schemas/Job" }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DefectDailyRow" }
+        total: { type: integer }
+        summary:
+          type: object
+          required: [batches, failedQty, failedArea, reinspectedQty, pendingQty, pendingArea]
+          properties:
+            batches: { type: integer }
+            failedQty: { type: integer }
+            failedArea: { type: number, format: double }
+            reinspectedQty: { type: integer }
+            pendingQty: { type: integer }
+            pendingArea: { type: number, format: double }
 
     StaffOutputRow:
       type: object

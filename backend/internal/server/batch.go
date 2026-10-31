@@ -48,7 +48,7 @@ func (s *Server) ListJobs(ctx context.Context, _ api.ListJobsRequestObject) (api
 	}
 	out := make(api.ListJobs200JSONResponse, 0, len(jobs))
 	for _, j := range jobs {
-		out = append(out, api.Job{Id: j.ID, Code: j.Code, Name: j.Name, Seq: j.Seq, Stage: api.JobStage(j.Stage)})
+		out = append(out, toAPIJob(j))
 	}
 	return out, nil
 }

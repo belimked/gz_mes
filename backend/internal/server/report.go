@@ -54,7 +54,7 @@ func (s *Server) GetBatchJobReport(ctx context.Context, req api.GetBatchJobRepor
 	out := api.GetBatchJobReport200JSONResponse{Jobs: make([]api.Job, 0, len(jobs)), Items: make([]api.BatchJobRow, 0, len(items)), Total: sum.Batches, Page: page, Size: size}
 	out.Summary.Batches, out.Summary.ItemQty, out.Summary.ItemArea, out.Summary.LabelQty, out.Summary.Cells = sum.Batches, sum.ItemQty, sum.ItemArea, sum.LabelQty, toAPICells(sum.Cells)
 	for _, j := range jobs {
-		out.Jobs = append(out.Jobs, api.Job{Id: j.ID, Code: j.Code, Name: j.Name, Seq: j.Seq, Stage: api.JobStage(j.Stage)})
+		out.Jobs = append(out.Jobs, toAPIJob(j))
 	}
 	for _, r := range items {
 		var required *types.Date

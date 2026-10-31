@@ -93,7 +93,7 @@ func TestPlanFlow(t *testing.T) {
 	for _, l := range labels.Items {
 		for _, job := range []string{"10", "15", "20"} {
 			var r api.ScanResult
-			if code := e.do("POST", "/scans", admin, api.ScanRequest{BarCode: l.BarCode, JobCode: job}, &r); code != 201 {
+			if code := e.do("POST", "/scans", admin, scanReq(l.BarCode, job), &r); code != 201 {
 				t.Fatalf("scan %s: %d", job, code)
 			}
 		}

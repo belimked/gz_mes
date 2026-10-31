@@ -19,10 +19,11 @@ type Job struct {
 	Code, Name string
 	Seq        int
 	Stage      string
+	IsQc       bool
 }
 
 func (s *Store) Jobs(ctx context.Context) ([]Job, error) {
-	rows, err := s.db.Query(ctx, "SELECT id, code, name, seq, stage FROM job ORDER BY seq")
+	rows, err := s.db.Query(ctx, "SELECT id, code, name, seq, stage, is_qc FROM job ORDER BY seq")
 	if err != nil {
 		return nil, err
 	}

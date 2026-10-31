@@ -261,75 +261,124 @@ func (s *Store) BatchProgress(ctx context.Context, sc auth.Scope, batchID int64)
 	return p, nil
 }
 
-func (s *Store) Scan(ctx context.Context, sc auth.Scope, barCode, jobCode string, userID int64, device string) (*Scan, *Label, *Progress, error) {
+// ScanInput is one scan at a job. For QC jobs Result must be pass or fail; a fail records a qc_record only
+// and leaves the piece at the previous job so it can be re-inspected later.
+type ScanInput struct {
+	BarCode, JobCode, Device     string
+	UserID                       int64
+	Result                       string
+	DefectJobID                  *int64
+	DefectCategory, DefectReason string
+}
+
+var ErrQcResultRequired = errors.New("qc result required")
+
+func (s *Store) Scan(ctx context.Context, sc auth.Scope, in ScanInput) (*Scan, *QcRecord, *Label, *Progress, error) {
+	barCode := in.BarCode
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var labelID, batchID int64
 	var cancelled bool
 	err = tx.QueryRow(ctx, `SELECT l.id,b.id,l.cancelled FROM label l JOIN batch b ON b.id=l.batch_id WHERE l.bar_code=$1 AND ($2 OR b.factory_id=ANY($3)) FOR UPDATE OF b`, barCode, sc.All, sc.FactoryIDs).Scan(&labelID, &batchID, &cancelled)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil, nil, ErrNotFound
+		return nil, nil, nil, nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	if cancelled {
-		return nil, nil, nil, ErrLabelCancelled
+		return nil, nil, nil, nil, ErrLabelCancelled
 	}
 	var jobID int64
 	var seq int
-	err = tx.QueryRow(ctx, `SELECT id,seq FROM job WHERE code=$1`, jobCode).Scan(&jobID, &seq)
+	var isQc bool
+	err = tx.QueryRow(ctx, `SELECT id,seq,is_qc FROM job WHERE code=$1`, in.JobCode).Scan(&jobID, &seq, &isQc)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil, nil, ErrBadRef
+		return nil, nil, nil, nil, ErrBadRef
 	}
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
+	}
+	if isQc && in.Result != "pass" && in.Result != "fail" {
+		return nil, nil, nil, nil, ErrQcResultRequired
+	}
+	if in.DefectJobID != nil {
+		var ok bool
+		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM job WHERE id=$1)`, *in.DefectJobID).Scan(&ok); err != nil {
+			return nil, nil, nil, nil, err
+		}
+		if !ok {
+			return nil, nil, nil, nil, ErrBadRef
+		}
 	}
 	var already bool
 	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM scan_record WHERE label_id=$1 AND job_id=$2)`, labelID, jobID).Scan(&already); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	if already {
-		return nil, nil, nil, ErrAlreadyScanned
+		return nil, nil, nil, nil, ErrAlreadyScanned
 	}
 	if seq > 1 {
 		var previous string
 		var scanned bool
 		err = tx.QueryRow(ctx, `SELECT j.name,EXISTS(SELECT 1 FROM scan_record sr WHERE sr.label_id=$1 AND sr.job_id=j.id) FROM job j WHERE j.seq=$2`, labelID, seq-1).Scan(&previous, &scanned)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		if !scanned {
-			return nil, nil, nil, fmt.Errorf("%w: %s", ErrOutOfOrder, previous)
+			return nil, nil, nil, nil, fmt.Errorf("%w: %s", ErrOutOfOrder, previous)
 		}
 	}
-	var scanID int64
-	err = tx.QueryRow(ctx, `INSERT INTO scan_record (label_id,batch_id,job_id,scanned_by,device) VALUES ($1,$2,$3,$4,$5) RETURNING id`, labelID, batchID, jobID, userID, device).Scan(&scanID)
-	if err != nil {
-		return nil, nil, nil, mapErr(err)
+	var qcID *int64
+	if isQc {
+		var id int64
+		err = tx.QueryRow(ctx, `INSERT INTO qc_record (label_id,batch_id,job_id,result,defect_job_id,defect_category,defect_reason,inspected_by,device) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+			labelID, batchID, jobID, in.Result, in.DefectJobID, in.DefectCategory, in.DefectReason, in.UserID, in.Device).Scan(&id)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		qcID = &id
 	}
-	err = updateBatchProgress(ctx, tx, batchID, jobID)
-	if err != nil {
-		return nil, nil, nil, err
+	var scanID *int64
+	if !isQc || in.Result == "pass" {
+		var id int64
+		err = tx.QueryRow(ctx, `INSERT INTO scan_record (label_id,batch_id,job_id,scanned_by,device) VALUES ($1,$2,$3,$4,$5) RETURNING id`, labelID, batchID, jobID, in.UserID, in.Device).Scan(&id)
+		if err != nil {
+			return nil, nil, nil, nil, mapErr(err)
+		}
+		scanID = &id
+		if err = updateBatchProgress(ctx, tx, batchID, jobID); err != nil {
+			return nil, nil, nil, nil, err
+		}
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
-	rows, err := s.db.Query(ctx, scanSelect+` WHERE sr.id=$1`, scanID)
-	if err != nil {
-		return nil, nil, nil, err
+	var scan *Scan
+	if scanID != nil {
+		rows, err := s.db.Query(ctx, scanSelect+` WHERE sr.id=$1`, *scanID)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		v, err := pgx.CollectExactlyOneRow(rows, pgx.RowToStructByPos[Scan])
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		scan = &v
 	}
-	scan, err := pgx.CollectExactlyOneRow(rows, pgx.RowToStructByPos[Scan])
-	if err != nil {
-		return nil, nil, nil, err
+	var qc *QcRecord
+	if qcID != nil {
+		if qc, err = s.getQcRecord(ctx, *qcID); err != nil {
+			return nil, nil, nil, nil, err
+		}
 	}
 	label, _, err := s.GetLabel(ctx, sc, barCode)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	progress, err := s.BatchProgress(ctx, sc, batchID)
-	return &scan, label, progress, err
+	return scan, qc, label, progress, err
 }

@@ -39,7 +39,7 @@ func TestReports(t *testing.T) {
 				continue
 			}
 			var r api.ScanResult
-			if code := e.do("POST", "/scans", admin, api.ScanRequest{BarCode: l.BarCode, JobCode: job}, &r); code != 201 {
+			if code := e.do("POST", "/scans", admin, scanReq(l.BarCode, job), &r); code != 201 {
 				t.Fatalf("scan %s: %d", job, code)
 			}
 		}
