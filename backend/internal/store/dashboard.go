@@ -27,6 +27,11 @@ type JobLoad struct {
 	JobCode, JobName string
 	Seq, Qty         int
 	Area             float64
+	CycleSamples     int
+	CycleHours       *float64
+	CycleP90Hours    *float64
+	DwellHours       *float64
+	DwellMaxHours    *float64
 }
 type DailyScan struct {
 	Date          time.Time
@@ -104,10 +109,28 @@ func (s *Store) GetDashboard(ctx context.Context, sc auth.Scope, days int) (*Das
 	if err != nil {
 		return nil, err
 	}
-	rows, err = s.db.Query(ctx, `SELECT j.id,j.code,j.name,j.seq,count(latest.label_id)::int,coalesce(sum(bi.piece_area),0)::float8 FROM job j LEFT JOIN (
- SELECT DISTINCT ON (sr.label_id) sr.label_id,sr.job_id,l.batch_item_id FROM scan_record sr JOIN job j ON j.id=sr.job_id JOIN label l ON l.id=sr.label_id JOIN batch b ON b.id=l.batch_id
- WHERE b.status='in_production' AND NOT l.cancelled AND ($1 OR b.factory_id=ANY($2)) ORDER BY sr.label_id,j.seq DESC
- ) latest ON latest.job_id=j.id LEFT JOIN batch_item bi ON bi.id=latest.batch_item_id GROUP BY j.id ORDER BY j.seq`, args...)
+	rows, err = s.db.Query(ctx, `WITH latest AS (
+ SELECT DISTINCT ON (sr.label_id) sr.label_id,sr.job_id,sr.scanned_at,l.batch_item_id
+ FROM scan_record sr JOIN job j ON j.id=sr.job_id JOIN label l ON l.id=sr.label_id JOIN batch b ON b.id=l.batch_id
+ WHERE b.status='in_production' AND NOT l.cancelled AND ($1 OR b.factory_id=ANY($2))
+ ORDER BY sr.label_id,j.seq DESC
+ ), load AS (
+ SELECT latest.job_id,count(*)::int qty,coalesce(sum(bi.piece_area),0)::float8 area,
+ round(avg(EXTRACT(EPOCH FROM (now()-latest.scanned_at))/3600),2)::float8 dwell_hours,
+ round(max(EXTRACT(EPOCH FROM (now()-latest.scanned_at))/3600),2)::float8 dwell_max_hours
+ FROM latest JOIN batch_item bi ON bi.id=latest.batch_item_id GROUP BY latest.job_id
+ ), cycle AS (
+ SELECT s.job_id,count(*)::int samples,
+ round(avg(EXTRACT(EPOCH FROM (s.scanned_at-CASE WHEN j.seq=1 THEN l.created_at ELSE p.scanned_at END))/3600),2)::float8 cycle_hours,
+ round((percentile_cont(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (s.scanned_at-CASE WHEN j.seq=1 THEN l.created_at ELSE p.scanned_at END))/3600))::numeric,2)::float8 cycle_p90_hours
+ FROM scan_record s JOIN job j ON j.id=s.job_id JOIN label l ON l.id=s.label_id JOIN batch b ON b.id=l.batch_id
+ LEFT JOIN job prev ON prev.seq=j.seq-1 LEFT JOIN scan_record p ON p.label_id=s.label_id AND p.job_id=prev.id
+ WHERE ($1 OR b.factory_id=ANY($2)) AND s.scanned_at>=current_date-($3::int-1)
+ AND (j.seq=1 OR p.id IS NOT NULL) GROUP BY s.job_id
+ )
+ SELECT j.id,j.code,j.name,j.seq,coalesce(load.qty,0),coalesce(load.area,0)::float8,
+ coalesce(cycle.samples,0),cycle.cycle_hours,cycle.cycle_p90_hours,load.dwell_hours,load.dwell_max_hours
+ FROM job j LEFT JOIN load ON load.job_id=j.id LEFT JOIN cycle ON cycle.job_id=j.id ORDER BY j.seq`, sc.All, sc.FactoryIDs, days)
 	if err != nil {
 		return nil, err
 	}

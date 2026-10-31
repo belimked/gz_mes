@@ -80,20 +80,39 @@ func TestDashboard(t *testing.T) {
 		t.Errorf("customer / scans: %+v %+v", d.CustomerArea, d.RecentScans)
 	}
 	for _, j := range d.JobLoad {
-		if j.JobCode == "15" && (j.Qty != 2 || j.Area != 3) {
-			t.Errorf("15: %+v", j)
-		}
-		if j.JobCode == "10" && j.Qty != 0 {
-			t.Errorf("10: %+v", j)
+		switch j.JobCode {
+		case "10":
+			if j.Qty != 0 || j.CycleSamples != 2 || j.CycleHours == nil || *j.CycleHours < 0 {
+				t.Errorf("10: %+v", j)
+			}
+		case "15":
+			if j.Qty != 2 || j.Area != 3 || j.CycleSamples != 2 || j.DwellHours == nil || j.DwellMaxHours == nil {
+				t.Errorf("15: %+v", j)
+			} else if *j.DwellMaxHours < *j.DwellHours {
+				t.Errorf("15 dwell max below average: %+v", j)
+			}
+		case "20":
+			if j.DwellHours != nil {
+				t.Errorf("20: %+v", j)
+			}
 		}
 	}
 	e.outsourceUser("dashboard-wa", e.outA)
+	d = api.Dashboard{} // Optional JSON fields are omitted; discard values from the previous response.
 	if code := e.do("GET", "/dashboard", e.login("dashboard-wa", "pw-dashboard-wa"), nil, &d); code != 200 || d.Kpi.InProduction != 0 || len(d.RecentScans) != 0 {
 		t.Errorf("scope: %d %+v", code, d)
 	}
 	for _, v := range d.ScanTrend {
 		if v.ActiveBatches != 0 || v.DoneBatches != 0 || v.DeliveredArea != 0 {
 			t.Errorf("scoped scan trend: %+v", v)
+		}
+	}
+	if len(d.JobLoad) != 11 {
+		t.Errorf("scoped job load: %+v", d.JobLoad)
+	}
+	for _, j := range d.JobLoad {
+		if j.Qty != 0 || j.CycleSamples != 0 || j.CycleHours != nil || j.CycleP90Hours != nil || j.DwellHours != nil || j.DwellMaxHours != nil {
+			t.Errorf("scoped job load: %+v", j)
 		}
 	}
 }

@@ -1840,7 +1840,7 @@ components:
 
     JobLoad:
       type: object
-      required: [jobId, jobCode, jobName, seq, qty, area]
+      required: [jobId, jobCode, jobName, seq, qty, area, cycleSamples, cycleHours, dwellHours]
       properties:
         jobId: { type: integer, format: int64 }
         jobCode: { type: string }
@@ -1848,6 +1848,11 @@ components:
         seq: { type: integer }
         qty: { type: integer }
         area: { type: number, format: double }
+        cycleSamples: { type: integer, description: "Scans at this job in the trend window that have a previous-job scan (seq 1: label creation) to measure from" }
+        cycleHours: { type: number, format: double, nullable: true, description: "Average hours from the previous job's scan (seq 1: label creation) to this job's scan, over the trend window. null when no samples" }
+        cycleP90Hours: { type: number, format: double, nullable: true, description: "90th percentile of the same durations" }
+        dwellHours: { type: number, format: double, nullable: true, description: "Average hours the pieces currently sitting at this step have been waiting (now - scan at this job). null when qty is 0" }
+        dwellMaxHours: { type: number, format: double, nullable: true, description: "Longest wait among those pieces" }
 
     DailyScan:
       type: object

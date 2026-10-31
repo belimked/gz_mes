@@ -1588,6 +1588,28 @@ export interface components {
       qty: number
       /** Format: double */
       area: number
+      /** @description Scans at this job in the trend window that have a previous-job scan (seq 1: label creation) to measure from */
+      cycleSamples: number
+      /**
+       * Format: double
+       * @description Average hours from the previous job's scan (seq 1: label creation) to this job's scan, over the trend window. null when no samples
+       */
+      cycleHours: number | null
+      /**
+       * Format: double
+       * @description 90th percentile of the same durations
+       */
+      cycleP90Hours?: number | null
+      /**
+       * Format: double
+       * @description Average hours the pieces currently sitting at this step have been waiting (now - scan at this job). null when qty is 0
+       */
+      dwellHours: number | null
+      /**
+       * Format: double
+       * @description Longest wait among those pieces
+       */
+      dwellMaxHours?: number | null
     }
     DailyScan: {
       /** Format: date */

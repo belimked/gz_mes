@@ -39,7 +39,7 @@ func (s *Server) GetDashboard(ctx context.Context, req api.GetDashboardRequestOb
 		out.BatchStatus = append(out.BatchStatus, api.StatusCount{Status: api.BatchStatus(v.Status), Count: v.Count})
 	}
 	for _, v := range d.JobLoad {
-		out.JobLoad = append(out.JobLoad, api.JobLoad{JobId: v.JobID, JobCode: v.JobCode, JobName: v.JobName, Seq: v.Seq, Qty: v.Qty, Area: v.Area})
+		out.JobLoad = append(out.JobLoad, api.JobLoad{JobId: v.JobID, JobCode: v.JobCode, JobName: v.JobName, Seq: v.Seq, Qty: v.Qty, Area: v.Area, CycleSamples: v.CycleSamples, CycleHours: v.CycleHours, CycleP90Hours: v.CycleP90Hours, DwellHours: v.DwellHours, DwellMaxHours: v.DwellMaxHours})
 	}
 	for _, v := range d.ScanTrend {
 		out.ScanTrend = append(out.ScanTrend, api.DailyScan{Date: types.Date{Time: v.Date}, Qty: v.Qty, Area: v.Area, DeliveredQty: v.DeliveredQty, DeliveredArea: v.DeliveredArea, ActiveBatches: v.ActiveBatches, DoneBatches: v.DoneBatches})
