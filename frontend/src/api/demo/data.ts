@@ -311,9 +311,10 @@ export function seedLabels(batches: S['Batch'][], batchItems: S['BatchItem'][]):
 
 export function seedScans(batches: S['Batch'][], labels: S['Label'][], jobList: S['Job'][]): S['Scan'][] {
   let id = Math.max(0, ...labels.map((label) => label.id)) + 1
-  let tick = 0
-  const start = Date.now() - 7 * 86400000
+  const today = Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00Z')
   return batches.flatMap((batch, index) => {
+    let tick = 0
+    const start = today - (index % 14) * 86400000 + 8 * 3600000
     const count = batch.status === 'done' ? jobList.length : batch.status === 'in_production' ? 2 + (index % 6) : 0
     return labels
       .filter((label) => label.batchId === batch.id)
@@ -383,8 +384,9 @@ export function seedDeliveryNotes(batches: S['Batch'][], labels: S['Label'][], c
   const notes: S['DeliveryNote'][] = []
   const noteLabels: { noteId: number; labelId: number }[] = []
   let id = Math.max(0, ...labels.map((l) => l.id)) + 1
-  for (const batch of batches.filter((b) => b.status === 'done')) {
+  for (const [index, batch] of batches.filter((b) => b.status === 'done').entries()) {
     const rows = labels.filter((l) => l.batchId === batch.id && !l.cancelled)
+    const deliveredAt = new Date(Date.now() - index * 2 * 86400000).toISOString().slice(0, 10)
     const contract = contracts.find((c) => c.id === batch.contractId)!
     const noteId = id++
     notes.push({
@@ -404,7 +406,7 @@ export function seedDeliveryNotes(batches: S['Batch'][], labels: S['Label'][], c
       plateNo: '粤A·12345',
       driver: '张师傅',
       driverPhone: '',
-      deliveredAt: '2026-10-25',
+      deliveredAt,
       remark: '',
       accounted: false,
       accountId: null,

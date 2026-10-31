@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import PageCard from './PageCard.vue'
-defineProps<{ title: string; value: string | number; unit: string; sub: string; icon: string; note?: string }>()
+defineProps<{ title: string; value: string | number; unit: string; sub: string; icon: string; note?: string; tone?: 'error' }>()
 </script>
 <template>
   <PageCard>
@@ -8,7 +8,7 @@ defineProps<{ title: string; value: string | number; unit: string; sub: string; 
       <span>{{ title }}</span>
       <span class="icon">{{ icon }}</span>
     </div>
-    <div class="value">
+    <div class="value" :class="tone">
       {{ value }} <small>{{ unit }}</small>
     </div>
     <div class="bottom">
@@ -37,6 +37,9 @@ defineProps<{ title: string; value: string | number; unit: string; sub: string; 
   line-height: 36px;
   margin: 18px 0;
   font-variant-numeric: tabular-nums;
+}
+.value.error {
+  color: var(--gz-error, #ff4d4f);
 }
 .value small {
   font-size: 12px;

@@ -24,7 +24,7 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 7
+  version: 8
   factories: S['Factory'][]
   users: DemoUser[]
   nextId: number
@@ -81,7 +81,7 @@ function fresh(): DemoDB {
     for (const note of deliveryNotes) if (note.accountId === oldId) note.accountId = account.id
   }
   return {
-    version: 7,
+    version: 8,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
     nextId,
@@ -107,12 +107,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 7) return parsed
+      if (parsed?.version === 8) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 7) memory = fresh()
+  if (memory?.version !== 8) memory = fresh()
   return memory
 }
 
@@ -662,6 +662,129 @@ export async function demoFetch(req: Request): Promise<Response> {
     c[key] = true
     save(db)
     return json(200, c)
+  }
+
+  if (route === 'GET /dashboard') {
+    const rawDays = url.searchParams.get('days')
+    const days = rawDays === null ? 14 : Number(rawDays)
+    if (rawDays !== null && (!/^\d+$/.test(rawDays) || !Number.isInteger(days) || days < 7 || days > 90))
+      return fail(400, 'invalid_request', 'days 参数不合法')
+
+    const today = new Date().toISOString().slice(0, 10)
+    const startMs = Date.parse(`${today}T00:00:00Z`) - (days - 1) * 86400000
+    const start = new Date(startMs).toISOString().slice(0, 10)
+    const batches = db.batches.filter((batch) => inScope(u, batch.factoryId))
+    const batchById = new Map(batches.map((batch) => [batch.id, batch]))
+    const labels = db.labels.filter((label) => batchById.has(label.batchId))
+    const labelById = new Map(labels.map((label) => [label.id, label]))
+    const scans = db.scans.filter((scan) => batchById.has(scan.batchId))
+    const notes = db.deliveryNotes.filter((note) => batchById.has(note.batchId))
+    const area = (values: number[]) => Number(values.reduce((sum, value) => sum + value, 0).toFixed(4))
+    const open = batches.filter((batch) => batch.status !== 'done')
+    const producing = batches.filter((batch) => batch.status === 'in_production')
+    const todayScans = scans.filter((scan) => scan.scannedAt.slice(0, 10) === today)
+    const windowNotes = notes.filter((note) => note.deliveredAt >= start && note.deliveredAt <= today)
+    const unaccounted = notes.filter((note) => !note.accounted)
+    const batchStatus: S['StatusCount'][] = (['pending', 'scheduled', 'in_production', 'done'] as const).map((status) => ({
+      status,
+      count: batches.filter((batch) => batch.status === status).length,
+    }))
+    const producingIds = new Set(producing.map((batch) => batch.id))
+    const jobLoad: S['JobLoad'][] = [...jobs]
+      .sort((a, b) => a.seq - b.seq)
+      .map((job) => {
+        const rows = labels.filter((label) => !label.cancelled && producingIds.has(label.batchId) && label.lastJobId === job.id)
+        return {
+          jobId: job.id,
+          jobCode: job.code,
+          jobName: job.name,
+          seq: job.seq,
+          qty: rows.length,
+          area: area(rows.map((l) => l.pieceArea)),
+        }
+      })
+    const scanTrend: S['DailyScan'][] = Array.from({ length: days }, (_, index) => {
+      const date = new Date(startMs + index * 86400000).toISOString().slice(0, 10)
+      const rows = scans.filter((scan) => scan.scannedAt.slice(0, 10) === date)
+      return {
+        date,
+        qty: rows.length,
+        area: area(rows.map((scan) => labelById.get(scan.labelId)?.pieceArea ?? 0)),
+        deliveredQty: notes.filter((note) => note.deliveredAt === date).reduce((sum, note) => sum + note.qty, 0),
+      }
+    })
+    const byCustomer = new Map<number, S['CustomerArea']>()
+    for (const batch of open) {
+      const row = byCustomer.get(batch.customerId) ?? {
+        customerId: batch.customerId,
+        customerName: db.customers.find((customer) => customer.id === batch.customerId)?.name ?? batch.customerName,
+        area: 0,
+        batches: 0,
+      }
+      row.area += batch.orderArea
+      row.batches++
+      byCustomer.set(batch.customerId, row)
+    }
+    const ranked = [...byCustomer.values()]
+      .map((row) => ({ ...row, area: area([row.area]) }))
+      .sort((a, b) => b.area - a.area || (a.customerId ?? 0) - (b.customerId ?? 0))
+    const customerArea: S['CustomerArea'][] = ranked.slice(0, 6)
+    if (ranked.length > 6) {
+      const rest = ranked.slice(6)
+      customerArea.push({
+        customerId: null,
+        customerName: '其他',
+        area: area(rest.map((row) => row.area)),
+        batches: rest.reduce((sum, row) => sum + row.batches, 0),
+      })
+    }
+    const activeBatches: S['ActiveBatch'][] = producing
+      .sort((a, b) => (a.requiredDate ?? '9999-12-31').localeCompare(b.requiredDate ?? '9999-12-31') || a.id - b.id)
+      .slice(0, 8)
+      .map((batch) => {
+        const rows = labels.filter((label) => label.batchId === batch.id && !label.cancelled)
+        const batchScans = scans.filter((scan) => scan.batchId === batch.id)
+        const currentJob = jobs.filter((job) => batchScans.some((scan) => scan.jobId === job.id)).sort((a, b) => b.seq - a.seq)[0]
+        return {
+          id: batch.id,
+          lotNo: batch.lotNo,
+          projectName: batch.projectName,
+          customerName: batch.customerName,
+          thickness: batch.thickness,
+          color: batch.color,
+          itemQty: batch.itemQty,
+          itemArea: batch.itemArea,
+          labelQty: rows.length,
+          currentSeq: currentJob?.seq ?? 0,
+          currentJobName: currentJob?.name ?? '',
+          progress: rows.length ? Math.floor((batchScans.length * 100) / (rows.length * jobs.length)) : 0,
+          requiredDate: batch.requiredDate,
+          urgency: batch.urgency,
+        }
+      })
+    return json(200, {
+      generatedAt: new Date().toISOString(),
+      kpi: {
+        inProduction: producing.length,
+        pendingSchedule: batchStatus[0]!.count,
+        doneToday: batches.filter((batch) => batch.status === 'done' && batch.updatedAt.slice(0, 10) === today).length,
+        todayScanQty: todayScans.length,
+        todayScanArea: area(todayScans.map((scan) => labelById.get(scan.labelId)?.pieceArea ?? 0)),
+        labelQty: labels.filter((label) => !label.cancelled && batchById.get(label.batchId)?.status !== 'done').length,
+        deliveredQty: windowNotes.reduce((sum, note) => sum + note.qty, 0),
+        deliveredArea: area(windowNotes.map((note) => note.area)),
+        unaccountedNotes: unaccounted.length,
+        unaccountedArea: area(unaccounted.map((note) => note.area)),
+        urgentOpen: open.filter((batch) => batch.urgency === 'urgent').length,
+        overdueOpen: open.filter((batch) => batch.requiredDate !== null && batch.requiredDate < today).length,
+      },
+      batchStatus,
+      jobLoad,
+      scanTrend,
+      customerArea,
+      activeBatches,
+      recentScans: [...scans].sort((a, b) => b.scannedAt.localeCompare(a.scannedAt) || b.id - a.id).slice(0, 8),
+    } satisfies S['Dashboard'])
   }
 
   if (route === 'GET /jobs')

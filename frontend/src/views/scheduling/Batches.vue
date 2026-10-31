@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import type { FormInstance, TablePaginationConfig } from 'ant-design-vue'
 import { ReloadOutlined } from '@ant-design/icons-vue'
@@ -15,6 +16,8 @@ import ProcessTimeline from '@/components/ProcessTimeline.vue'
 
 type Batch = Schemas['Batch']
 type Schedule = Schemas['BatchSchedule']
+const route = useRoute()
+const initialKeyword = typeof route.query.keyword === 'string' ? route.query.keyword : ''
 const statusLabels: Record<Batch['status'], string> = {
   pending: '待排产',
   scheduled: '已排产',
@@ -23,7 +26,7 @@ const statusLabels: Record<Batch['status'], string> = {
 }
 const statusTones = { pending: 'neutral', scheduled: 'processing', in_production: 'processing', done: 'success' } as const
 const filters = reactive({
-  keyword: '',
+  keyword: initialKeyword,
   status: undefined as Batch['status'] | undefined,
   urgency: undefined as Batch['urgency'] | undefined,
   dates: [] as string[],
@@ -31,6 +34,14 @@ const filters = reactive({
   contractId: undefined as number | undefined,
 })
 const applied = reactive({ ...filters })
+watch(
+  () => route.query.keyword,
+  (keyword) => {
+    if (typeof keyword !== 'string') return
+    filters.keyword = keyword
+    search()
+  },
+)
 const rows = ref<Batch[]>([])
 const jobs = ref<Schemas['Job'][]>([])
 const projects = ref<Schemas['Project'][]>([])
