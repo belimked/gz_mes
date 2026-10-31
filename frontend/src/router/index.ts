@@ -28,6 +28,24 @@ const children: RouteRecordRaw[] = [
     meta: { title: '生产批次查询', group: '排程管理' },
   },
   {
+    path: 'scheduling/sheet-week',
+    name: 'sheet-week',
+    component: () => import('@/views/scheduling/SheetWeek.vue'),
+    meta: { title: '钣金周计划', group: '排程管理' },
+  },
+  {
+    path: 'scheduling/sheet-daily',
+    name: 'sheet-daily',
+    component: () => import('@/views/scheduling/SheetDaily.vue'),
+    meta: { title: '钣金日计划', group: '排程管理' },
+  },
+  {
+    path: 'scheduling/spray-daily',
+    name: 'spray-daily',
+    component: () => import('@/views/scheduling/SprayDaily.vue'),
+    meta: { title: '喷涂日计划', group: '排程管理' },
+  },
+  {
     path: 'production/labels',
     name: 'labels',
     component: () => import('@/views/production/Labels.vue'),

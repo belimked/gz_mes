@@ -27,8 +27,13 @@ describe('demo api', () => {
     const admin = await call(api.GET('/auth/me', await login('admin', 'admin123')))
     expect(admin.menus.length).toBeGreaterThan(1)
     const wx = await call(api.GET('/auth/me', await login('waixie', 'demo123')))
-    expect(wx.menus.map((m) => m.title)).toEqual(['销售管理'])
+    expect(wx.menus.map((m) => m.title)).toEqual(['销售管理', '排程管理'])
     expect(wx.menus[0]?.children?.map((c) => c.path)).toEqual(['/sale/projects', '/sale/contracts'])
+    expect(wx.menus[1]?.children?.map((c) => c.path)).toEqual([
+      '/scheduling/sheet-week',
+      '/scheduling/sheet-daily',
+      '/scheduling/spray-daily',
+    ])
   })
 
   it('isolates data by factory', async () => {

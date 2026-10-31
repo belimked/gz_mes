@@ -15,6 +15,29 @@ export type DemoBatchValuation = Pick<
   updatedAt: string | null
 }
 
+/** Stored plan row; batch fields and live progress are joined at read time. */
+export type DemoPlan = Omit<
+  S['Plan'],
+  | 'lotNo'
+  | 'projectName'
+  | 'customerName'
+  | 'thickness'
+  | 'color'
+  | 'orderQty'
+  | 'orderArea'
+  | 'itemQty'
+  | 'itemArea'
+  | 'labelQty'
+  | 'jobName'
+  | 'targetJobId'
+  | 'targetJobName'
+  | 'doneQty'
+  | 'doneArea'
+  | 'progress'
+  | 'lastScanAt'
+  | 'overdue'
+>
+
 export const DEMO_ACCOUNTS = [
   { username: 'admin', password: 'admin123', note: '管理员，可看全部厂区' },
   { username: 'waixie', password: 'demo123', note: '外协厂账号，只能看外协厂A' },
@@ -37,6 +60,9 @@ export const menus: { id: number; parentId: number | null; title: string; path: 
   { id: 203, parentId: 200, title: '合同查询', path: '/sale/contracts', icon: 'file-text' },
   { id: 300, parentId: null, title: '排程管理', path: '/scheduling', icon: 'schedule' },
   { id: 301, parentId: 300, title: '订单批次排程', path: '/scheduling/batches', icon: 'calendar' },
+  { id: 302, parentId: 300, title: '钣金周计划', path: '/scheduling/sheet-week', icon: 'calendar' },
+  { id: 303, parentId: 300, title: '钣金日计划', path: '/scheduling/sheet-daily', icon: 'schedule' },
+  { id: 304, parentId: 300, title: '喷涂日计划', path: '/scheduling/spray-daily', icon: 'bg-colors' },
   { id: 400, parentId: null, title: '生产管理', path: '/production', icon: 'build' },
   { id: 401, parentId: 400, title: '标签管理', path: '/production/labels', icon: 'barcode' },
   { id: 402, parentId: 400, title: '交接单管理', path: '/production/handovers', icon: 'swap' },
@@ -70,7 +96,7 @@ export const users: DemoUser[] = [
     isAdmin: false,
     enabled: true,
     factoryIds: [2],
-    menuIds: [201, 203],
+    menuIds: [201, 203, 302, 303, 304],
     createdAt: '2026-01-01T00:00:00.000Z',
   },
 ]
@@ -384,6 +410,81 @@ export function seedScans(batches: S['Batch'][], labels: S['Label'][], jobList: 
         })
       })
   })
+}
+
+/** Ids are placeholders (0); the caller assigns real ids. */
+export function seedPlans(batches: S['Batch'][], jobList: S['Job'][], scans: S['Scan'][]): DemoPlan[] {
+  const dayMs = 86400000
+  const todayMs = Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00Z')
+  const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10)
+  const monday = todayMs - ((new Date(todayMs).getUTCDay() + 6) % 7) * dayMs
+  const createdAt = new Date(todayMs - 8 * dayMs + 9 * 3600000).toISOString()
+  const jobByCode = (code: string) => jobList.find((job) => job.code === code)!
+  const sprayReceive = jobByCode('30')
+  const base = (batch: S['Batch'], kind: S['PlanKind'], start: number, end: number): DemoPlan => ({
+    id: 0,
+    kind,
+    factoryId: batch.factoryId,
+    batchId: batch.id,
+    startDate: iso(start),
+    endDate: iso(end),
+    workshop: '',
+    jobId: null,
+    paintLine: '',
+    shift: '',
+    sprayType: '',
+    urgency: batch.urgency,
+    auditState: 'draft',
+    auditedBy: null,
+    auditedAt: null,
+    stopState: 'normal',
+    stopReason: '',
+    remark: '',
+    createdBy: '演示管理员',
+    createdAt,
+    updatedAt: createdAt,
+  })
+  const audit = (plan: DemoPlan) => {
+    plan.auditState = 'audited'
+    plan.auditedBy = '演示管理员'
+    plan.auditedAt = new Date(todayMs - 7 * dayMs + 10 * 3600000).toISOString()
+    return plan
+  }
+  const planned = batches.filter((b) => b.status === 'scheduled' || b.status === 'in_production' || b.status === 'done')
+  const plans: DemoPlan[] = []
+  for (const [index, batch] of planned.entries()) {
+    const start = monday + [0, -7, 7][index % 3]! * dayMs
+    const plan = base(batch, 'sheet_week', start, start + 4 * dayMs)
+    plan.workshop = index % 2 ? '钣金二车间' : '钣金一车间'
+    if (index === 1) {
+      plan.stopState = 'paused'
+      plan.stopReason = '等待来料'
+    } else if (index === 2) {
+      plan.stopState = 'stopped'
+      plan.stopReason = '客户变更设计'
+    } else if (index % 3 !== 2) audit(plan)
+    plans.push(plan)
+  }
+  const producing = batches.filter((b) => b.status === 'in_production')
+  for (const [index, batch] of producing.entries()) {
+    for (const [k, code] of ['10', '15'].entries()) {
+      const date = todayMs - ((index * 2 + k) % 7) * dayMs
+      const plan = base(batch, 'sheet_daily', date, date)
+      plan.workshop = index % 2 ? '钣金二车间' : '钣金一车间'
+      plan.jobId = jobByCode(code).id
+      plans.push(index % 3 === 0 ? audit(plan) : plan)
+    }
+  }
+  const sprayed = producing.filter((batch) => scans.some((scan) => scan.batchId === batch.id && scan.jobId === sprayReceive.id))
+  for (const [index, batch] of sprayed.entries()) {
+    const date = todayMs - (index % 4) * dayMs
+    const plan = base(batch, 'spray_daily', date, date)
+    plan.paintLine = index % 2 ? '2号线' : '1号线'
+    plan.shift = ['早班', '中班', '晚班'][index % 3]!
+    plan.sprayType = batch.sprayingType
+    plans.push(index % 2 === 0 ? audit(plan) : plan)
+  }
+  return plans
 }
 
 export function seedHandovers(batches: S['Batch'][], labels: S['Label'][], scans: S['Scan'][], jobList: S['Job'][]) {

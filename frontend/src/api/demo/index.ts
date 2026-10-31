@@ -15,17 +15,19 @@ import {
   seedDeliveryNotes,
   seedDeliverAccounts,
   seedLabels,
+  seedPlans,
   seedProjects,
   seedScans,
   users as seedUsers,
   type DemoUser,
   type DemoBatchValuation,
+  type DemoPlan,
 } from './data'
 
 type S = components['schemas']
 
 interface DemoDB {
-  version: 12
+  version: 13
   factories: S['Factory'][]
   users: DemoUser[]
   nextId: number
@@ -43,6 +45,7 @@ interface DemoDB {
   batchItems: S['BatchItem'][]
   labels: S['Label'][]
   scans: S['Scan'][]
+  plans: DemoPlan[]
 }
 
 const KEY = 'gz-mes-demo-v1'
@@ -81,8 +84,10 @@ function fresh(): DemoDB {
     account.id = nextId++
     for (const note of deliveryNotes) if (note.accountId === oldId) note.accountId = account.id
   }
+  const plans = seedPlans(batches, jobs, scans)
+  for (const plan of plans) plan.id = nextId++
   return {
-    version: 12,
+    version: 13,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
     nextId,
@@ -100,6 +105,7 @@ function fresh(): DemoDB {
     batchItems,
     labels,
     scans,
+    plans,
   }
 }
 
@@ -108,12 +114,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 12) return parsed
+      if (parsed?.version === 13) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 12) memory = fresh()
+  if (memory?.version !== 13) memory = fresh()
   return memory
 }
 
@@ -270,6 +276,98 @@ const dateStart = (value: string) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return NaN
   const ms = Date.parse(`${value}T00:00:00Z`)
   return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === value ? ms : NaN
+}
+
+const PLAN_KINDS: S['PlanKind'][] = ['sheet_week', 'sheet_daily', 'spray_daily']
+const PLAN_TARGET_CODE: Record<Exclude<S['PlanKind'], 'sheet_daily'>, string> = { sheet_week: '20', spray_daily: '40' }
+
+/** Builds Plan rows (batch join + live progress at targetJob) with per-request indexes. */
+function planRows(db: DemoDB) {
+  const today = new Date().toISOString().slice(0, 10)
+  const batchById = new Map(db.batches.map((batch) => [batch.id, batch]))
+  const activeByBatch = new Map<number, S['Label'][]>()
+  for (const label of db.labels) {
+    if (label.cancelled) continue
+    const rows = activeByBatch.get(label.batchId) ?? []
+    rows.push(label)
+    activeByBatch.set(label.batchId, rows)
+  }
+  const scanAt = new Map<string, string>()
+  for (const scan of db.scans) scanAt.set(`${scan.labelId}:${scan.jobId}`, scan.scannedAt)
+  return (plan: DemoPlan): S['Plan'] => {
+    const batch = batchById.get(plan.batchId)!
+    const job = plan.kind === 'sheet_daily' ? jobs.find((j) => j.id === plan.jobId) : undefined
+    const target = job ?? jobs.find((j) => j.code === PLAN_TARGET_CODE[plan.kind as 'sheet_week'])!
+    const labels = activeByBatch.get(batch.id) ?? []
+    let doneQty = 0
+    let doneArea = 0
+    let lastScanAt: string | null = null
+    for (const label of labels) {
+      const at = scanAt.get(`${label.id}:${target.id}`)
+      if (at === undefined) continue
+      doneQty++
+      doneArea += label.pieceArea
+      if (lastScanAt === null || at > lastScanAt) lastScanAt = at
+    }
+    const progress = labels.length ? Math.floor((doneQty * 100) / labels.length) : 0
+    return {
+      ...plan,
+      lotNo: batch.lotNo,
+      projectName: batch.projectName,
+      customerName: batch.customerName,
+      thickness: batch.thickness,
+      color: batch.color,
+      orderQty: batch.orderQty,
+      orderArea: batch.orderArea,
+      itemQty: batch.itemQty,
+      itemArea: batch.itemArea,
+      labelQty: labels.length,
+      jobName: job?.name ?? null,
+      targetJobId: target.id,
+      targetJobName: target.name,
+      doneQty,
+      doneArea: Number(doneArea.toFixed(4)),
+      progress,
+      lastScanAt,
+      overdue: today > plan.endDate && progress < 100 && plan.stopState !== 'stopped',
+    }
+  }
+}
+
+const optStr = (b: Record<string, unknown>, key: string, max: number) =>
+  b[key] === undefined || (typeof b[key] === 'string' && b[key].trim().length <= max)
+
+/** Validates PlanCreate / PlanUpdate field types; returns an error message or null. */
+function planFieldError(b: Record<string, unknown>): string | null {
+  if (typeof b.startDate !== 'string' || typeof b.endDate !== 'string') return '请填写开始和结束日期'
+  if (Number.isNaN(dateStart(b.startDate)) || Number.isNaN(dateStart(b.endDate))) return '日期格式不合法'
+  if (b.endDate < b.startDate) return '结束日期不能早于开始日期'
+  if (
+    !optStr(b, 'workshop', 50) ||
+    !optStr(b, 'paintLine', 50) ||
+    !optStr(b, 'shift', 20) ||
+    !optStr(b, 'sprayType', 50) ||
+    !optStr(b, 'remark', 500)
+  )
+    return '文本字段类型或长度不合法'
+  if (b.urgency !== undefined && b.urgency !== 'normal' && b.urgency !== 'urgent') return '紧急程度不合法'
+  if (b.jobId != null && !jobs.some((job) => job.id === b.jobId)) return '工序不存在'
+  return null
+}
+
+const plansOverlap = (a: { startDate: string; endDate: string }, b: { startDate: string; endDate: string }) =>
+  a.startDate <= b.endDate && b.startDate <= a.endDate
+
+function duplicatePlan(db: DemoDB, candidate: DemoPlan) {
+  return db.plans.some(
+    (plan) =>
+      plan.id !== candidate.id &&
+      plan.kind === candidate.kind &&
+      plan.batchId === candidate.batchId &&
+      (candidate.kind !== 'sheet_daily' || plan.jobId === candidate.jobId) &&
+      plan.stopState !== 'stopped' &&
+      plansOverlap(plan, candidate),
+  )
 }
 
 export async function demoFetch(req: Request): Promise<Response> {
@@ -1698,6 +1796,180 @@ export async function demoFetch(req: Request): Promise<Response> {
       batch.updatedAt = new Date().toISOString()
       save(db)
       return json(200, items)
+    }
+  }
+
+  if (route === 'GET /plans') {
+    const q = url.searchParams
+    const page = Number(q.get('page') ?? 1)
+    const size = Number(q.get('size') ?? 20)
+    if (!validPage(page, size)) return fail(400, 'invalid_request', 'page/size 参数不合法')
+    const kind = q.get('kind') as S['PlanKind'] | null
+    if (!kind || !PLAN_KINDS.includes(kind)) return fail(400, 'invalid_request', '计划类型不合法')
+    const from = q.get('from')
+    const to = q.get('to')
+    if ((from !== null && Number.isNaN(dateStart(from))) || (to !== null && Number.isNaN(dateStart(to))) || (from && to && from > to))
+      return fail(400, 'invalid_request', '日期范围无效')
+    const auditState = q.get('auditState')
+    const stopState = q.get('stopState')
+    const completed = q.get('completed')
+    const jobId = q.get('jobId')
+    if (auditState !== null && auditState !== 'draft' && auditState !== 'audited') return fail(400, 'invalid_request', '审核状态参数不合法')
+    if (stopState !== null && !['normal', 'paused', 'stopped'].includes(stopState))
+      return fail(400, 'invalid_request', '暂停状态参数不合法')
+    if (completed !== null && completed !== 'true' && completed !== 'false') return fail(400, 'invalid_request', '完成参数不合法')
+    if (!validId(jobId)) return fail(400, 'invalid_request', '工序参数不合法')
+    const workshop = q.get('workshop')
+    const paintLine = q.get('paintLine')
+    const kw = (q.get('keyword') ?? '').trim().toLowerCase()
+    const toRow = planRows(db)
+    const all = db.plans
+      .filter((plan) => plan.kind === kind && inScope(u, plan.factoryId))
+      .filter((plan) => (!from || plan.endDate >= from) && (!to || plan.startDate <= to))
+      .filter((plan) => auditState === null || plan.auditState === auditState)
+      .filter((plan) => stopState === null || plan.stopState === stopState)
+      .filter((plan) => !workshop || plan.workshop === workshop)
+      .filter((plan) => !paintLine || plan.paintLine === paintLine)
+      .filter((plan) => jobId === null || plan.jobId === Number(jobId))
+      .map(toRow)
+      .filter((row) => completed === null || (row.progress === 100) === (completed === 'true'))
+      .filter((row) => !kw || [row.lotNo, row.projectName, row.customerName].some((s) => s.toLowerCase().includes(kw)))
+      .sort((a, b) => b.startDate.localeCompare(a.startDate) || b.id - a.id)
+    const sum = (pick: (row: S['Plan']) => number) => all.reduce((acc, row) => acc + pick(row), 0)
+    return json(200, {
+      items: all.slice((page - 1) * size, page * size),
+      total: all.length,
+      page,
+      size,
+      summary: {
+        plans: all.length,
+        qty: sum((row) => row.itemQty),
+        area: Number(sum((row) => row.itemArea).toFixed(4)),
+        doneQty: sum((row) => row.doneQty),
+        doneArea: Number(sum((row) => row.doneArea).toFixed(4)),
+        overdue: all.filter((row) => row.overdue).length,
+      },
+    } satisfies S['PlanPage'])
+  }
+
+  if (route === 'POST /plans') {
+    const b = await body(req)
+    if (!b || Array.isArray(b) || !PLAN_KINDS.includes(b.kind as S['PlanKind']) || !Number.isSafeInteger(b.batchId))
+      return fail(400, 'invalid_request', '计划类型或批次不合法')
+    const kind = b.kind as S['PlanKind']
+    const fieldError = planFieldError(b)
+    if (fieldError) return fail(400, 'invalid_request', fieldError)
+    if (kind === 'sheet_daily' && b.jobId == null) return fail(400, 'invalid_request', '钣金日计划必须指定工序')
+    if (kind === 'spray_daily' && (!str(b.paintLine) || !str(b.shift))) return fail(400, 'invalid_request', '喷涂日计划必须指定产线和班次')
+    const batch = db.batches.find((x) => x.id === b.batchId)
+    if (!batch) return fail(404, 'not_found', '批次不存在')
+    if (!inScope(u, batch.factoryId)) return fail(403, 'forbidden_factory', '无权在该厂区创建数据')
+    const now = new Date().toISOString()
+    const plan: DemoPlan = {
+      id: 0,
+      kind,
+      factoryId: batch.factoryId,
+      batchId: batch.id,
+      startDate: b.startDate as string,
+      endDate: b.endDate as string,
+      workshop: str(b.workshop),
+      jobId: kind === 'sheet_daily' ? (b.jobId as number) : null,
+      paintLine: str(b.paintLine),
+      shift: str(b.shift),
+      sprayType: str(b.sprayType) || (kind === 'spray_daily' ? batch.sprayingType : ''),
+      urgency: (b.urgency ?? batch.urgency) as S['Urgency'],
+      auditState: 'draft',
+      auditedBy: null,
+      auditedAt: null,
+      stopState: 'normal',
+      stopReason: '',
+      remark: str(b.remark),
+      createdBy: u.displayName,
+      createdAt: now,
+      updatedAt: now,
+    }
+    if (duplicatePlan(db, plan)) return fail(409, 'duplicate_plan', '该批次在此日期范围内已有计划')
+    plan.id = db.nextId++
+    db.plans.push(plan)
+    save(db)
+    return json(201, planRows(db)(plan))
+  }
+
+  const planRoute = /^(GET|PUT|DELETE|POST) \/plans\/(\d+)(?:\/(audit|stop-state))?$/.exec(route)
+  if (planRoute) {
+    const [, method, rawId, action] = planRoute
+    const plan = db.plans.find((x) => x.id === Number(rawId) && inScope(u, x.factoryId))
+    if (!plan) return fail(404, 'not_found', '计划不存在')
+    if (method === 'GET' && !action) return json(200, planRows(db)(plan))
+    if (method === 'DELETE' && !action) {
+      if (plan.auditState === 'audited') return fail(409, 'already_audited', '计划已审核，不能删除')
+      db.plans = db.plans.filter((x) => x.id !== plan.id)
+      save(db)
+      return new Response(null, { status: 204 })
+    }
+    if (method === 'PUT' && !action) {
+      if (plan.auditState === 'audited') return fail(409, 'already_audited', '计划已审核，不能修改')
+      const b = await body(req)
+      if (!b || Array.isArray(b)) return fail(400, 'invalid_request', '请求参数不合法')
+      const fieldError = planFieldError(b)
+      if (fieldError) return fail(400, 'invalid_request', fieldError)
+      if (plan.kind === 'sheet_daily' && b.jobId === null) return fail(400, 'invalid_request', '钣金日计划必须指定工序')
+      if (plan.kind === 'spray_daily' && ((b.paintLine !== undefined && !str(b.paintLine)) || (b.shift !== undefined && !str(b.shift))))
+        return fail(400, 'invalid_request', '喷涂日计划必须指定产线和班次')
+      const next: DemoPlan = { ...plan, startDate: b.startDate as string, endDate: b.endDate as string }
+      if (b.workshop !== undefined) next.workshop = str(b.workshop)
+      if (plan.kind === 'sheet_daily' && b.jobId != null) next.jobId = b.jobId as number
+      if (b.paintLine !== undefined) next.paintLine = str(b.paintLine)
+      if (b.shift !== undefined) next.shift = str(b.shift)
+      if (b.sprayType !== undefined) next.sprayType = str(b.sprayType)
+      if (b.urgency !== undefined) next.urgency = b.urgency as S['Urgency']
+      if (b.remark !== undefined) next.remark = str(b.remark)
+      if (next.stopState !== 'stopped' && duplicatePlan(db, next)) return fail(409, 'duplicate_plan', '该批次在此日期范围内已有计划')
+      Object.assign(plan, next, { updatedAt: new Date().toISOString() })
+      save(db)
+      return json(200, planRows(db)(plan))
+    }
+    if (method === 'POST' && action === 'audit') {
+      const b = await body(req)
+      if (b?.action !== 'audit' && b?.action !== 'unaudit') return fail(400, 'invalid_request', '审核动作不合法')
+      const now = new Date().toISOString()
+      if (b.action === 'audit') {
+        if (plan.auditState === 'audited') return fail(409, 'already_audited', '计划已审核')
+        Object.assign(plan, { auditState: 'audited', auditedBy: u.displayName, auditedAt: now, updatedAt: now })
+      } else {
+        if (plan.auditState !== 'audited') return fail(409, 'not_audited', '计划未审核')
+        Object.assign(plan, { auditState: 'draft', auditedBy: null, auditedAt: null, updatedAt: now })
+      }
+      save(db)
+      return json(200, planRows(db)(plan))
+    }
+    if (method === 'POST' && action === 'stop-state') {
+      const b = await body(req)
+      if (
+        !b ||
+        !['pause', 'resume', 'stop'].includes(b.action as string) ||
+        (b.reason !== undefined && (typeof b.reason !== 'string' || b.reason.trim().length > 200))
+      )
+        return fail(400, 'invalid_request', '状态动作不合法')
+      const from = plan.stopState
+      const to: S['StopState'] | null =
+        b.action === 'pause'
+          ? from === 'normal'
+            ? 'paused'
+            : null
+          : b.action === 'resume'
+            ? from === 'paused'
+              ? 'normal'
+              : null
+            : from === 'stopped'
+              ? null
+              : 'stopped'
+      if (!to) return fail(409, 'invalid_transition', '当前状态不允许该操作')
+      plan.stopState = to
+      plan.stopReason = to === 'normal' ? '' : str(b.reason)
+      plan.updatedAt = new Date().toISOString()
+      save(db)
+      return json(200, planRows(db)(plan))
     }
   }
 
