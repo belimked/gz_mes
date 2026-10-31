@@ -45,6 +45,7 @@ const loading = ref(false)
 const columns = [
   { title: '用户名', dataIndex: 'username', width: 130 },
   { title: '姓名', dataIndex: 'displayName', width: 120 },
+  { title: '工号', dataIndex: 'staffNo', width: 110 },
   { title: '角色', dataIndex: 'isAdmin', width: 110 },
   { title: '厂区', dataIndex: 'factoryIds', width: 220 },
   { title: '菜单数', dataIndex: 'menuIds', width: 90 },
@@ -92,6 +93,7 @@ const formRef = ref<FormInstance>()
 const form = ref({
   username: '',
   displayName: '',
+  staffNo: '',
   password: '',
   enabled: true,
   isAdmin: false,
@@ -100,7 +102,7 @@ const form = ref({
 })
 function openCreate() {
   editing.value = undefined
-  form.value = { username: '', displayName: '', password: '', enabled: true, isAdmin: false, factoryIds: [], menuIds: [] }
+  form.value = { username: '', displayName: '', staffNo: '', password: '', enabled: true, isAdmin: false, factoryIds: [], menuIds: [] }
   open.value = true
 }
 async function openEdit(row: User) {
@@ -110,6 +112,7 @@ async function openEdit(row: User) {
     form.value = {
       username: detail.username,
       displayName: detail.displayName,
+      staffNo: detail.staffNo ?? '',
       password: '',
       enabled: detail.enabled,
       isAdmin: detail.isAdmin,
@@ -142,6 +145,7 @@ async function save() {
   try {
     const body = {
       displayName: form.value.displayName.trim(),
+      staffNo: form.value.staffNo.trim(),
       isAdmin: form.value.isAdmin,
       factoryIds: form.value.factoryIds,
       menuIds: form.value.menuIds,
@@ -169,6 +173,7 @@ async function toggle(row: User) {
         params: { path: { id: row.id } },
         body: {
           displayName: detail.displayName,
+          staffNo: detail.staffNo ?? '',
           enabled: !detail.enabled,
           isAdmin: detail.isAdmin,
           factoryIds: detail.factoryIds,
@@ -269,6 +274,7 @@ onMounted(async () => {
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.dataIndex === 'username'"><CodeText :value="record.username" /></template>
+          <template v-else-if="column.dataIndex === 'staffNo'">{{ record.staffNo || '—' }}</template>
           <template v-else-if="column.dataIndex === 'isAdmin'"
             ><StatusTag :tone="record.isAdmin ? 'processing' : 'neutral'" :label="record.isAdmin ? '管理员' : '普通'"
           /></template>
@@ -313,6 +319,7 @@ onMounted(async () => {
         <a-form-item label="姓名" name="displayName" :rules="[{ required: true, whitespace: true, message: '请输入姓名' }]"
           ><a-input v-model:value="form.displayName" :maxlength="50"
         /></a-form-item>
+        <a-form-item label="工号" name="staffNo"><a-input v-model:value="form.staffNo" :maxlength="20" /></a-form-item>
         <a-form-item
           v-if="!editing"
           label="初始密码"

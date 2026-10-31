@@ -51,7 +51,11 @@ const groups = computed(() => [
       <section v-for="group in groups" :key="group.name" class="group" :class="{ finished: group.steps.length === 3 }">
         <div class="group-header">
           <strong><i class="group-mark" :style="{ background: group.color }" />{{ group.name }}</strong>
-          <span>{{ group.steps.length }} 个工步 · {{ group.steps.reduce((total, step) => total + step.qty, 0) }} 件在制</span>
+          <span
+            >{{ group.steps.length }} 个工步 · {{ group.steps.reduce((total, step) => total + step.qty, 0) }} 件{{
+              group.name === '成品工段' ? '待转' : '在制'
+            }}</span
+          >
         </div>
         <div class="group-steps">
           <div
@@ -79,6 +83,7 @@ const groups = computed(() => [
                   {{ step.dwellMaxHours == null ? '—' : fmtH(step.dwellMaxHours) }}
                 </div>
               </a-tooltip>
+              <div v-if="!step.qty" class="step-idle">目前无在制工件</div>
             </div>
           </div>
         </div>
@@ -187,6 +192,11 @@ const groups = computed(() => [
   color: var(--gz-secondary);
   line-height: 1.4;
   overflow-wrap: anywhere;
+}
+.step-idle {
+  margin-top: 3px;
+  color: var(--gz-muted);
+  font-size: 11px;
 }
 .dwell-alert {
   color: var(--gz-error);

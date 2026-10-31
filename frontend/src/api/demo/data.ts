@@ -54,6 +54,7 @@ export const users: DemoUser[] = [
     username: 'admin',
     password: 'admin123',
     displayName: '演示管理员',
+    staffNo: '0001',
     isAdmin: true,
     enabled: true,
     factoryIds: [],
@@ -65,6 +66,7 @@ export const users: DemoUser[] = [
     username: 'waixie',
     password: 'demo123',
     displayName: '外协A操作员',
+    staffNo: 'W001',
     isAdmin: false,
     enabled: true,
     factoryIds: [2],
@@ -154,7 +156,7 @@ export const jobs: S['Job'][] = [
   ['60', '发货对账', 'finished'],
 ].map(([code, name, stage], i) => ({ id: i + 1, code: code!, name: name!, seq: i + 1, stage: stage as S['Job']['stage'] }))
 
-const batchDate = (offset: number) => new Date(Date.UTC(2026, 4, 2 + offset)).toISOString().slice(0, 10)
+const batchDate = (offset: number) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10)
 
 export function seedBatches(contracts: S['Contract'][]): S['Batch'][] {
   const batches: S['Batch'][] = Array.from({ length: 18 }, (_, i) => {
@@ -163,6 +165,7 @@ export function seedBatches(contracts: S['Contract'][]): S['Batch'][] {
     const orderQty = 40 + i * 8
     const createdAt = new Date(Date.now() - (i + 1) * 86400000).toISOString()
     const status = i < 3 ? 'pending' : i < 8 ? 'scheduled' : i < 15 ? 'in_production' : 'done'
+    const planOffset = i === 3 ? -2 : i + 2
     const dueInDays =
       status === 'done'
         ? -(1 + (i % 5))
@@ -199,13 +202,13 @@ export function seedBatches(contracts: S['Contract'][]): S['Batch'][] {
       itemArea: 0,
       ...(scheduled
         ? {
-            planTechDate: batchDate(i - 12),
-            planDrawingDate: batchDate(i - 11),
-            planCutDate: batchDate(i - 10),
-            planSheetStart: batchDate(i - 9),
-            planSheetDelivery: batchDate(i - 6),
-            planSprayStart: batchDate(i - 5),
-            planSprayDelivery: batchDate(i - 2),
+            planTechDate: batchDate(planOffset - 3),
+            planDrawingDate: batchDate(planOffset - 2),
+            planCutDate: batchDate(planOffset - 1),
+            planSheetStart: batchDate(planOffset),
+            planSheetDelivery: batchDate(planOffset + 3),
+            planSprayStart: batchDate(planOffset + 4),
+            planSprayDelivery: batchDate(planOffset + 7),
           }
         : {}),
       ...(contract.factoryId === 2 ? { outsourceFactoryId: 2, outsourceFactoryName: '外协厂A' } : {}),
@@ -287,7 +290,7 @@ export function seedBatchItems(batches: S['Batch'][]): S['BatchItem'][] {
 export function seedLabels(batches: S['Batch'][], batchItems: S['BatchItem'][]): S['Label'][] {
   let id = Math.max(0, ...batchItems.map((item) => item.id)) + 1
   return batches
-    .filter((batch) => batch.status !== 'pending')
+    .filter((batch, index) => batch.status !== 'pending' && index !== 3)
     .flatMap((batch) =>
       batchItems
         .filter((item) => item.batchId === batch.id)
@@ -318,6 +321,14 @@ export function seedLabels(batches: S['Batch'][], batchItems: S['BatchItem'][]):
     )
 }
 
+export const operators = [
+  { name: '张师傅', staffNo: '9204' },
+  { name: '李工', staffNo: '8102' },
+  { name: '王师傅', staffNo: '7041' },
+  { name: '陈工', staffNo: '6615' },
+  { name: '演示管理员', staffNo: '0001' },
+]
+
 export function seedScans(batches: S['Batch'][], labels: S['Label'][], jobList: S['Job'][]): S['Scan'][] {
   let id = Math.max(0, ...labels.map((label) => label.id)) + 1
   const today = Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00Z')
@@ -335,9 +346,9 @@ export function seedScans(batches: S['Batch'][], labels: S['Label'][], jobList: 
     [12, 36],
   ]
   return batches.flatMap((batch, index) => {
-    const scannedBy = ['张师傅', '李工', '王师傅', '陈工', '演示管理员'][index % 5]!
-    const start = today - (2 + (index % 10)) * 86400000 + 8 * 3600000 + (index % 5) * 17 * 60000
-    const count = batch.status === 'done' ? jobList.length : batch.status === 'in_production' ? 2 + (index % 6) : 0
+    const scannedBy = operators[index % operators.length]!.name
+    const start = today - (index === 9 ? 6 : 2 + (index % 10)) * 86400000 + 8 * 3600000 + (index % 5) * 17 * 60000
+    const count = batch.status === 'done' ? jobList.length : batch.status === 'in_production' ? [1, 4, 6, 8, 9, 10, 3][index - 8]! : 0
     let stepMs = start
     const stepTimes = jobList.slice(0, count).map((_, step) => {
       if (step) {
@@ -418,7 +429,7 @@ export function seedDeliveryNotes(batches: S['Batch'][], labels: S['Label'][], c
   let id = Math.max(0, ...labels.map((l) => l.id)) + 1
   for (const [index, batch] of batches.filter((b) => b.status === 'done').entries()) {
     const rows = labels.filter((l) => l.batchId === batch.id && !l.cancelled)
-    const deliveredAt = new Date(Date.now() - index * 2 * 86400000).toISOString().slice(0, 10)
+    const deliveredAt = new Date(Date.now() - index * 5 * 86400000).toISOString().slice(0, 10)
     const contract = contracts.find((c) => c.id === batch.contractId)!
     const noteId = id++
     notes.push({

@@ -4,6 +4,14 @@ import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import type { EChartsOption } from 'echarts'
+import {
+  ApartmentOutlined,
+  LineChartOutlined,
+  PieChartOutlined,
+  UnorderedListOutlined,
+  ClockCircleOutlined,
+  WarningOutlined,
+} from '@ant-design/icons-vue'
 import { call, client, errorMessage, isDemo, type Schemas } from '@/api/client'
 import { resetDemo } from '@/api/demo'
 import PageCard from '@/components/PageCard.vue'
@@ -67,6 +75,7 @@ const kpis = computed(() => {
   const qty = trend.map((day) => day.qty)
   const delivered = trend.map((day) => day.deliveredQty)
   const done = trend.map((day) => day.doneBatches)
+  const errorCount = (data.alerts ?? []).filter((alert) => alert.level === 'error').length
   return [
     {
       title: '生产中批次',
@@ -87,6 +96,7 @@ const kpis = computed(() => {
       color: '#52c41a',
       value: String(k.todayScanQty),
       unit: '件',
+      tag: '工序实时',
       series: qty,
       delta: qty.length >= 2 ? pct(qty[qty.length - 1]!, qty[qty.length - 2]!) : undefined,
       footer: [
@@ -100,6 +110,7 @@ const kpis = computed(() => {
       color: '#fa8c16',
       value: String(k.deliveredQty),
       unit: '件',
+      tag: '出厂',
       series: delivered,
       delta: pct(sum(delivered.slice(-7)), sum(delivered.slice(-14, -7))),
       footer: [
@@ -113,9 +124,13 @@ const kpis = computed(() => {
       color: '#ff4d4f',
       value: String(k.urgentOpen),
       unit: '加急',
+      value2: String(k.overdueOpen),
+      unit2: '逾期',
+      value2Error: k.overdueOpen > 0,
+      alertCount: errorCount,
       series: done,
       footer: [
-        { label: '逾期', value: String(k.overdueOpen) },
+        { label: '停留>1d 工序', value: `${(data.jobLoad ?? []).filter((job) => (job.dwellMaxHours ?? 0) > 24).length} 道` },
         { label: '14 天完工', value: `${sum(done)} 批` },
       ],
     },
@@ -183,6 +198,7 @@ const pipelineLegend: { tone: Tone; label: string }[] = [
   { tone: 'processing', label: '在制' },
   { tone: 'warning', label: '堆积' },
   { tone: 'success', label: '待对账' },
+  { tone: 'neutral', label: '空闲/已清' },
 ]
 const sortedJobs = computed(() => [...(dashboard.value?.jobLoad ?? [])].sort((a, b) => a.seq - b.seq))
 const cycleSummary = computed(() => {
@@ -254,11 +270,20 @@ const filteredBatches = computed(() =>
   batchFilter.value === 'urgent' ? urgentBatches.value : batchFilter.value === 'overdue' ? overdueBatches.value : activeBatches.value,
 )
 const recentActivity = computed(() => dashboard.value?.recentActivity ?? [])
+const alerts = computed(() => dashboard.value?.alerts ?? [])
+const alertColors: Record<Schemas['DashboardAlert']['level'], string> = {
+  error: '#ff4d4f',
+  warning: '#fa8c16',
+  info: '#1677ff',
+}
+function openAlert(link: string) {
+  void router.push(link)
+}
 const trendOption = computed<EChartsOption>(() => ({
   color: colors,
   tooltip: { trigger: 'axis' },
-  legend: { top: 0 },
-  grid: { left: 50, right: 55, top: 48, bottom: 30 },
+  legend: { show: false },
+  grid: { left: 50, right: 55, top: 22, bottom: 30 },
   xAxis: { type: 'category', boundaryGap: true, data: dashboard.value?.scanTrend.map((d) => d.date.slice(5)) ?? [] },
   yAxis: [
     { type: 'value', name: '件' },
@@ -284,7 +309,13 @@ const trendOption = computed<EChartsOption>(() => ({
         },
       },
     },
-    { name: '发货件数', type: 'line', smooth: true, data: dashboard.value?.scanTrend.map((d) => d.deliveredQty) ?? [] },
+    {
+      name: '发货件数',
+      type: 'line',
+      smooth: true,
+      lineStyle: { type: 'dashed' },
+      data: dashboard.value?.scanTrend.map((d) => d.deliveredQty) ?? [],
+    },
     { name: '报工面积', type: 'bar', yAxisIndex: 1, data: dashboard.value?.scanTrend.map((d) => d.area) ?? [], barMaxWidth: 18 },
   ],
 }))
@@ -315,6 +346,8 @@ onMounted(() => {
         <a-col v-for="item in kpis" :key="item.title" :xs="24" :sm="12" :xl="6"><SparkKpiCard v-bind="item" /></a-col>
       </a-row>
       <PageCard title="铝单板 11 大工序流转全景看板">
+        <template #icon><ApartmentOutlined /></template>
+        <template #subtitle><span class="card-subtitle">全生命周期数字流转工位监测</span></template>
         <template #extra>
           <div class="pipeline-legend">
             <span v-for="item in pipelineLegend" :key="item.tone" class="legend-item">
@@ -352,11 +385,22 @@ onMounted(() => {
       </PageCard>
       <a-row :gutter="[16, 16]">
         <a-col :xs="24" :xl="16"
-          ><PageCard title="近 14 天报工与发货趋势"><EChart :option="trendOption" :height="300" /></PageCard
+          ><PageCard title="近 14 天报工与发货趋势">
+            <template #icon><LineChartOutlined /></template>
+            <template #extra
+              ><div class="trend-legend">
+                <span><i class="legend-dot" :style="{ background: colors[0] }" />报工件数</span
+                ><span><i class="legend-line" />发货件数</span
+                ><span><i class="legend-dot" :style="{ background: colors[2] }" />报工面积</span>
+              </div></template
+            >
+            <EChart :option="trendOption" :height="300" /></PageCard
         ></a-col>
         <a-col :xs="24" :xl="8"
           ><PageCard title="批次状态分布"
-            ><EChart :option="batchOption" :height="220" />
+            ><template #icon><PieChartOutlined /></template>
+            <template #extra><span class="card-subtitle">实时统计</span></template>
+            <EChart :option="batchOption" :height="220" />
             <div class="status-grid">
               <div v-for="item in statusCounts" :key="item.status" class="status-cell">
                 <span><i class="legend-dot" :style="{ background: statusColors[item.status] }" />{{ item.name }}</span>
@@ -369,6 +413,10 @@ onMounted(() => {
       <a-row :gutter="[16, 16]">
         <a-col :xs="24" :xl="16">
           <PageCard title="在制批次">
+            <template #icon><UnorderedListOutlined /></template>
+            <template #subtitle
+              ><a-tag>共 {{ activeBatches.length }} 批在制</a-tag></template
+            >
             <template #extra>
               <a-radio-group v-model:value="batchFilter" size="small" button-style="solid">
                 <a-radio-button value="all">全部 ({{ activeBatches.length }})</a-radio-button>
@@ -418,7 +466,41 @@ onMounted(() => {
           </PageCard>
         </a-col>
         <a-col :xs="24" :xl="8" class="side-cards">
+          <PageCard title="异常预警与待办">
+            <template #icon><WarningOutlined /></template>
+            <template #extra
+              ><a-tag color="error">{{ alerts.length }} 项待处理</a-tag></template
+            >
+            <a-empty v-if="!alerts.length" description="暂无预警" />
+            <div
+              v-for="(alert, index) in alerts.slice(0, 6)"
+              :key="`${alert.rule}-${alert.batchId}-${alert.jobId}-${index}`"
+              class="alert-row"
+              :style="{ borderLeftColor: alertColors[alert.level] }"
+              role="link"
+              tabindex="0"
+              @click="openAlert(alert.link)"
+              @keydown.enter="openAlert(alert.link)"
+            >
+              <div class="alert-content">
+                <strong>{{ alert.title }}</strong
+                ><span class="muted">{{ alert.detail }}</span>
+              </div>
+              <span class="alert-metric">{{
+                alert.days != null
+                  ? `${alert.days}天`
+                  : alert.hours != null
+                    ? `${alert.hours}h`
+                    : alert.count != null
+                      ? `${alert.count}件`
+                      : ''
+              }}</span>
+            </div>
+            <div v-if="alerts.length > 6" class="alert-more">还有 {{ alerts.length - 6 }} 项</div>
+          </PageCard>
           <PageCard title="在制订单面积·按客户">
+            <template #icon><PieChartOutlined /></template>
+            <template #extra><span class="card-subtitle">前 3 主要客户</span></template>
             <EChart :option="customerOption" :height="200" />
             <div class="customer-list">
               <div v-for="(customer, index) in topCustomers" :key="customer.customerId ?? customer.customerName" class="customer-row">
@@ -430,6 +512,10 @@ onMounted(() => {
             </div>
           </PageCard>
           <PageCard title="最近报工动态">
+            <template #icon><ClockCircleOutlined /></template>
+            <template #extra
+              ><span class="live-indicator"><i class="legend-dot" />实时</span></template
+            >
             <a-empty v-if="!recentActivity.length" description="暂无报工" />
             <div
               v-for="scan in recentActivity"
@@ -438,7 +524,7 @@ onMounted(() => {
             >
               <div class="scan-detail">
                 <CodeText :value="scan.lotNo" />
-                <div class="muted">{{ scan.jobName }} · {{ scan.scannedBy }}</div>
+                <div class="muted">{{ scan.jobName }} · {{ scan.scannedBy }}{{ scan.staffNo ? `（工号 ${scan.staffNo}）` : '' }}</div>
               </div>
               <div class="scan-qty">
                 <strong>+{{ scan.qty }} 件</strong><span class="muted">{{ dayjs(scan.lastScannedAt).format('HH:mm') }}</span>
@@ -506,9 +592,75 @@ onMounted(() => {
   gap: 5px;
 }
 .legend-dot {
+  display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 50%;
+}
+.card-subtitle {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--gz-muted);
+}
+.trend-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--gz-secondary);
+  font-size: 12px;
+}
+.trend-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.legend-line {
+  display: inline-block;
+  width: 14px;
+  border-top: 2px dashed #52c41a;
+}
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #389e0d;
+}
+.live-indicator .legend-dot {
+  background: #52c41a;
+}
+.alert-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border-left: 3px solid;
+  background: var(--gz-fill, #f5f7fa);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.alert-row:hover {
+  background: #e6f4ff;
+}
+.alert-content {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.alert-metric {
+  flex: none;
+  font-size: 11px;
+  color: var(--gz-muted);
+}
+.alert-more {
+  text-align: center;
+  color: var(--gz-muted);
+  font-size: 12px;
 }
 .cycle-summary {
   margin-top: 16px;

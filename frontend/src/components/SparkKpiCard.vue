@@ -11,11 +11,16 @@ const props = withDefaults(
     color?: string
     value: string
     unit?: string
+    tag?: string
+    value2?: string
+    unit2?: string
+    value2Error?: boolean
+    alertCount?: number
     delta?: number
     series: number[]
     footer: { label: string; value: string }[]
   }>(),
-  { color: '#1677ff', unit: undefined, delta: undefined },
+  { color: '#1677ff', unit: undefined, tag: undefined, value2: undefined, unit2: undefined, alertCount: undefined, delta: undefined },
 )
 
 const option = computed<EChartsOption>(() => ({
@@ -56,11 +61,16 @@ const option = computed<EChartsOption>(() => ({
             ><slot name="icon">{{ icon }}</slot></span
           >
           <span class="title">{{ title }}</span>
+          <span v-if="alertCount" class="alert-chip">待处理 {{ alertCount }}</span>
         </div>
         <div class="number-row">
           <strong class="number"
             >{{ value }}<small v-if="unit">{{ unit }}</small></strong
           >
+          <span v-if="value2 !== undefined" class="second-number" :class="{ 'second-error': value2Error }">
+            {{ value2 }}<small v-if="unit2">{{ unit2 }}</small>
+          </span>
+          <span v-if="tag" class="value-chip">{{ tag }}</span>
           <span v-if="delta !== undefined && delta !== 0" class="delta" :class="delta > 0 ? 'up' : 'down'">
             {{ delta > 0 ? '↑' : '↓' }} {{ Math.abs(delta).toFixed(1) }}%
           </span>
@@ -128,6 +138,34 @@ const option = computed<EChartsOption>(() => ({
   color: var(--gz-muted);
   font-size: 12px;
   font-weight: 400;
+}
+.second-number {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.second-number small {
+  margin-left: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--gz-muted);
+}
+.second-error,
+.second-error small {
+  color: var(--gz-error);
+}
+.value-chip,
+.alert-chip {
+  border-radius: 4px;
+  padding: 2px 5px;
+  background: var(--gz-fill, #f5f7fa);
+  color: var(--gz-secondary);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.alert-chip {
+  background: #fff1f0;
+  color: var(--gz-error);
 }
 .delta {
   font-size: 11px;

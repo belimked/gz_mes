@@ -5,6 +5,7 @@ import {
   factories as seedFactories,
   jobs,
   menus,
+  operators,
   seedBatchItems,
   seedBatches,
   seedBatchValuations,
@@ -24,7 +25,7 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 11
+  version: 12
   factories: S['Factory'][]
   users: DemoUser[]
   nextId: number
@@ -81,7 +82,7 @@ function fresh(): DemoDB {
     for (const note of deliveryNotes) if (note.accountId === oldId) note.accountId = account.id
   }
   return {
-    version: 11,
+    version: 12,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
     nextId,
@@ -107,12 +108,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 11) return parsed
+      if (parsed?.version === 12) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 11) memory = fresh()
+  if (memory?.version !== 12) memory = fresh()
   return memory
 }
 
@@ -141,6 +142,7 @@ function userDetail(u: DemoUser): S['UserDetail'] {
     id: u.id,
     username: u.username,
     displayName: u.displayName,
+    staffNo: u.staffNo,
     isAdmin: u.isAdmin,
     enabled: u.enabled,
     factoryIds: [...u.factoryIds],
@@ -288,7 +290,7 @@ export async function demoFetch(req: Request): Promise<Response> {
     if (!u?.enabled) return fail(401, 'invalid_credentials', '用户名或密码错误')
     return json(200, {
       token: `demo-token-${u.id}`,
-      user: { id: u.id, username: u.username, displayName: u.displayName, isAdmin: u.isAdmin },
+      user: { id: u.id, username: u.username, displayName: u.displayName, staffNo: u.staffNo, isAdmin: u.isAdmin },
     })
   }
 
@@ -297,7 +299,7 @@ export async function demoFetch(req: Request): Promise<Response> {
 
   if (route === 'GET /auth/me') {
     return json(200, {
-      user: { id: u.id, username: u.username, displayName: u.displayName, isAdmin: u.isAdmin },
+      user: { id: u.id, username: u.username, displayName: u.displayName, staffNo: u.staffNo, isAdmin: u.isAdmin },
       menus: menuTree(u),
     })
   }
@@ -354,7 +356,7 @@ export async function demoFetch(req: Request): Promise<Response> {
     if (enabled !== null && enabled !== 'true' && enabled !== 'false') return fail(400, 'invalid_request', 'enabled 参数不合法')
     const kw = (url.searchParams.get('keyword') ?? '').trim().toLowerCase()
     const all = users
-      .filter((x) => !kw || [x.username, x.displayName].some((s) => s.toLowerCase().includes(kw)))
+      .filter((x) => !kw || [x.username, x.displayName, x.staffNo].some((s) => s.toLowerCase().includes(kw)))
       .filter((x) => enabled === null || x.enabled === (enabled === 'true'))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id)
     return json(200, { items: all.slice((page - 1) * size, page * size).map(userDetail), total: all.length })
@@ -369,6 +371,7 @@ export async function demoFetch(req: Request): Promise<Response> {
       !displayName ||
       typeof b?.password !== 'string' ||
       b.password.length < 6 ||
+      (b.staffNo !== undefined && (typeof b.staffNo !== 'string' || b.staffNo.length > 20)) ||
       (b.isAdmin !== undefined && typeof b.isAdmin !== 'boolean') ||
       (b.factoryIds !== undefined && !validIds(b.factoryIds)) ||
       (b.menuIds !== undefined && !validIds(b.menuIds))
@@ -384,6 +387,7 @@ export async function demoFetch(req: Request): Promise<Response> {
       id: Math.max(0, ...users.map((x) => x.id)) + 1,
       username,
       displayName,
+      staffNo: str(b.staffNo),
       password: b.password,
       isAdmin,
       enabled: true,
@@ -410,7 +414,9 @@ export async function demoFetch(req: Request): Promise<Response> {
     if (userRoute[1] === 'PUT' && !userRoute[3]) {
       const b = await body(req)
       if (
-        !str(b?.displayName) ||
+        !b ||
+        !str(b.displayName) ||
+        (b.staffNo !== undefined && (typeof b.staffNo !== 'string' || b.staffNo.length > 20)) ||
         typeof b?.enabled !== 'boolean' ||
         typeof b.isAdmin !== 'boolean' ||
         !validIds(b.factoryIds) ||
@@ -421,6 +427,7 @@ export async function demoFetch(req: Request): Promise<Response> {
       if (!b.isAdmin && !b.factoryIds.length) return fail(400, 'invalid_request', '非管理员用户至少需要一个厂区')
       if (!validReferences(db, b.factoryIds, b.menuIds)) return fail(400, 'invalid_reference', '厂区或菜单不存在')
       target.displayName = str(b.displayName)
+      target.staffNo = str(b.staffNo)
       target.enabled = b.enabled
       target.isAdmin = b.isAdmin
       target.factoryIds = [...new Set(b.factoryIds)]
@@ -818,6 +825,10 @@ export async function demoFetch(req: Request): Promise<Response> {
           jobId: scan.jobId,
           jobName: scan.jobName,
           scannedBy: scan.scannedBy,
+          staffNo:
+            operators.find((operator) => operator.name === scan.scannedBy)?.staffNo ??
+            users.find((user) => user.displayName === scan.scannedBy)?.staffNo ??
+            '',
           qty: 1,
           area: labelById.get(scan.labelId)?.pieceArea ?? 0,
           lastScannedAt: scan.scannedAt,
@@ -828,6 +839,123 @@ export async function demoFetch(req: Request): Promise<Response> {
       .sort((a, b) => b.lastScannedAt.localeCompare(a.lastScannedAt))
       .slice(0, 8)
       .map((row) => ({ ...row, area: area([row.area]) }))
+    const todayMs = Date.parse(`${today}T00:00:00Z`)
+    const alerts: { value: S['DashboardAlert']; age: number }[] = []
+    const addAlert = (value: S['DashboardAlert'], age = 0) => alerts.push({ value, age })
+    const batchLink = (lotNo: string) => `/scheduling/batches?keyword=${encodeURIComponent(lotNo)}`
+    for (const batch of open) {
+      const lastScan = scans.filter((scan) => scan.batchId === batch.id).sort((a, b) => b.scannedAt.localeCompare(a.scannedAt))[0]
+      const currentJob = lastScan?.jobName ?? '未开工'
+      if (batch.requiredDate) {
+        const remaining = Math.round((Date.parse(`${batch.requiredDate}T00:00:00Z`) - todayMs) / 86400000)
+        if (remaining < 0) {
+          const days = -remaining
+          addAlert(
+            {
+              rule: 'overdue',
+              level: 'error',
+              title: `批次 ${batch.lotNo} 已逾期 ${days} 天`,
+              detail: `${batch.projectName} · 需求交期 ${batch.requiredDate} · 当前工序 ${currentJob}`,
+              link: batchLink(batch.lotNo),
+              lotNo: batch.lotNo,
+              days,
+            },
+            days,
+          )
+        } else if (remaining <= 3) {
+          addAlert(
+            {
+              rule: 'due_soon',
+              level: 'warning',
+              title: `批次 ${batch.lotNo} ${remaining === 0 ? '今天到期' : `${remaining} 天后到期`}`,
+              detail: `${batch.projectName} · 需求交期 ${batch.requiredDate} · 当前工序 ${currentJob}`,
+              link: batchLink(batch.lotNo),
+              lotNo: batch.lotNo,
+              days: remaining,
+            },
+            remaining,
+          )
+        }
+      }
+      if (batch.status === 'scheduled') {
+        const hasScan = scans.some((scan) => scan.batchId === batch.id)
+        if (batch.planSheetStart && batch.planSheetStart < today && !hasScan)
+          addAlert(
+            {
+              rule: 'idle',
+              level: 'warning',
+              title: `批次 ${batch.lotNo} 计划 ${batch.planSheetStart} 开工但未报工`,
+              detail: `${batch.projectName} · 计划开工 ${batch.planSheetStart}`,
+              link: batchLink(batch.lotNo),
+              lotNo: batch.lotNo,
+            },
+            Math.round((todayMs - Date.parse(`${batch.planSheetStart}T00:00:00Z`)) / 86400000),
+          )
+        if (batch.itemCount > 0 && !labels.some((label) => label.batchId === batch.id) && batch.planCutDate && batch.planCutDate < today)
+          addAlert(
+            {
+              rule: 'no_labels',
+              level: 'info',
+              title: `批次 ${batch.lotNo} 已过开料日期但未生成标签`,
+              detail: `${batch.projectName} · 计划开料 ${batch.planCutDate}`,
+              link: batchLink(batch.lotNo),
+              lotNo: batch.lotNo,
+            },
+            Math.round((todayMs - Date.parse(`${batch.planCutDate}T00:00:00Z`)) / 86400000),
+          )
+      }
+    }
+    const stalledByJob = new Map<number, { rows: S['Label'][]; maxHours: number }>()
+    for (const label of labels) {
+      const lastJobId = label.lastJobId
+      if (label.cancelled || !producingIds.has(label.batchId) || lastJobId == null || !label.lastScannedAt) continue
+      const wait = hours(now - Date.parse(label.lastScannedAt))
+      if (wait <= 24) continue
+      const group = stalledByJob.get(lastJobId) ?? { rows: [], maxHours: 0 }
+      group.rows.push(label)
+      group.maxHours = Math.max(group.maxHours, wait)
+      stalledByJob.set(lastJobId, group)
+    }
+    for (const [jobId, group] of stalledByJob) {
+      const jobName = jobs.find((job) => job.id === jobId)?.name ?? group.rows[0]!.lastJobName ?? ''
+      const fmt = group.maxHours < 48 ? `${Math.floor(group.maxHours)}h` : `${(group.maxHours / 24).toFixed(1)}d`
+      const lotNos = [...new Set(group.rows.map((label) => label.lotNo))]
+      addAlert(
+        {
+          rule: 'stalled',
+          level: group.maxHours > 72 ? 'error' : 'warning',
+          title: `${jobName} 有 ${group.rows.length} 件停留超 ${fmt}`,
+          detail: `涉及批次 ${lotNos.slice(0, 3).join('、')}${lotNos.length > 3 ? ' 等' : ''}`,
+          link: `/production/labels?jobId=${jobId}`,
+          jobId,
+          count: group.rows.length,
+          hours: roundHours(group.maxHours),
+        },
+        group.maxHours,
+      )
+    }
+    const oldNotes = unaccounted.filter((note) => Date.parse(`${note.deliveredAt}T00:00:00Z`) < now - 7 * 86400000)
+    if (oldNotes.length) {
+      const earliest = oldNotes.map((note) => note.deliveredAt).sort()[0]!
+      const age = hours(now - Date.parse(`${earliest}T00:00:00Z`))
+      addAlert(
+        {
+          rule: 'unaccounted',
+          level: 'warning',
+          title: `${oldNotes.length} 张发货单超 7 天未对账`,
+          detail: `最早 ${earliest}，合计 ${area(oldNotes.map((note) => note.area))} m²`,
+          link: '/finance/deliver-accounts',
+          count: oldNotes.length,
+          hours: roundHours(age),
+        },
+        age,
+      )
+    }
+    const severity = { error: 3, warning: 2, info: 1 }
+    const sortedAlerts = alerts
+      .sort((a, b) => severity[b.value.level] - severity[a.value.level] || b.age - a.age || a.value.title.localeCompare(b.value.title))
+      .slice(0, 20)
+      .map((entry) => entry.value)
     return json(200, {
       generatedAt: new Date().toISOString(),
       kpi: {
@@ -851,6 +979,7 @@ export async function demoFetch(req: Request): Promise<Response> {
       activeBatches,
       recentScans: [...scans].sort((a, b) => b.scannedAt.localeCompare(a.scannedAt) || b.id - a.id).slice(0, 8),
       recentActivity,
+      alerts: sortedAlerts,
     } satisfies S['Dashboard'])
   }
 
