@@ -885,6 +885,73 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /batch-valuations:
+    get:
+      operationId: listBatchValuations
+      tags: [finance]
+      description: |
+        One row per batch with its valuation (工程批次对账). Rows without a valuation yet come back with
+        unitPrice 0 / amount 0 / audited false. Pricing is deliberately simple for now: amount =
+        round(basisArea × unitPrice, 2) where basisArea is the batch's order area, component area or shipped
+        area depending on basis. (Spec open point: ingot-price adjustments and the 2× pricing area.)
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+        - { name: keyword, in: query, schema: { type: string }, description: "Matches lotNo / contractNo / projectName / customerName" }
+        - { name: contractId, in: query, schema: { type: integer, format: int64 } }
+        - { name: customerId, in: query, schema: { type: integer, format: int64 } }
+        - { name: audited, in: query, schema: { type: boolean } }
+        - { name: beginDate, in: query, schema: { type: string, format: date }, description: "Batch createdAt range" }
+        - { name: endDate, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchValuationPage" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /batches/{id}/valuation:
+    put:
+      operationId: setBatchValuation
+      tags: [finance]
+      description: Creates or replaces the batch valuation. 409 already_audited once audited.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BatchValuationInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchValuation" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /batches/{id}/valuation/audit:
+    post:
+      operationId: auditBatchValuation
+      tags: [finance]
+      description: Locks the valuation. 404 if the batch has no valuation yet; 409 already_audited.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchValuation" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1641,4 +1708,60 @@ components:
         unitPrice: { type: number, format: double, minimum: 0 }
         extraAmount: { type: number, format: double, default: 0 }
         extraRemark: { type: string, maxLength: 200 }
+        remark: { type: string, maxLength: 500 }
+
+    ValuationBasis:
+      type: string
+      enum: [order_area, item_area, delivered_area]
+      description: "Which area the unit price applies to: 订单面积 / 构件面积 / 已发货面积"
+
+    BatchValuation:
+      type: object
+      required: [batchId, lotNo, contractId, contractNo, customerId, customerName, projectName, thickness, color, orderQty, orderArea, itemArea, deliveredQty, deliveredArea, status, basis, basisArea, unitPrice, ingotPrice, amount, remark, audited, createdAt]
+      properties:
+        batchId: { type: integer, format: int64 }
+        lotNo: { type: string }
+        contractId: { type: integer, format: int64 }
+        contractNo: { type: string }
+        customerId: { type: integer, format: int64 }
+        customerName: { type: string }
+        projectName: { type: string }
+        thickness: { type: number, format: double }
+        color: { type: string }
+        orderQty: { type: integer }
+        orderArea: { type: number, format: double }
+        itemArea: { type: number, format: double }
+        deliveredQty: { type: integer, description: "Labels on delivery notes" }
+        deliveredArea: { type: number, format: double }
+        status: { $ref: "#/components/schemas/BatchStatus" }
+        basis: { $ref: "#/components/schemas/ValuationBasis" }
+        basisArea: { type: number, format: double, description: "Area the amount was computed from" }
+        unitPrice: { type: number, format: double, description: "元/m²" }
+        ingotPrice: { type: number, format: double, description: "下单铝锭价 元/吨，仅记录" }
+        amount: { type: number, format: double }
+        remark: { type: string }
+        audited: { type: boolean }
+        auditedBy: { type: string, nullable: true }
+        auditedAt: { type: string, format: date-time, nullable: true }
+        updatedBy: { type: string, nullable: true }
+        updatedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time, description: "Batch creation time (下单日期)" }
+
+    BatchValuationPage:
+      type: object
+      required: [items, total, totalAmount]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/BatchValuation" }
+        total: { type: integer, format: int64 }
+        totalAmount: { type: number, format: double, description: "Σ amount over the whole filter, not just the page" }
+
+    BatchValuationInput:
+      type: object
+      required: [basis, unitPrice]
+      properties:
+        basis: { $ref: "#/components/schemas/ValuationBasis" }
+        unitPrice: { type: number, format: double, minimum: 0 }
+        ingotPrice: { type: number, format: double, minimum: 0, default: 0 }
         remark: { type: string, maxLength: 500 }

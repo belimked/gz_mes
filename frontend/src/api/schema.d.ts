@@ -621,6 +621,62 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/batch-valuations': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * @description One row per batch with its valuation (工程批次对账). Rows without a valuation yet come back with
+     *     unitPrice 0 / amount 0 / audited false. Pricing is deliberately simple for now: amount =
+     *     round(basisArea × unitPrice, 2) where basisArea is the batch's order area, component area or shipped
+     *     area depending on basis. (Spec open point: ingot-price adjustments and the 2× pricing area.)
+     */
+    get: operations['listBatchValuations']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/batches/{id}/valuation': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /** @description Creates or replaces the batch valuation. 409 already_audited once audited. */
+    put: operations['setBatchValuation']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/batches/{id}/valuation/audit': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** @description Locks the valuation. 404 if the batch has no valuation yet; 409 already_audited. */
+    post: operations['auditBatchValuation']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -1373,6 +1429,88 @@ export interface components {
        */
       extraAmount: number
       extraRemark?: string
+      remark?: string
+    }
+    /**
+     * @description Which area the unit price applies to: 订单面积 / 构件面积 / 已发货面积
+     * @enum {string}
+     */
+    ValuationBasis: 'order_area' | 'item_area' | 'delivered_area'
+    BatchValuation: {
+      /** Format: int64 */
+      batchId: number
+      lotNo: string
+      /** Format: int64 */
+      contractId: number
+      contractNo: string
+      /** Format: int64 */
+      customerId: number
+      customerName: string
+      projectName: string
+      /** Format: double */
+      thickness: number
+      color: string
+      orderQty: number
+      /** Format: double */
+      orderArea: number
+      /** Format: double */
+      itemArea: number
+      /** @description Labels on delivery notes */
+      deliveredQty: number
+      /** Format: double */
+      deliveredArea: number
+      status: components['schemas']['BatchStatus']
+      basis: components['schemas']['ValuationBasis']
+      /**
+       * Format: double
+       * @description Area the amount was computed from
+       */
+      basisArea: number
+      /**
+       * Format: double
+       * @description 元/m²
+       */
+      unitPrice: number
+      /**
+       * Format: double
+       * @description 下单铝锭价 元/吨，仅记录
+       */
+      ingotPrice: number
+      /** Format: double */
+      amount: number
+      remark: string
+      audited: boolean
+      auditedBy?: string | null
+      /** Format: date-time */
+      auditedAt?: string | null
+      updatedBy?: string | null
+      /** Format: date-time */
+      updatedAt?: string | null
+      /**
+       * Format: date-time
+       * @description Batch creation time (下单日期)
+       */
+      createdAt: string
+    }
+    BatchValuationPage: {
+      items: components['schemas']['BatchValuation'][]
+      /** Format: int64 */
+      total: number
+      /**
+       * Format: double
+       * @description Σ amount over the whole filter, not just the page
+       */
+      totalAmount: number
+    }
+    BatchValuationInput: {
+      basis: components['schemas']['ValuationBasis']
+      /** Format: double */
+      unitPrice: number
+      /**
+       * Format: double
+       * @default 0
+       */
+      ingotPrice: number
       remark?: string
     }
   }
@@ -2642,6 +2780,94 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['DeliverAccount']
+        }
+      }
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  listBatchValuations: {
+    parameters: {
+      query?: {
+        page?: number
+        size?: number
+        /** @description Matches lotNo / contractNo / projectName / customerName */
+        keyword?: string
+        contractId?: number
+        customerId?: number
+        audited?: boolean
+        /** @description Batch createdAt range */
+        beginDate?: string
+        endDate?: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['BatchValuationPage']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+    }
+  }
+  setBatchValuation: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BatchValuationInput']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['BatchValuation']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  auditBatchValuation: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['BatchValuation']
         }
       }
       401: components['responses']['Error']
