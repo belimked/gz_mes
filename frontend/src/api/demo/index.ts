@@ -706,11 +706,15 @@ export async function demoFetch(req: Request): Promise<Response> {
     const scanTrend: S['DailyScan'][] = Array.from({ length: days }, (_, index) => {
       const date = new Date(startMs + index * 86400000).toISOString().slice(0, 10)
       const rows = scans.filter((scan) => scan.scannedAt.slice(0, 10) === date)
+      const dailyNotes = notes.filter((note) => note.deliveredAt === date)
       return {
         date,
         qty: rows.length,
         area: area(rows.map((scan) => labelById.get(scan.labelId)?.pieceArea ?? 0)),
-        deliveredQty: notes.filter((note) => note.deliveredAt === date).reduce((sum, note) => sum + note.qty, 0),
+        deliveredQty: dailyNotes.reduce((sum, note) => sum + note.qty, 0),
+        deliveredArea: area(dailyNotes.map((note) => note.area)),
+        activeBatches: new Set(rows.map((scan) => scan.batchId)).size,
+        doneBatches: batches.filter((batch) => batch.status === 'done' && batch.updatedAt.slice(0, 10) === date).length,
       }
     })
     const byCustomer = new Map<number, S['CustomerArea']>()

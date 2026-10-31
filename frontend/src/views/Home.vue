@@ -7,7 +7,7 @@ import type { EChartsOption } from 'echarts'
 import { call, client, errorMessage, isDemo, type Schemas } from '@/api/client'
 import { resetDemo } from '@/api/demo'
 import PageCard from '@/components/PageCard.vue'
-import KpiCard from '@/components/KpiCard.vue'
+import SparkKpiCard from '@/components/SparkKpiCard.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import CodeText from '@/components/CodeText.vue'
 import EChart from '@/components/EChart.vue'
@@ -52,27 +52,72 @@ function reset() {
 function openBatch(lotNo: string) {
   void router.push({ path: '/scheduling/batches', query: { keyword: lotNo } })
 }
+function sum(values: number[]) {
+  return values.reduce((total, value) => total + value, 0)
+}
+function pct(recent: number, prev: number): number | undefined {
+  return prev === 0 ? undefined : ((recent - prev) / prev) * 100
+}
 const kpis = computed(() => {
-  const k = dashboard.value?.kpi
-  if (!k) return []
+  const data = dashboard.value
+  if (!data) return []
+  const k = data.kpi
+  const trend = data.scanTrend
+  const active = trend.map((day) => day.activeBatches)
+  const qty = trend.map((day) => day.qty)
+  const delivered = trend.map((day) => day.deliveredQty)
+  const done = trend.map((day) => day.doneBatches)
   return [
-    { title: '生产中批次', value: k.inProduction, unit: '批', sub: `待排产 ${k.pendingSchedule} · 今日完工 ${k.doneToday}`, icon: '◈' },
-    { title: '今日报工', value: k.todayScanQty, unit: '件', sub: `${k.todayScanArea.toFixed(2)} m²`, icon: '▣' },
+    {
+      title: '生产中批次',
+      icon: '◈',
+      color: '#1677ff',
+      value: String(k.inProduction),
+      unit: '批',
+      series: active,
+      delta: pct(sum(active.slice(-7)) / 7, sum(active.slice(-14, -7)) / 7),
+      footer: [
+        { label: '待排产', value: String(k.pendingSchedule) },
+        { label: '今日完工', value: String(k.doneToday) },
+      ],
+    },
+    {
+      title: '今日报工',
+      icon: '▣',
+      color: '#52c41a',
+      value: String(k.todayScanQty),
+      unit: '件',
+      series: qty,
+      delta: qty.length >= 2 ? pct(qty[qty.length - 1]!, qty[qty.length - 2]!) : undefined,
+      footer: [
+        { label: '面积', value: `${k.todayScanArea.toFixed(1)} m²` },
+        { label: '14 天合计', value: `${sum(qty)} 件` },
+      ],
+    },
     {
       title: '近 14 天发货',
-      value: k.deliveredQty,
-      unit: '件',
-      sub: `${k.deliveredArea.toFixed(2)} m²`,
-      note: `未对账 ${k.unaccountedNotes} 单 · ${k.unaccountedArea.toFixed(2)} m²`,
       icon: '▤',
+      color: '#fa8c16',
+      value: String(k.deliveredQty),
+      unit: '件',
+      series: delivered,
+      delta: pct(sum(delivered.slice(-7)), sum(delivered.slice(-14, -7))),
+      footer: [
+        { label: '面积', value: `${k.deliveredArea.toFixed(1)} m²` },
+        { label: '未对账', value: `${k.unaccountedNotes} 单` },
+      ],
     },
     {
       title: '加急/逾期',
-      value: k.urgentOpen,
-      unit: '加急',
-      sub: `逾期 ${k.overdueOpen}`,
       icon: '!',
-      tone: k.overdueOpen > 0 ? ('error' as const) : undefined,
+      color: '#ff4d4f',
+      value: String(k.urgentOpen),
+      unit: '加急',
+      series: done,
+      footer: [
+        { label: '逾期', value: String(k.overdueOpen) },
+        { label: '14 天完工', value: `${sum(done)} 批` },
+      ],
     },
   ]
 })
@@ -170,7 +215,7 @@ onMounted(() => {
     <a-skeleton v-if="loading && !dashboard" active :paragraph="{ rows: 12 }" />
     <template v-else-if="dashboard">
       <a-row :gutter="[16, 16]">
-        <a-col v-for="item in kpis" :key="item.title" :xs="24" :sm="12" :xl="6"><KpiCard v-bind="item" /></a-col>
+        <a-col v-for="item in kpis" :key="item.title" :xs="24" :sm="12" :xl="6"><SparkKpiCard v-bind="item" /></a-col>
       </a-row>
       <PageCard title="铝单板 11 大工序流转全景看板">
         <template #extra>
