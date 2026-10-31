@@ -1,11 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
-const placeholder = () => import('@/views/Placeholder.vue')
-
-// Planned modules: menus exist so navigation and permissions can already be tested.
-const planned: [string, string][] = [['finance/batch-valuation', '工程批次对账']]
-
 const children: RouteRecordRaw[] = [
   { path: '', name: 'home', component: () => import('@/views/Home.vue'), meta: { title: '首页', public: true } },
   {
@@ -57,6 +52,12 @@ const children: RouteRecordRaw[] = [
     meta: { title: '发货查询', group: '发货管理' },
   },
   {
+    path: 'finance/batch-valuation',
+    name: 'batch-valuation',
+    component: () => import('@/views/finance/BatchValuation.vue'),
+    meta: { title: '工程批次对账', group: '财务管理' },
+  },
+  {
     path: 'finance/deliver-accounts',
     name: 'deliver-accounts',
     component: () => import('@/views/finance/DeliverAccounts.vue'),
@@ -74,7 +75,6 @@ const children: RouteRecordRaw[] = [
     component: () => import('@/views/system/Users.vue'),
     meta: { title: '用户管理', group: '系统管理' },
   },
-  ...planned.map(([path, title]): RouteRecordRaw => ({ path, component: placeholder, meta: { title } })),
 ]
 
 export const routes: RouteRecordRaw[] = [

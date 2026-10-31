@@ -7,6 +7,7 @@ import {
   menus,
   seedBatchItems,
   seedBatches,
+  seedBatchValuations,
   seedContracts,
   seedCustomers,
   seedHandovers,
@@ -17,12 +18,13 @@ import {
   seedScans,
   users as seedUsers,
   type DemoUser,
+  type DemoBatchValuation,
 } from './data'
 
 type S = components['schemas']
 
 interface DemoDB {
-  version: 6
+  version: 7
   factories: S['Factory'][]
   users: DemoUser[]
   nextId: number
@@ -36,6 +38,7 @@ interface DemoDB {
   customers: S['Customer'][]
   contracts: S['Contract'][]
   batches: S['Batch'][]
+  batchValuations: DemoBatchValuation[]
   batchItems: S['BatchItem'][]
   labels: S['Label'][]
   scans: S['Scan'][]
@@ -78,7 +81,7 @@ function fresh(): DemoDB {
     for (const note of deliveryNotes) if (note.accountId === oldId) note.accountId = account.id
   }
   return {
-    version: 6,
+    version: 7,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
     nextId,
@@ -92,6 +95,7 @@ function fresh(): DemoDB {
     customers,
     contracts,
     batches,
+    batchValuations: seedBatchValuations(batches),
     batchItems,
     labels,
     scans,
@@ -103,12 +107,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 6) return parsed
+      if (parsed?.version === 7) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 6) memory = fresh()
+  if (memory?.version !== 7) memory = fresh()
   return memory
 }
 
@@ -224,6 +228,41 @@ const docCodes = (value: unknown): string[] | null =>
     ? [...new Set(value.map((code: string) => code.trim()))]
     : null
 const docArea = (labels: S['Label'][]) => Number(labels.reduce((sum, label) => sum + label.pieceArea, 0).toFixed(4))
+
+function valuationRow(db: DemoDB, batch: S['Batch']): S['BatchValuation'] {
+  const shippedIds = new Set(db.deliveryNoteLabels.map((link) => link.labelId))
+  const delivered = db.labels.filter((label) => label.batchId === batch.id && shippedIds.has(label.id))
+  const valuation = db.batchValuations.find((row) => row.batchId === batch.id)
+  return {
+    batchId: batch.id,
+    lotNo: batch.lotNo,
+    contractId: batch.contractId,
+    contractNo: batch.contractNo,
+    customerId: batch.customerId,
+    customerName: batch.customerName,
+    projectName: batch.projectName,
+    thickness: batch.thickness,
+    color: batch.color,
+    orderQty: batch.orderQty,
+    orderArea: batch.orderArea,
+    itemArea: batch.itemArea,
+    deliveredQty: delivered.length,
+    deliveredArea: docArea(delivered),
+    status: batch.status,
+    basis: valuation?.basis ?? 'order_area',
+    basisArea: valuation?.basisArea ?? batch.orderArea,
+    unitPrice: valuation?.unitPrice ?? 0,
+    ingotPrice: valuation?.ingotPrice ?? 0,
+    amount: valuation?.amount ?? 0,
+    remark: valuation?.remark ?? '',
+    audited: valuation?.audited ?? false,
+    auditedBy: valuation?.auditedBy ?? null,
+    auditedAt: valuation?.auditedAt ?? null,
+    updatedBy: valuation?.updatedBy ?? null,
+    updatedAt: valuation?.updatedAt ?? null,
+    createdAt: batch.createdAt,
+  }
+}
 
 const dateStart = (value: string) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return NaN
@@ -674,6 +713,98 @@ export async function demoFetch(req: Request): Promise<Response> {
       )
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id)
     return json(200, { items: all.slice((page - 1) * size, page * size), total: all.length })
+  }
+
+  if (route === 'GET /batch-valuations') {
+    const page = Number(url.searchParams.get('page') ?? 1)
+    const size = Number(url.searchParams.get('size') ?? 20)
+    if (!validPage(page, size)) return fail(400, 'invalid_request', 'page/size 参数不合法')
+    const contractId = url.searchParams.get('contractId')
+    const customerId = url.searchParams.get('customerId')
+    if (!validId(contractId) || !validId(customerId)) return fail(400, 'invalid_request', '筛选参数不合法')
+    const audited = url.searchParams.get('audited')
+    if (audited !== null && audited !== 'true' && audited !== 'false') return fail(400, 'invalid_request', '审核参数不合法')
+    const begin = url.searchParams.get('beginDate')
+    const end = url.searchParams.get('endDate')
+    if (
+      (begin !== null && Number.isNaN(dateStart(begin))) ||
+      (end !== null && Number.isNaN(dateStart(end))) ||
+      (begin && end && begin > end)
+    )
+      return fail(400, 'invalid_request', '日期范围无效')
+    const kw = (url.searchParams.get('keyword') ?? '').trim().toLowerCase()
+    const all = db.batches
+      .filter((batch) => inScope(u, batch.factoryId))
+      .filter(
+        (batch) => !kw || [batch.lotNo, batch.contractNo, batch.projectName, batch.customerName].some((s) => s.toLowerCase().includes(kw)),
+      )
+      .filter((batch) => contractId === null || batch.contractId === Number(contractId))
+      .filter((batch) => customerId === null || batch.customerId === Number(customerId))
+      .filter((batch) => (!begin || batch.createdAt.slice(0, 10) >= begin) && (!end || batch.createdAt.slice(0, 10) <= end))
+      .filter(
+        (batch) =>
+          audited === null || (db.batchValuations.find((row) => row.batchId === batch.id)?.audited ?? false) === (audited === 'true'),
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id)
+    const rows = all.map((batch) => valuationRow(db, batch))
+    return json(200, {
+      items: rows.slice((page - 1) * size, page * size),
+      total: rows.length,
+      totalAmount: Math.round(rows.reduce((sum, row) => sum + row.amount, 0) * 100) / 100,
+    } satisfies S['BatchValuationPage'])
+  }
+
+  const valuationRoute = /^(PUT|POST) \/batches\/(\d+)\/valuation(\/audit)?$/.exec(route)
+  if (valuationRoute) {
+    const batch = db.batches.find((x) => x.id === Number(valuationRoute[2]) && inScope(u, x.factoryId))
+    if (!batch) return fail(404, 'not_found', '批次不存在')
+    const existing = db.batchValuations.find((row) => row.batchId === batch.id)
+    if (valuationRoute[1] === 'PUT' && !valuationRoute[3]) {
+      if (existing?.audited) return fail(409, 'already_audited', '计价已审核')
+      const b = await body(req)
+      if (
+        !b ||
+        Array.isArray(b) ||
+        !['order_area', 'item_area', 'delivered_area'].includes(b.basis as string) ||
+        typeof b.unitPrice !== 'number' ||
+        !Number.isFinite(b.unitPrice) ||
+        b.unitPrice < 0 ||
+        (b.ingotPrice !== undefined && (typeof b.ingotPrice !== 'number' || !Number.isFinite(b.ingotPrice) || b.ingotPrice < 0)) ||
+        (b.remark !== undefined && (typeof b.remark !== 'string' || b.remark.length > 500))
+      )
+        return fail(400, 'invalid_request', '计价参数不合法')
+      const basis = b.basis as S['ValuationBasis']
+      const basisArea =
+        basis === 'order_area' ? batch.orderArea : basis === 'item_area' ? batch.itemArea : valuationRow(db, batch).deliveredArea
+      const now = new Date().toISOString()
+      const value: DemoBatchValuation = {
+        batchId: batch.id,
+        basis,
+        basisArea,
+        unitPrice: b.unitPrice,
+        ingotPrice: (b.ingotPrice ?? 0) as number,
+        amount: Math.round(basisArea * b.unitPrice * 100) / 100,
+        remark: b.remark === undefined ? '' : (b.remark as string),
+        audited: false,
+        auditedBy: null,
+        auditedAt: null,
+        updatedBy: u.displayName,
+        updatedAt: now,
+      }
+      if (existing) Object.assign(existing, value)
+      else db.batchValuations.push(value)
+      save(db)
+      return json(200, valuationRow(db, batch))
+    }
+    if (valuationRoute[1] === 'POST' && valuationRoute[3] === '/audit') {
+      if (!existing) return fail(404, 'not_found', '该批次尚未计价')
+      if (existing.audited) return fail(409, 'already_audited', '计价已审核')
+      existing.audited = true
+      existing.auditedBy = u.displayName
+      existing.auditedAt = new Date().toISOString()
+      save(db)
+      return json(200, valuationRow(db, batch))
+    }
   }
 
   if (route === 'POST /batches') {

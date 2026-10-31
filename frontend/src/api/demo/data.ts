@@ -5,6 +5,16 @@ type S = components['schemas']
 
 export type DemoUser = S['UserDetail'] & { password: string }
 
+export type DemoBatchValuation = Pick<
+  S['BatchValuation'],
+  'batchId' | 'basis' | 'basisArea' | 'unitPrice' | 'ingotPrice' | 'amount' | 'remark' | 'audited'
+> & {
+  auditedBy: string | null
+  auditedAt: string | null
+  updatedBy: string | null
+  updatedAt: string | null
+}
+
 export const DEMO_ACCOUNTS = [
   { username: 'admin', password: 'admin123', note: '管理员，可看全部厂区' },
   { username: 'waixie', password: 'demo123', note: '外协厂账号，只能看外协厂A' },
@@ -205,6 +215,35 @@ export function seedBatches(contracts: S['Contract'][]): S['Batch'][] {
     batch.itemArea = Number(rows.reduce((sum, item) => sum + item.pieceArea * item.qty, 0).toFixed(4))
   }
   return batches
+}
+
+export function seedBatchValuations(batches: S['Batch'][]): DemoBatchValuation[] {
+  let done = 0
+  let producing = 0
+  return batches.flatMap((batch) => {
+    const audited = batch.status === 'done'
+    if (!audited && (batch.status !== 'in_production' || producing++ % 2 !== 0)) return []
+    const basis: S['ValuationBasis'] = audited ? 'order_area' : 'item_area'
+    const basisArea = audited ? batch.orderArea : batch.itemArea
+    const unitPrice = audited ? [180, 200, 220][done++ % 3]! : 190
+    const now = '2026-10-28T08:00:00.000Z'
+    return [
+      {
+        batchId: batch.id,
+        basis,
+        basisArea,
+        unitPrice,
+        ingotPrice: audited ? 19800 : 0,
+        amount: Math.round(basisArea * unitPrice * 100) / 100,
+        remark: '',
+        audited,
+        auditedBy: audited ? '演示管理员' : null,
+        auditedAt: audited ? now : null,
+        updatedBy: '演示管理员',
+        updatedAt: now,
+      },
+    ]
+  })
 }
 
 export function seedBatchItems(batches: S['Batch'][]): S['BatchItem'][] {
