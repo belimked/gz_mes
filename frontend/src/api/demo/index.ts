@@ -27,7 +27,7 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 13
+  version: 14
   factories: S['Factory'][]
   users: DemoUser[]
   nextId: number
@@ -87,7 +87,7 @@ function fresh(): DemoDB {
   const plans = seedPlans(batches, jobs, scans)
   for (const plan of plans) plan.id = nextId++
   return {
-    version: 13,
+    version: 14,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
     nextId,
@@ -114,12 +114,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 13) return parsed
+      if (parsed?.version === 14) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 13) memory = fresh()
+  if (memory?.version !== 14) memory = fresh()
   return memory
 }
 
@@ -1797,6 +1797,208 @@ export async function demoFetch(req: Request): Promise<Response> {
       save(db)
       return json(200, items)
     }
+  }
+
+  if (route === 'GET /reports/batch-jobs') {
+    const q = url.searchParams
+    const page = Number(q.get('page') ?? 1)
+    const size = Number(q.get('size') ?? 20)
+    if (!validPage(page, size)) return fail(400, 'invalid_request', 'page/size 参数不合法')
+    const mode = q.get('mode')
+    if (mode !== 'daily' && mode !== 'progress') return fail(400, 'invalid_request', '报表类型不合法')
+    const today = new Date().toISOString().slice(0, 10)
+    const from = q.get('from') ?? (mode === 'daily' ? today : null)
+    const to = q.get('to') ?? (mode === 'daily' ? today : null)
+    if ((from !== null && Number.isNaN(dateStart(from))) || (to !== null && Number.isNaN(dateStart(to))) || (from && to && from > to))
+      return fail(400, 'invalid_request', '日期范围无效')
+    const status = q.get('status')
+    if (status !== null && !['pending', 'scheduled', 'in_production', 'done'].includes(status))
+      return fail(400, 'invalid_request', '状态参数不合法')
+    const jobId = q.get('jobId')
+    const outsourceFactoryId = q.get('outsourceFactoryId')
+    if (!validId(jobId) || !validId(outsourceFactoryId)) return fail(400, 'invalid_request', '参数不合法')
+    const scanned = q.get('scanned')
+    if (scanned !== null && scanned !== 'true' && scanned !== 'false') return fail(400, 'invalid_request', '扫描参数不合法')
+    const workshop = q.get('workshop')
+    const kw = (q.get('keyword') ?? '').trim().toLowerCase()
+    const daily = mode === 'daily'
+    const inWindow = (at: string) => {
+      if (!daily) return true
+      const d = at.slice(0, 10)
+      return (!from || d >= from) && (!to || d <= to)
+    }
+    const activeLabels = new Map(db.labels.filter((label) => !label.cancelled).map((label) => [label.id, label]))
+    const counted = db.scans.filter((scan) => activeLabels.has(scan.labelId) && inWindow(scan.scannedAt))
+    const byBatch = new Map<number, S['Scan'][]>()
+    for (const scan of counted) byBatch.set(scan.batchId, [...(byBatch.get(scan.batchId) ?? []), scan])
+    const jobSeq = new Map(jobs.map((job) => [job.id, job.seq]))
+    const rowsAll = db.batches
+      .filter((batch) => inScope(u, batch.factoryId))
+      .filter((batch) => daily || ((!from || batch.createdAt.slice(0, 10) >= from) && (!to || batch.createdAt.slice(0, 10) <= to)))
+      .filter((batch) => !daily || byBatch.has(batch.id))
+      .filter((batch) => status === null || batch.status === status)
+      .filter((batch) => !workshop || batch.workshop === workshop)
+      .filter((batch) => outsourceFactoryId === null || batch.outsourceFactoryId === Number(outsourceFactoryId))
+      .filter((batch) => jobId === null || (byBatch.get(batch.id) ?? []).some((scan) => scan.jobId === Number(jobId)))
+      .filter((batch) => scanned === null || byBatch.has(batch.id) === (scanned === 'true'))
+      .filter(
+        (batch) =>
+          !kw || [batch.lotNo, batch.projectName, batch.customerName, batch.clientOrderNo].some((s) => s.toLowerCase().includes(kw)),
+      )
+      .map((batch): S['BatchJobRow'] => {
+        const labelQty = [...activeLabels.values()].filter((label) => label.batchId === batch.id).length
+        const scans = byBatch.get(batch.id) ?? []
+        const allScans = db.scans.filter((scan) => scan.batchId === batch.id && activeLabels.has(scan.labelId))
+        const furthest = allScans.reduce<S['Scan'] | null>(
+          (best, scan) => (!best || jobSeq.get(scan.jobId)! > jobSeq.get(best.jobId)! ? scan : best),
+          null,
+        )
+        const cells = jobs.map((job): S['JobCell'] => {
+          const hits = scans.filter((scan) => scan.jobId === job.id)
+          const area = hits.reduce((sum, scan) => sum + activeLabels.get(scan.labelId)!.pieceArea, 0)
+          return {
+            jobId: job.id,
+            qty: hits.length,
+            area: Number(area.toFixed(4)),
+            pct: labelQty ? Math.floor((hits.length * 100) / labelQty) : 0,
+          }
+        })
+        return {
+          batchId: batch.id,
+          lotNo: batch.lotNo,
+          projectName: batch.projectName,
+          customerName: batch.customerName,
+          clientOrderNo: batch.clientOrderNo,
+          thickness: batch.thickness,
+          color: batch.color,
+          status: batch.status,
+          urgency: batch.urgency,
+          workshop: batch.workshop,
+          outsourceFactoryName: batch.outsourceFactoryName ?? null,
+          requiredDate: batch.requiredDate ?? null,
+          itemQty: batch.itemQty,
+          itemArea: batch.itemArea,
+          labelQty,
+          currentJobName: furthest?.jobName ?? '',
+          lastScanAt: scans.reduce<string | null>((max, scan) => (max === null || scan.scannedAt > max ? scan.scannedAt : max), null),
+          cells,
+        }
+      })
+    rowsAll.sort((a, b) =>
+      daily
+        ? (b.lastScanAt ?? '').localeCompare(a.lastScanAt ?? '') || b.batchId - a.batchId
+        : (a.requiredDate ?? '9999').localeCompare(b.requiredDate ?? '9999') || b.batchId - a.batchId,
+    )
+    const labelQty = rowsAll.reduce((sum, row) => sum + row.labelQty, 0)
+    const summaryCells = jobs.map((job, k): S['JobCell'] => {
+      const qty = rowsAll.reduce((sum, row) => sum + row.cells[k]!.qty, 0)
+      const area = rowsAll.reduce((sum, row) => sum + row.cells[k]!.area, 0)
+      return { jobId: job.id, qty, area: Number(area.toFixed(4)), pct: labelQty ? Math.floor((qty * 100) / labelQty) : 0 }
+    })
+    return json(200, {
+      jobs,
+      items: rowsAll.slice((page - 1) * size, page * size),
+      total: rowsAll.length,
+      page,
+      size,
+      summary: {
+        batches: rowsAll.length,
+        itemQty: rowsAll.reduce((sum, row) => sum + row.itemQty, 0),
+        itemArea: Number(rowsAll.reduce((sum, row) => sum + row.itemArea, 0).toFixed(4)),
+        labelQty,
+        cells: summaryCells,
+      },
+    } satisfies S['BatchJobReport'])
+  }
+
+  if (route === 'GET /reports/staff-output') {
+    const q = url.searchParams
+    const page = Number(q.get('page') ?? 1)
+    const size = Number(q.get('size') ?? 20)
+    if (!validPage(page, size)) return fail(400, 'invalid_request', 'page/size 参数不合法')
+    const today = new Date().toISOString().slice(0, 10)
+    const from = q.get('from') ?? today
+    const to = q.get('to') ?? today
+    if (Number.isNaN(dateStart(from)) || Number.isNaN(dateStart(to)) || from > to) return fail(400, 'invalid_request', '日期范围无效')
+    const jobId = q.get('jobId')
+    if (!validId(jobId)) return fail(400, 'invalid_request', '工序参数不合法')
+    const detail = q.get('detail')
+    if (detail !== null && detail !== 'true' && detail !== 'false') return fail(400, 'invalid_request', 'detail 参数不合法')
+    const staffKw = (q.get('staff') ?? '').trim().toLowerCase()
+    const batchKw = (q.get('batchKeyword') ?? '').trim().toLowerCase()
+    const isDetail = detail === 'true'
+    const batchById = new Map(db.batches.map((batch) => [batch.id, batch]))
+    const activeLabels = new Map(db.labels.filter((label) => !label.cancelled).map((label) => [label.id, label]))
+    const itemById = new Map(db.batchItems.map((item) => [item.id, item]))
+    const operatorByName = new Map(operators.map((op, index) => [op.name, { id: 1000 + index, ...op }]))
+    const groups = new Map<string, S['StaffOutputRow']>()
+    for (const scan of db.scans) {
+      const batch = batchById.get(scan.batchId)
+      const label = activeLabels.get(scan.labelId)
+      if (!batch || !label || !inScope(u, batch.factoryId)) continue
+      const day = scan.scannedAt.slice(0, 10)
+      if (day < from || day > to) continue
+      if (jobId !== null && scan.jobId !== Number(jobId)) continue
+      const op = operatorByName.get(scan.scannedBy) ?? { id: 0, name: scan.scannedBy, staffNo: '' }
+      if (staffKw && ![op.name, op.staffNo].some((s) => s.toLowerCase().includes(staffKw))) continue
+      if (batchKw && ![batch.lotNo, batch.projectName].some((s) => s.toLowerCase().includes(batchKw))) continue
+      const item = itemById.get(label.batchItemId)
+      const key = `${op.id}:${scan.jobId}${isDetail ? `:${batch.id}` : ''}`
+      const row = groups.get(key) ?? {
+        userId: op.id,
+        staffNo: op.staffNo,
+        displayName: op.name,
+        jobId: scan.jobId,
+        jobName: scan.jobName,
+        batchId: isDetail ? batch.id : null,
+        lotNo: isDetail ? batch.lotNo : null,
+        projectName: isDetail ? batch.projectName : null,
+        qty: 0,
+        area: 0,
+        sprayArea: 0,
+        weldLine: 0,
+        firstScanAt: scan.scannedAt,
+        lastScanAt: scan.scannedAt,
+      }
+      row.qty++
+      row.area += label.pieceArea
+      row.sprayArea += item?.sprayingArea ?? 0
+      row.weldLine += item?.weldLine ?? 0
+      if (scan.scannedAt < row.firstScanAt) row.firstScanAt = scan.scannedAt
+      if (scan.scannedAt > row.lastScanAt) row.lastScanAt = scan.scannedAt
+      groups.set(key, row)
+    }
+    const jobSeq = new Map(jobs.map((job) => [job.id, job.seq]))
+    const all = [...groups.values()]
+      .map((row) => ({
+        ...row,
+        area: Number(row.area.toFixed(4)),
+        sprayArea: Number(row.sprayArea.toFixed(4)),
+        weldLine: Number(row.weldLine.toFixed(2)),
+      }))
+      .sort(
+        (a, b) =>
+          b.qty - a.qty ||
+          a.staffNo.localeCompare(b.staffNo) ||
+          a.userId - b.userId ||
+          jobSeq.get(a.jobId)! - jobSeq.get(b.jobId)! ||
+          (a.lotNo ?? '').localeCompare(b.lotNo ?? ''),
+      )
+    const sum = (pick: (row: S['StaffOutputRow']) => number) => all.reduce((acc, row) => acc + pick(row), 0)
+    return json(200, {
+      items: all.slice((page - 1) * size, page * size),
+      total: all.length,
+      page,
+      size,
+      summary: {
+        rows: all.length,
+        staff: new Set(all.map((row) => row.userId)).size,
+        qty: sum((row) => row.qty),
+        area: Number(sum((row) => row.area).toFixed(4)),
+        sprayArea: Number(sum((row) => row.sprayArea).toFixed(4)),
+        weldLine: Number(sum((row) => row.weldLine).toFixed(2)),
+      },
+    } satisfies S['StaffOutputReport'])
   }
 
   if (route === 'GET /plans') {

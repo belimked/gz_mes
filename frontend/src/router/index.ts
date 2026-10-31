@@ -82,6 +82,24 @@ const children: RouteRecordRaw[] = [
     meta: { title: '发货对账查询', group: '财务管理' },
   },
   {
+    path: 'report/batch-daily',
+    name: 'report-batch-daily',
+    component: () => import('@/views/report/BatchDaily.vue'),
+    meta: { title: '工程日报', group: '生产报表' },
+  },
+  {
+    path: 'report/batch-progress',
+    name: 'report-batch-progress',
+    component: () => import('@/views/report/BatchProgress.vue'),
+    meta: { title: '工程进度', group: '生产报表' },
+  },
+  {
+    path: 'report/staff-output',
+    name: 'report-staff-output',
+    component: () => import('@/views/report/StaffOutput.vue'),
+    meta: { title: '员工产量', group: '生产报表' },
+  },
+  {
     path: 'system/factories',
     name: 'factories',
     component: () => import('@/views/system/Factories.vue'),

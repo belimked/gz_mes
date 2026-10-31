@@ -72,6 +72,10 @@ export const menus: { id: number; parentId: number | null; title: string; path: 
   { id: 900, parentId: null, title: '财务管理', path: '/finance', icon: 'account-book' },
   { id: 901, parentId: 900, title: '工程批次对账', path: '/finance/batch-valuation', icon: 'calculator' },
   { id: 902, parentId: 900, title: '发货对账查询', path: '/finance/deliver-accounts', icon: 'audit' },
+  { id: 1000, parentId: null, title: '生产报表', path: '/report', icon: 'bar-chart' },
+  { id: 1001, parentId: 1000, title: '工程日报', path: '/report/batch-daily', icon: 'file-text' },
+  { id: 1002, parentId: 1000, title: '工程进度', path: '/report/batch-progress', icon: 'line-chart' },
+  { id: 1003, parentId: 1000, title: '员工产量', path: '/report/staff-output', icon: 'team' },
 ]
 
 export const users: DemoUser[] = [
@@ -373,7 +377,7 @@ export function seedScans(batches: S['Batch'][], labels: S['Label'][], jobList: 
   ]
   return batches.flatMap((batch, index) => {
     const scannedBy = operators[index % operators.length]!.name
-    const start = today - (index === 9 ? 6 : 2 + (index % 10)) * 86400000 + 8 * 3600000 + (index % 5) * 17 * 60000
+    const start = today - (index === 9 ? 6 : index === 14 ? 1 : 2 + (index % 10)) * 86400000 + 8 * 3600000 + (index % 5) * 17 * 60000
     const count = batch.status === 'done' ? jobList.length : batch.status === 'in_production' ? [1, 4, 6, 8, 9, 10, 3][index - 8]! : 0
     let stepMs = start
     const stepTimes = jobList.slice(0, count).map((_, step) => {
