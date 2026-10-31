@@ -4,771 +4,1291 @@
  */
 
 export interface paths {
-    "/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["getHealth"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["login"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["getMe"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/factories": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** @description Factories visible to the current user. */
-        get: operations["listFactories"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["listProjects"];
-        put?: never;
-        post: operations["createProject"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{id}/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** @description Confirming locks the project against further edits. */
-        post: operations["confirmProject"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/customers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["listCustomers"];
-        put?: never;
-        post: operations["createCustomer"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/customers/{id}/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["confirmCustomer"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/contracts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["listContracts"];
-        put?: never;
-        /** @description customerId and projectId must belong to the same factory as the contract. */
-        post: operations["createContract"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/contracts/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["getContract"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/contracts/{id}/audit-valuation": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** @description Marks the customer or outsource valuation as audited. Idempotent conflict (409) if already audited. */
-        post: operations["auditContractValuation"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
+  '/health': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['getHealth']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/auth/login': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post: operations['login']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/auth/me': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['getMe']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/factories': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** @description Factories visible to the current user. */
+    get: operations['listFactories']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/projects': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['listProjects']
+    put?: never
+    post: operations['createProject']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/projects/{id}/confirm': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** @description Confirming locks the project against further edits. */
+    post: operations['confirmProject']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/customers': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['listCustomers']
+    put?: never
+    post: operations['createCustomer']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/customers/{id}/confirm': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post: operations['confirmCustomer']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/contracts': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['listContracts']
+    put?: never
+    /** @description customerId and projectId must belong to the same factory as the contract. */
+    post: operations['createContract']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/contracts/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['getContract']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/contracts/{id}/audit-valuation': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** @description Marks the customer or outsource valuation as audited. Idempotent conflict (409) if already audited. */
+    post: operations['auditContractValuation']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/jobs': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** @description Process steps (工序) in execution order. */
+    get: operations['listJobs']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/batches': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['listBatches']
+    put?: never
+    /** @description The batch inherits factoryId, customer and project from its contract. */
+    post: operations['createBatch']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/batches/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['getBatch']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/batches/{id}/schedule': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * @description Sets or updates planning fields. Status moves pending → scheduled when planSheetStart is set.
+     *     Not allowed once the batch is done (409). outsourceFactoryId must be an outsource factory.
+     */
+    put: operations['scheduleBatch']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/batches/{id}/items': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: operations['listBatchItems']
+    /**
+     * @description Replaces the whole component list (import semantics). pieceNo must be unique within the batch.
+     *     Recomputes itemQty / itemArea on the batch. Not allowed once the batch is done (409).
+     */
+    put: operations['replaceBatchItems']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
-export type webhooks = Record<string, never>;
+export type webhooks = Record<string, never>
 export interface components {
-    schemas: {
-        Error: {
-            /** @example invalid_credentials */
-            code: string;
-            message: string;
-        };
-        Health: {
-            /** @example ok */
-            status: string;
-            version: string;
-        };
-        LoginRequest: {
-            username: string;
-            password: string;
-        };
-        LoginResponse: {
-            token: string;
-            user: components["schemas"]["User"];
-        };
-        User: {
-            /** Format: int64 */
-            id: number;
-            username: string;
-            displayName: string;
-            isAdmin: boolean;
-        };
-        MenuItem: {
-            /** Format: int64 */
-            id: number;
-            title: string;
-            /** @description Frontend route path, e.g. /sale/projects */
-            path: string;
-            icon?: string;
-            children?: components["schemas"]["MenuItem"][];
-        };
-        MeResponse: {
-            user: components["schemas"]["User"];
-            menus: components["schemas"]["MenuItem"][];
-        };
-        Factory: {
-            /** Format: int64 */
-            id: number;
-            code: string;
-            name: string;
-            /** @enum {string} */
-            kind: "own" | "outsource";
-        };
-        /** @enum {string} */
-        ProjectKind: "online" | "offline";
-        Project: {
-            /** Format: int64 */
-            id: number;
-            /** Format: int64 */
-            factoryId: number;
-            code: string;
-            fullName: string;
-            shortName: string;
-            address: string;
-            kind: components["schemas"]["ProjectKind"];
-            confirmed: boolean;
-            createdBy: string;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        ProjectCreate: {
-            /** Format: int64 */
-            factoryId: number;
-            code: string;
-            fullName: string;
-            shortName?: string;
-            address?: string;
-            kind?: components["schemas"]["ProjectKind"];
-        };
-        ProjectPage: {
-            items: components["schemas"]["Project"][];
-            /** Format: int64 */
-            total: number;
-        };
-        Customer: {
-            /** Format: int64 */
-            id: number;
-            /** Format: int64 */
-            factoryId: number;
-            name: string;
-            contacts: string;
-            phone: string;
-            address: string;
-            bank: string;
-            account: string;
-            /** @description EAS 客户编码 */
-            easCode: string;
-            /** @description EAS 客户名称 */
-            easName: string;
-            /** @description 内部客户 */
-            isInternal: boolean;
-            confirmed: boolean;
-            createdBy: string;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        CustomerCreate: {
-            /** Format: int64 */
-            factoryId: number;
-            name: string;
-            contacts?: string;
-            phone?: string;
-            address?: string;
-            bank?: string;
-            account?: string;
-            easCode?: string;
-            easName?: string;
-            /** @default false */
-            isInternal: boolean;
-        };
-        CustomerPage: {
-            items: components["schemas"]["Customer"][];
-            /** Format: int64 */
-            total: number;
-        };
-        Contract: {
-            /** Format: int64 */
-            id: number;
-            /** Format: int64 */
-            factoryId: number;
-            /** @description 合同单号，厂区内唯一 */
-            contractNo: string;
-            customerContractNo: string;
-            innerContractNo: string;
-            /** Format: int64 */
-            customerId: number;
-            customerName: string;
-            /** Format: int64 */
-            projectId: number;
-            /** @description 项目全称 */
-            projectName: string;
-            /** @description 业务员 */
-            salesman: string;
-            /** @description 订单数量（件） */
-            orderQty: number;
-            /**
-             * Format: double
-             * @description 订单面积 m²
-             */
-            orderArea: number;
-            /** @description 计价方式 */
-            pricingManner: string;
-            /** @description 付款方式 */
-            payment: string;
-            /** @description 付款节点 */
-            paymentPoint: string;
-            /** @description 材质 */
-            texture: string;
-            /** @description 喷涂类型 */
-            paintType: string;
-            /** @description 包装 */
-            packing: string;
-            receiver: string;
-            receiverPhone: string;
-            receiverAddress: string;
-            remark: string;
-            /** @description 客户计价审核 */
-            customerValuationAudited: boolean;
-            /** @description 外协计价审核 */
-            outsourceValuationAudited: boolean;
-            createdBy: string;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        ContractCreate: {
-            /** Format: int64 */
-            factoryId: number;
-            contractNo: string;
-            customerContractNo?: string;
-            innerContractNo?: string;
-            /** Format: int64 */
-            customerId: number;
-            /** Format: int64 */
-            projectId: number;
-            salesman?: string;
-            /** @default 0 */
-            orderQty: number;
-            /**
-             * Format: double
-             * @default 0
-             */
-            orderArea: number;
-            pricingManner?: string;
-            payment?: string;
-            paymentPoint?: string;
-            texture?: string;
-            paintType?: string;
-            packing?: string;
-            receiver?: string;
-            receiverPhone?: string;
-            receiverAddress?: string;
-            remark?: string;
-        };
-        ContractPage: {
-            items: components["schemas"]["Contract"][];
-            /** Format: int64 */
-            total: number;
-        };
-        ValuationAudit: {
-            /** @enum {string} */
-            kind: "customer" | "outsource";
-        };
-    };
-    responses: {
-        /** @description Error */
-        Error: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-    };
-    parameters: never;
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+  schemas: {
+    Error: {
+      /** @example invalid_credentials */
+      code: string
+      message: string
+    }
+    Health: {
+      /** @example ok */
+      status: string
+      version: string
+    }
+    LoginRequest: {
+      username: string
+      password: string
+    }
+    LoginResponse: {
+      token: string
+      user: components['schemas']['User']
+    }
+    User: {
+      /** Format: int64 */
+      id: number
+      username: string
+      displayName: string
+      isAdmin: boolean
+    }
+    MenuItem: {
+      /** Format: int64 */
+      id: number
+      title: string
+      /** @description Frontend route path, e.g. /sale/projects */
+      path: string
+      icon?: string
+      children?: components['schemas']['MenuItem'][]
+    }
+    MeResponse: {
+      user: components['schemas']['User']
+      menus: components['schemas']['MenuItem'][]
+    }
+    Factory: {
+      /** Format: int64 */
+      id: number
+      code: string
+      name: string
+      /** @enum {string} */
+      kind: 'own' | 'outsource'
+    }
+    /** @enum {string} */
+    ProjectKind: 'online' | 'offline'
+    Project: {
+      /** Format: int64 */
+      id: number
+      /** Format: int64 */
+      factoryId: number
+      code: string
+      fullName: string
+      shortName: string
+      address: string
+      kind: components['schemas']['ProjectKind']
+      confirmed: boolean
+      createdBy: string
+      /** Format: date-time */
+      createdAt: string
+    }
+    ProjectCreate: {
+      /** Format: int64 */
+      factoryId: number
+      code: string
+      fullName: string
+      shortName?: string
+      address?: string
+      kind?: components['schemas']['ProjectKind']
+    }
+    ProjectPage: {
+      items: components['schemas']['Project'][]
+      /** Format: int64 */
+      total: number
+    }
+    Customer: {
+      /** Format: int64 */
+      id: number
+      /** Format: int64 */
+      factoryId: number
+      name: string
+      contacts: string
+      phone: string
+      address: string
+      bank: string
+      account: string
+      /** @description EAS 客户编码 */
+      easCode: string
+      /** @description EAS 客户名称 */
+      easName: string
+      /** @description 内部客户 */
+      isInternal: boolean
+      confirmed: boolean
+      createdBy: string
+      /** Format: date-time */
+      createdAt: string
+    }
+    CustomerCreate: {
+      /** Format: int64 */
+      factoryId: number
+      name: string
+      contacts?: string
+      phone?: string
+      address?: string
+      bank?: string
+      account?: string
+      easCode?: string
+      easName?: string
+      /** @default false */
+      isInternal: boolean
+    }
+    CustomerPage: {
+      items: components['schemas']['Customer'][]
+      /** Format: int64 */
+      total: number
+    }
+    Contract: {
+      /** Format: int64 */
+      id: number
+      /** Format: int64 */
+      factoryId: number
+      /** @description 合同单号，厂区内唯一 */
+      contractNo: string
+      customerContractNo: string
+      innerContractNo: string
+      /** Format: int64 */
+      customerId: number
+      customerName: string
+      /** Format: int64 */
+      projectId: number
+      /** @description 项目全称 */
+      projectName: string
+      /** @description 业务员 */
+      salesman: string
+      /** @description 订单数量（件） */
+      orderQty: number
+      /**
+       * Format: double
+       * @description 订单面积 m²
+       */
+      orderArea: number
+      /** @description 计价方式 */
+      pricingManner: string
+      /** @description 付款方式 */
+      payment: string
+      /** @description 付款节点 */
+      paymentPoint: string
+      /** @description 材质 */
+      texture: string
+      /** @description 喷涂类型 */
+      paintType: string
+      /** @description 包装 */
+      packing: string
+      receiver: string
+      receiverPhone: string
+      receiverAddress: string
+      remark: string
+      /** @description 客户计价审核 */
+      customerValuationAudited: boolean
+      /** @description 外协计价审核 */
+      outsourceValuationAudited: boolean
+      createdBy: string
+      /** Format: date-time */
+      createdAt: string
+    }
+    ContractCreate: {
+      /** Format: int64 */
+      factoryId: number
+      contractNo: string
+      customerContractNo?: string
+      innerContractNo?: string
+      /** Format: int64 */
+      customerId: number
+      /** Format: int64 */
+      projectId: number
+      salesman?: string
+      /** @default 0 */
+      orderQty: number
+      /**
+       * Format: double
+       * @default 0
+       */
+      orderArea: number
+      pricingManner?: string
+      payment?: string
+      paymentPoint?: string
+      texture?: string
+      paintType?: string
+      packing?: string
+      receiver?: string
+      receiverPhone?: string
+      receiverAddress?: string
+      remark?: string
+    }
+    ContractPage: {
+      items: components['schemas']['Contract'][]
+      /** Format: int64 */
+      total: number
+    }
+    ValuationAudit: {
+      /** @enum {string} */
+      kind: 'customer' | 'outsource'
+    }
+    Job: {
+      /** Format: int64 */
+      id: number
+      /** @example 20 */
+      code: string
+      /** @example 钣金下线 */
+      name: string
+      /** @description Execution order, 1-based */
+      seq: number
+      /**
+       * @description 钣金工段 / 喷涂工段 / 成品包装发货
+       * @enum {string}
+       */
+      stage: 'sheet_metal' | 'spray' | 'finished'
+    }
+    /**
+     * @description 待排产 / 已排产 / 生产中 / 已完工
+     * @enum {string}
+     */
+    BatchStatus: 'pending' | 'scheduled' | 'in_production' | 'done'
+    /** @enum {string} */
+    Urgency: 'normal' | 'urgent'
+    Batch: {
+      /** Format: int64 */
+      id: number
+      /** Format: int64 */
+      factoryId: number
+      /** Format: int64 */
+      contractId: number
+      contractNo: string
+      /** Format: int64 */
+      customerId: number
+      customerName: string
+      /** Format: int64 */
+      projectId: number
+      projectName: string
+      /** @description 批次号，厂区内唯一 */
+      lotNo: string
+      /** @description 客户单号 */
+      clientOrderNo: string
+      /**
+       * Format: double
+       * @description 板厚 mm
+       */
+      thickness: number
+      /** @description 客户颜色 */
+      color: string
+      /** @description 色号 */
+      colorNo: string
+      /** @description 材质 */
+      texture: string
+      /** @description 喷涂类型 */
+      sprayingType: string
+      orderQty: number
+      /** Format: double */
+      orderArea: number
+      deliveryAddress: string
+      specialRequest: string
+      /**
+       * Format: date
+       * @description 客户需求交期
+       */
+      requiredDate: string | null
+      urgency: components['schemas']['Urgency']
+      status: components['schemas']['BatchStatus']
+      /** @description 构件行数 */
+      itemCount: number
+      /** @description 构件总件数 */
+      itemQty: number
+      /**
+       * Format: double
+       * @description 构件总单件面积合计 m²
+       */
+      itemArea: number
+      /**
+       * Format: date
+       * @description 计划工艺日期(计划部)
+       */
+      planTechDate?: string | null
+      /**
+       * Format: date
+       * @description 计划出图日期(技术部)
+       */
+      planDrawingDate?: string | null
+      /**
+       * Format: date
+       * @description 计划开料日期
+       */
+      planCutDate?: string | null
+      /**
+       * Format: date
+       * @description 计划钣金开始
+       */
+      planSheetStart?: string | null
+      /**
+       * Format: date
+       * @description 计划钣金交期
+       */
+      planSheetDelivery?: string | null
+      /** Format: date */
+      planSprayStart?: string | null
+      /** Format: date */
+      planSprayDelivery?: string | null
+      /**
+       * Format: int64
+       * @description 计划外协钣金厂
+       */
+      outsourceFactoryId?: number | null
+      outsourceFactoryName?: string | null
+      /** @description 计划钣金车间 */
+      workshop: string
+      remark: string
+      createdBy: string
+      /** Format: date-time */
+      createdAt: string
+      /** Format: date-time */
+      updatedAt: string
+    }
+    BatchCreate: {
+      /** Format: int64 */
+      contractId: number
+      lotNo: string
+      clientOrderNo?: string
+      /**
+       * Format: double
+       * @default 0
+       */
+      thickness: number
+      color?: string
+      colorNo?: string
+      texture?: string
+      sprayingType?: string
+      /** @default 0 */
+      orderQty: number
+      /**
+       * Format: double
+       * @default 0
+       */
+      orderArea: number
+      deliveryAddress?: string
+      specialRequest?: string
+      /** Format: date */
+      requiredDate?: string
+      urgency?: components['schemas']['Urgency']
+      remark?: string
+    }
+    /** @description Omitted fields are left unchanged; send null to clear a date. */
+    BatchSchedule: {
+      /** Format: date */
+      planTechDate?: string | null
+      /** Format: date */
+      planDrawingDate?: string | null
+      /** Format: date */
+      planCutDate?: string | null
+      /** Format: date */
+      planSheetStart?: string | null
+      /** Format: date */
+      planSheetDelivery?: string | null
+      /** Format: date */
+      planSprayStart?: string | null
+      /** Format: date */
+      planSprayDelivery?: string | null
+      /** Format: int64 */
+      outsourceFactoryId?: number | null
+      workshop?: string
+      urgency?: components['schemas']['Urgency']
+      remark?: string
+    }
+    BatchPage: {
+      items: components['schemas']['Batch'][]
+      /** Format: int64 */
+      total: number
+    }
+    BatchItemInput: {
+      /** @description 编号 / 板号 */
+      pieceNo: string
+      /** @description 图号 */
+      drawingNo?: string
+      /** @description 板型 */
+      pattern?: string
+      /**
+       * Format: double
+       * @default 0
+       */
+      thickness: number
+      color?: string
+      /**
+       * Format: double
+       * @description mm
+       * @default 0
+       */
+      length: number
+      /**
+       * Format: double
+       * @description mm
+       * @default 0
+       */
+      width: number
+      /**
+       * Format: double
+       * @description 单件展开面积 m²
+       * @default 0
+       */
+      pieceArea: number
+      /**
+       * Format: double
+       * @description 单件喷涂面积 m²
+       * @default 0
+       */
+      sprayingArea: number
+      qty: number
+      /**
+       * @description 包装数
+       * @default 0
+       */
+      packageQty: number
+      /**
+       * Format: double
+       * @description 焊缝 m
+       * @default 0
+       */
+      weldLine: number
+      /**
+       * @description 刀数
+       * @default 0
+       */
+      bendingTimes: number
+      remark?: string
+    }
+    BatchItem: components['schemas']['BatchItemInput'] & {
+      /** Format: int64 */
+      id: number
+      /** Format: int64 */
+      batchId: number
+      /** @description Row order as imported, 1-based */
+      seq: number
+    }
+  }
+  responses: {
+    /** @description Error */
+    Error: {
+      headers: {
+        [name: string]: unknown
+      }
+      content: {
+        'application/json': components['schemas']['Error']
+      }
+    }
+  }
+  parameters: never
+  requestBodies: never
+  headers: never
+  pathItems: never
 }
-export type $defs = Record<string, never>;
+export type $defs = Record<string, never>
 export interface operations {
-    getHealth: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Health"];
-                };
-            };
-        };
-    };
-    login: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LoginRequest"];
-            };
-        };
-        responses: {
-            /** @description Logged in */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LoginResponse"];
-                };
-            };
-            401: components["responses"]["Error"];
-        };
-    };
-    getMe: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Current user and visible menus */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MeResponse"];
-                };
-            };
-            401: components["responses"]["Error"];
-        };
-    };
-    listFactories: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Factory"][];
-                };
-            };
-            401: components["responses"]["Error"];
-        };
-    };
-    listProjects: {
-        parameters: {
-            query?: {
-                page?: number;
-                size?: number;
-                keyword?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectPage"];
-                };
-            };
-            401: components["responses"]["Error"];
-        };
-    };
-    createProject: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProjectCreate"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Project"];
-                };
-            };
-            400: components["responses"]["Error"];
-            401: components["responses"]["Error"];
-            403: components["responses"]["Error"];
-            409: components["responses"]["Error"];
-        };
-    };
-    confirmProject: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Project"];
-                };
-            };
-            401: components["responses"]["Error"];
-            404: components["responses"]["Error"];
-            409: components["responses"]["Error"];
-        };
-    };
-    listCustomers: {
-        parameters: {
-            query?: {
-                page?: number;
-                size?: number;
-                /** @description Matches name / easCode / easName */
-                keyword?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CustomerPage"];
-                };
-            };
-            401: components["responses"]["Error"];
-        };
-    };
-    createCustomer: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CustomerCreate"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Customer"];
-                };
-            };
-            400: components["responses"]["Error"];
-            401: components["responses"]["Error"];
-            403: components["responses"]["Error"];
-            409: components["responses"]["Error"];
-        };
-    };
-    confirmCustomer: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Customer"];
-                };
-            };
-            401: components["responses"]["Error"];
-            404: components["responses"]["Error"];
-            409: components["responses"]["Error"];
-        };
-    };
-    listContracts: {
-        parameters: {
-            query?: {
-                page?: number;
-                size?: number;
-                /** @description Matches contractNo / customerContractNo / innerContractNo / customer name / project name / salesman */
-                keyword?: string;
-                customerId?: number;
-                projectId?: number;
-                /** @description createdAt >= beginDate (inclusive) */
-                beginDate?: string;
-                /** @description createdAt < endDate + 1 day */
-                endDate?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ContractPage"];
-                };
-            };
-            400: components["responses"]["Error"];
-            401: components["responses"]["Error"];
-        };
-    };
-    createContract: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ContractCreate"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Contract"];
-                };
-            };
-            400: components["responses"]["Error"];
-            401: components["responses"]["Error"];
-            403: components["responses"]["Error"];
-            409: components["responses"]["Error"];
-        };
-    };
-    getContract: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Contract"];
-                };
-            };
-            401: components["responses"]["Error"];
-            404: components["responses"]["Error"];
-        };
-    };
-    auditContractValuation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ValuationAudit"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Contract"];
-                };
-            };
-            400: components["responses"]["Error"];
-            401: components["responses"]["Error"];
-            404: components["responses"]["Error"];
-            409: components["responses"]["Error"];
-        };
-    };
+  getHealth: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Health']
+        }
+      }
+    }
+  }
+  login: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['LoginRequest']
+      }
+    }
+    responses: {
+      /** @description Logged in */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['LoginResponse']
+        }
+      }
+      401: components['responses']['Error']
+    }
+  }
+  getMe: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Current user and visible menus */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MeResponse']
+        }
+      }
+      401: components['responses']['Error']
+    }
+  }
+  listFactories: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Factory'][]
+        }
+      }
+      401: components['responses']['Error']
+    }
+  }
+  listProjects: {
+    parameters: {
+      query?: {
+        page?: number
+        size?: number
+        keyword?: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ProjectPage']
+        }
+      }
+      401: components['responses']['Error']
+    }
+  }
+  createProject: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ProjectCreate']
+      }
+    }
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Project']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      403: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  confirmProject: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Project']
+        }
+      }
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  listCustomers: {
+    parameters: {
+      query?: {
+        page?: number
+        size?: number
+        /** @description Matches name / easCode / easName */
+        keyword?: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CustomerPage']
+        }
+      }
+      401: components['responses']['Error']
+    }
+  }
+  createCustomer: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CustomerCreate']
+      }
+    }
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Customer']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      403: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  confirmCustomer: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Customer']
+        }
+      }
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  listContracts: {
+    parameters: {
+      query?: {
+        page?: number
+        size?: number
+        /** @description Matches contractNo / customerContractNo / innerContractNo / customer name / project name / salesman */
+        keyword?: string
+        customerId?: number
+        projectId?: number
+        /** @description createdAt >= beginDate (inclusive) */
+        beginDate?: string
+        /** @description createdAt < endDate + 1 day */
+        endDate?: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ContractPage']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+    }
+  }
+  createContract: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ContractCreate']
+      }
+    }
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Contract']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      403: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  getContract: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Contract']
+        }
+      }
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+    }
+  }
+  auditContractValuation: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ValuationAudit']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Contract']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  listJobs: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Job'][]
+        }
+      }
+      401: components['responses']['Error']
+    }
+  }
+  listBatches: {
+    parameters: {
+      query?: {
+        page?: number
+        size?: number
+        /** @description Matches lotNo / clientOrderNo / contractNo / customerName / projectName */
+        keyword?: string
+        contractId?: number
+        projectId?: number
+        customerId?: number
+        status?: components['schemas']['BatchStatus']
+        urgency?: components['schemas']['Urgency']
+        /** @description requiredDate >= beginDate */
+        beginDate?: string
+        /** @description requiredDate <= endDate */
+        endDate?: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['BatchPage']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+    }
+  }
+  createBatch: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BatchCreate']
+      }
+    }
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Batch']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  getBatch: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Batch']
+        }
+      }
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+    }
+  }
+  scheduleBatch: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BatchSchedule']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Batch']
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
+  listBatchItems: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['BatchItem'][]
+        }
+      }
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+    }
+  }
+  replaceBatchItems: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BatchItemInput'][]
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['BatchItem'][]
+        }
+      }
+      400: components['responses']['Error']
+      401: components['responses']['Error']
+      404: components['responses']['Error']
+      409: components['responses']['Error']
+    }
+  }
 }

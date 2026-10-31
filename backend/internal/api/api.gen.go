@@ -23,6 +23,30 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for BatchStatus.
+const (
+	Done         BatchStatus = "done"
+	InProduction BatchStatus = "in_production"
+	Pending      BatchStatus = "pending"
+	Scheduled    BatchStatus = "scheduled"
+)
+
+// Valid indicates whether the value is a known member of the BatchStatus enum.
+func (e BatchStatus) Valid() bool {
+	switch e {
+	case Done:
+		return true
+	case InProduction:
+		return true
+	case Pending:
+		return true
+	case Scheduled:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FactoryKind.
 const (
 	FactoryKindOutsource FactoryKind = "outsource"
@@ -35,6 +59,27 @@ func (e FactoryKind) Valid() bool {
 	case FactoryKindOutsource:
 		return true
 	case FactoryKindOwn:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobStage.
+const (
+	Finished   JobStage = "finished"
+	SheetMetal JobStage = "sheet_metal"
+	Spray      JobStage = "spray"
+)
+
+// Valid indicates whether the value is a known member of the JobStage enum.
+func (e JobStage) Valid() bool {
+	switch e {
+	case Finished:
+		return true
+	case SheetMetal:
+		return true
+	case Spray:
 		return true
 	default:
 		return false
@@ -59,6 +104,24 @@ func (e ProjectKind) Valid() bool {
 	}
 }
 
+// Defines values for Urgency.
+const (
+	Normal Urgency = "normal"
+	Urgent Urgency = "urgent"
+)
+
+// Valid indicates whether the value is a known member of the Urgency enum.
+func (e Urgency) Valid() bool {
+	switch e {
+	case Normal:
+		return true
+	case Urgent:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ValuationAuditKind.
 const (
 	ValuationAuditKindCustomer  ValuationAuditKind = "customer"
@@ -76,6 +139,209 @@ func (e ValuationAuditKind) Valid() bool {
 		return false
 	}
 }
+
+// Batch defines model for Batch.
+type Batch struct {
+	// ClientOrderNo 客户单号
+	ClientOrderNo string `json:"clientOrderNo"`
+
+	// Color 客户颜色
+	Color string `json:"color"`
+
+	// ColorNo 色号
+	ColorNo         string    `json:"colorNo"`
+	ContractId      int64     `json:"contractId"`
+	ContractNo      string    `json:"contractNo"`
+	CreatedAt       time.Time `json:"createdAt"`
+	CreatedBy       string    `json:"createdBy"`
+	CustomerId      int64     `json:"customerId"`
+	CustomerName    string    `json:"customerName"`
+	DeliveryAddress string    `json:"deliveryAddress"`
+	FactoryId       int64     `json:"factoryId"`
+	Id              int64     `json:"id"`
+
+	// ItemArea 构件总单件面积合计 m²
+	ItemArea float64 `json:"itemArea"`
+
+	// ItemCount 构件行数
+	ItemCount int `json:"itemCount"`
+
+	// ItemQty 构件总件数
+	ItemQty int `json:"itemQty"`
+
+	// LotNo 批次号，厂区内唯一
+	LotNo     string  `json:"lotNo"`
+	OrderArea float64 `json:"orderArea"`
+	OrderQty  int     `json:"orderQty"`
+
+	// OutsourceFactoryId 计划外协钣金厂
+	OutsourceFactoryId   *int64  `json:"outsourceFactoryId,omitempty"`
+	OutsourceFactoryName *string `json:"outsourceFactoryName,omitempty"`
+
+	// PlanCutDate 计划开料日期
+	PlanCutDate *openapi_types.Date `json:"planCutDate,omitempty"`
+
+	// PlanDrawingDate 计划出图日期(技术部)
+	PlanDrawingDate *openapi_types.Date `json:"planDrawingDate,omitempty"`
+
+	// PlanSheetDelivery 计划钣金交期
+	PlanSheetDelivery *openapi_types.Date `json:"planSheetDelivery,omitempty"`
+
+	// PlanSheetStart 计划钣金开始
+	PlanSheetStart    *openapi_types.Date `json:"planSheetStart,omitempty"`
+	PlanSprayDelivery *openapi_types.Date `json:"planSprayDelivery,omitempty"`
+	PlanSprayStart    *openapi_types.Date `json:"planSprayStart,omitempty"`
+
+	// PlanTechDate 计划工艺日期(计划部)
+	PlanTechDate *openapi_types.Date `json:"planTechDate,omitempty"`
+	ProjectId    int64               `json:"projectId"`
+	ProjectName  string              `json:"projectName"`
+	Remark       string              `json:"remark"`
+
+	// RequiredDate 客户需求交期
+	RequiredDate   *openapi_types.Date `json:"requiredDate"`
+	SpecialRequest string              `json:"specialRequest"`
+
+	// SprayingType 喷涂类型
+	SprayingType string `json:"sprayingType"`
+
+	// Status 待排产 / 已排产 / 生产中 / 已完工
+	Status BatchStatus `json:"status"`
+
+	// Texture 材质
+	Texture string `json:"texture"`
+
+	// Thickness 板厚 mm
+	Thickness float64   `json:"thickness"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	Urgency   Urgency   `json:"urgency"`
+
+	// Workshop 计划钣金车间
+	Workshop string `json:"workshop"`
+}
+
+// BatchCreate defines model for BatchCreate.
+type BatchCreate struct {
+	ClientOrderNo   *string             `json:"clientOrderNo,omitempty"`
+	Color           *string             `json:"color,omitempty"`
+	ColorNo         *string             `json:"colorNo,omitempty"`
+	ContractId      int64               `json:"contractId"`
+	DeliveryAddress *string             `json:"deliveryAddress,omitempty"`
+	LotNo           string              `json:"lotNo"`
+	OrderArea       *float64            `json:"orderArea,omitempty"`
+	OrderQty        *int                `json:"orderQty,omitempty"`
+	Remark          *string             `json:"remark,omitempty"`
+	RequiredDate    *openapi_types.Date `json:"requiredDate,omitempty"`
+	SpecialRequest  *string             `json:"specialRequest,omitempty"`
+	SprayingType    *string             `json:"sprayingType,omitempty"`
+	Texture         *string             `json:"texture,omitempty"`
+	Thickness       *float64            `json:"thickness,omitempty"`
+	Urgency         *Urgency            `json:"urgency,omitempty"`
+}
+
+// BatchItem defines model for BatchItem.
+type BatchItem struct {
+	BatchId int64 `json:"batchId"`
+
+	// BendingTimes 刀数
+	BendingTimes int    `json:"bendingTimes"`
+	Color        string `json:"color"`
+
+	// DrawingNo 图号
+	DrawingNo string `json:"drawingNo"`
+	Id        int64  `json:"id"`
+
+	// Length mm
+	Length float64 `json:"length"`
+
+	// PackageQty 包装数
+	PackageQty int `json:"packageQty"`
+
+	// Pattern 板型
+	Pattern string `json:"pattern"`
+
+	// PieceArea 单件展开面积 m²
+	PieceArea float64 `json:"pieceArea"`
+
+	// PieceNo 编号 / 板号
+	PieceNo string `json:"pieceNo"`
+	Qty     int    `json:"qty"`
+	Remark  string `json:"remark"`
+
+	// Seq Row order as imported, 1-based
+	Seq int `json:"seq"`
+
+	// SprayingArea 单件喷涂面积 m²
+	SprayingArea float64 `json:"sprayingArea"`
+	Thickness    float64 `json:"thickness"`
+
+	// WeldLine 焊缝 m
+	WeldLine float64 `json:"weldLine"`
+
+	// Width mm
+	Width float64 `json:"width"`
+}
+
+// BatchItemInput defines model for BatchItemInput.
+type BatchItemInput struct {
+	// BendingTimes 刀数
+	BendingTimes *int    `json:"bendingTimes,omitempty"`
+	Color        *string `json:"color,omitempty"`
+
+	// DrawingNo 图号
+	DrawingNo *string `json:"drawingNo,omitempty"`
+
+	// Length mm
+	Length *float64 `json:"length,omitempty"`
+
+	// PackageQty 包装数
+	PackageQty *int `json:"packageQty,omitempty"`
+
+	// Pattern 板型
+	Pattern *string `json:"pattern,omitempty"`
+
+	// PieceArea 单件展开面积 m²
+	PieceArea *float64 `json:"pieceArea,omitempty"`
+
+	// PieceNo 编号 / 板号
+	PieceNo string  `json:"pieceNo"`
+	Qty     int     `json:"qty"`
+	Remark  *string `json:"remark,omitempty"`
+
+	// SprayingArea 单件喷涂面积 m²
+	SprayingArea *float64 `json:"sprayingArea,omitempty"`
+	Thickness    *float64 `json:"thickness,omitempty"`
+
+	// WeldLine 焊缝 m
+	WeldLine *float64 `json:"weldLine,omitempty"`
+
+	// Width mm
+	Width *float64 `json:"width,omitempty"`
+}
+
+// BatchPage defines model for BatchPage.
+type BatchPage struct {
+	Items []Batch `json:"items"`
+	Total int64   `json:"total"`
+}
+
+// BatchSchedule Omitted fields are left unchanged; send null to clear a date.
+type BatchSchedule struct {
+	OutsourceFactoryId *int64              `json:"outsourceFactoryId,omitempty"`
+	PlanCutDate        *openapi_types.Date `json:"planCutDate,omitempty"`
+	PlanDrawingDate    *openapi_types.Date `json:"planDrawingDate,omitempty"`
+	PlanSheetDelivery  *openapi_types.Date `json:"planSheetDelivery,omitempty"`
+	PlanSheetStart     *openapi_types.Date `json:"planSheetStart,omitempty"`
+	PlanSprayDelivery  *openapi_types.Date `json:"planSprayDelivery,omitempty"`
+	PlanSprayStart     *openapi_types.Date `json:"planSprayStart,omitempty"`
+	PlanTechDate       *openapi_types.Date `json:"planTechDate,omitempty"`
+	Remark             *string             `json:"remark,omitempty"`
+	Urgency            *Urgency            `json:"urgency,omitempty"`
+	Workshop           *string             `json:"workshop,omitempty"`
+}
+
+// BatchStatus 待排产 / 已排产 / 生产中 / 已完工
+type BatchStatus string
 
 // Contract defines model for Contract.
 type Contract struct {
@@ -230,6 +496,25 @@ type Health struct {
 	Version string `json:"version"`
 }
 
+// Job defines model for Job.
+type Job struct {
+	// Code Example: 20
+	Code string `json:"code"`
+	Id   int64  `json:"id"`
+
+	// Name Example: 钣金下线
+	Name string `json:"name"`
+
+	// Seq Execution order, 1-based
+	Seq int `json:"seq"`
+
+	// Stage 钣金工段 / 喷涂工段 / 成品包装发货
+	Stage JobStage `json:"stage"`
+}
+
+// JobStage 钣金工段 / 喷涂工段 / 成品包装发货
+type JobStage string
+
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
 	Password string `json:"password"`
@@ -292,6 +577,9 @@ type ProjectPage struct {
 	Total int64     `json:"total"`
 }
 
+// Urgency defines model for Urgency.
+type Urgency string
+
 // User defines model for User.
 type User struct {
 	DisplayName string `json:"displayName"`
@@ -307,6 +595,29 @@ type ValuationAudit struct {
 
 // ValuationAuditKind defines model for ValuationAudit.Kind.
 type ValuationAuditKind string
+
+// ListBatchesParams defines parameters for ListBatches.
+type ListBatchesParams struct {
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+	Size *int `form:"size,omitempty" json:"size,omitempty"`
+
+	// Keyword Matches lotNo / clientOrderNo / contractNo / customerName / projectName
+	Keyword    *string      `form:"keyword,omitempty" json:"keyword,omitempty"`
+	ContractId *int64       `form:"contractId,omitempty" json:"contractId,omitempty"`
+	ProjectId  *int64       `form:"projectId,omitempty" json:"projectId,omitempty"`
+	CustomerId *int64       `form:"customerId,omitempty" json:"customerId,omitempty"`
+	Status     *BatchStatus `form:"status,omitempty" json:"status,omitempty"`
+	Urgency    *Urgency     `form:"urgency,omitempty" json:"urgency,omitempty"`
+
+	// BeginDate requiredDate >= beginDate
+	BeginDate *openapi_types.Date `form:"beginDate,omitempty" json:"beginDate,omitempty"`
+
+	// EndDate requiredDate <= endDate
+	EndDate *openapi_types.Date `form:"endDate,omitempty" json:"endDate,omitempty"`
+}
+
+// ReplaceBatchItemsJSONBody defines parameters for ReplaceBatchItems.
+type ReplaceBatchItemsJSONBody = []BatchItemInput
 
 // ListContractsParams defines parameters for ListContracts.
 type ListContractsParams struct {
@@ -344,6 +655,15 @@ type ListProjectsParams struct {
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
+// CreateBatchJSONRequestBody defines body for CreateBatch for application/json ContentType.
+type CreateBatchJSONRequestBody = BatchCreate
+
+// ReplaceBatchItemsJSONRequestBody defines body for ReplaceBatchItems for application/json ContentType.
+type ReplaceBatchItemsJSONRequestBody = ReplaceBatchItemsJSONBody
+
+// ScheduleBatchJSONRequestBody defines body for ScheduleBatch for application/json ContentType.
+type ScheduleBatchJSONRequestBody = BatchSchedule
+
 // CreateContractJSONRequestBody defines body for CreateContract for application/json ContentType.
 type CreateContractJSONRequestBody = ContractCreate
 
@@ -364,6 +684,24 @@ type ServerInterface interface {
 
 	// (GET /auth/me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+
+	// (GET /batches)
+	ListBatches(w http.ResponseWriter, r *http.Request, params ListBatchesParams)
+
+	// (POST /batches)
+	CreateBatch(w http.ResponseWriter, r *http.Request)
+
+	// (GET /batches/{id})
+	GetBatch(w http.ResponseWriter, r *http.Request, id int64)
+
+	// (GET /batches/{id}/items)
+	ListBatchItems(w http.ResponseWriter, r *http.Request, id int64)
+
+	// (PUT /batches/{id}/items)
+	ReplaceBatchItems(w http.ResponseWriter, r *http.Request, id int64)
+
+	// (PUT /batches/{id}/schedule)
+	ScheduleBatch(w http.ResponseWriter, r *http.Request, id int64)
 
 	// (GET /contracts)
 	ListContracts(w http.ResponseWriter, r *http.Request, params ListContractsParams)
@@ -392,6 +730,9 @@ type ServerInterface interface {
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
 
+	// (GET /jobs)
+	ListJobs(w http.ResponseWriter, r *http.Request)
+
 	// (GET /projects)
 	ListProjects(w http.ResponseWriter, r *http.Request, params ListProjectsParams)
 
@@ -413,6 +754,36 @@ func (_ Unimplemented) Login(w http.ResponseWriter, r *http.Request) {
 
 // (GET /auth/me)
 func (_ Unimplemented) GetMe(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /batches)
+func (_ Unimplemented) ListBatches(w http.ResponseWriter, r *http.Request, params ListBatchesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /batches)
+func (_ Unimplemented) CreateBatch(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /batches/{id})
+func (_ Unimplemented) GetBatch(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /batches/{id}/items)
+func (_ Unimplemented) ListBatchItems(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PUT /batches/{id}/items)
+func (_ Unimplemented) ReplaceBatchItems(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PUT /batches/{id}/schedule)
+func (_ Unimplemented) ScheduleBatch(w http.ResponseWriter, r *http.Request, id int64) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -461,6 +832,11 @@ func (_ Unimplemented) GetHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// (GET /jobs)
+func (_ Unimplemented) ListJobs(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // (GET /projects)
 func (_ Unimplemented) ListProjects(w http.ResponseWriter, r *http.Request, params ListProjectsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -504,6 +880,274 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListBatches operation middleware
+func (siw *ServerInterfaceWrapper) ListBatches(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListBatchesParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "size", r.URL.Query(), &params.Size, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "size"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "size", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "keyword" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "keyword", r.URL.Query(), &params.Keyword, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "keyword"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "keyword", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "contractId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "contractId", r.URL.Query(), &params.ContractId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "contractId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "contractId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "projectId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "projectId", r.URL.Query(), &params.ProjectId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "projectId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "projectId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "customerId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "customerId", r.URL.Query(), &params.CustomerId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "customerId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "customerId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "urgency" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "urgency", r.URL.Query(), &params.Urgency, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "urgency"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "urgency", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "beginDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "beginDate", r.URL.Query(), &params.BeginDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "beginDate"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "beginDate", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "endDate" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "endDate", r.URL.Query(), &params.EndDate, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "endDate"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endDate", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListBatches(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateBatch operation middleware
+func (siw *ServerInterfaceWrapper) CreateBatch(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateBatch(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetBatch operation middleware
+func (siw *ServerInterfaceWrapper) GetBatch(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetBatch(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListBatchItems operation middleware
+func (siw *ServerInterfaceWrapper) ListBatchItems(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListBatchItems(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReplaceBatchItems operation middleware
+func (siw *ServerInterfaceWrapper) ReplaceBatchItems(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReplaceBatchItems(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ScheduleBatch operation middleware
+func (siw *ServerInterfaceWrapper) ScheduleBatch(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ScheduleBatch(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -817,6 +1461,20 @@ func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// ListJobs operation middleware
+func (siw *ServerInterfaceWrapper) ListJobs(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListJobs(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListProjects operation middleware
 func (siw *ServerInterfaceWrapper) ListProjects(w http.ResponseWriter, r *http.Request) {
 
@@ -1071,6 +1729,27 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/contracts/{id}/audit-valuation", wrapper.AuditContractValuation)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/jobs", wrapper.ListJobs)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/batches", wrapper.ListBatches)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/batches", wrapper.CreateBatch)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/batches/{id}", wrapper.GetBatch)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/batches/{id}/schedule", wrapper.ScheduleBatch)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/batches/{id}/items", wrapper.ListBatchItems)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/batches/{id}/items", wrapper.ReplaceBatchItems)
+	})
 
 	return r
 }
@@ -1144,6 +1823,392 @@ func (response GetMe401JSONResponse) VisitGetMeResponse(w http.ResponseWriter) e
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBatchesRequestObject struct {
+	Params ListBatchesParams
+}
+
+type ListBatchesResponseObject interface {
+	VisitListBatchesResponse(w http.ResponseWriter) error
+}
+
+type ListBatches200JSONResponse BatchPage
+
+func (response ListBatches200JSONResponse) VisitListBatchesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBatches400JSONResponse struct{ ErrorJSONResponse }
+
+func (response ListBatches400JSONResponse) VisitListBatchesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBatches401JSONResponse Error
+
+func (response ListBatches401JSONResponse) VisitListBatchesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBatchRequestObject struct {
+	Body *CreateBatchJSONRequestBody
+}
+
+type CreateBatchResponseObject interface {
+	VisitCreateBatchResponse(w http.ResponseWriter) error
+}
+
+type CreateBatch201JSONResponse Batch
+
+func (response CreateBatch201JSONResponse) VisitCreateBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBatch400JSONResponse struct{ ErrorJSONResponse }
+
+func (response CreateBatch400JSONResponse) VisitCreateBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBatch401JSONResponse Error
+
+func (response CreateBatch401JSONResponse) VisitCreateBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBatch404JSONResponse Error
+
+func (response CreateBatch404JSONResponse) VisitCreateBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBatch409JSONResponse Error
+
+func (response CreateBatch409JSONResponse) VisitCreateBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBatchRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type GetBatchResponseObject interface {
+	VisitGetBatchResponse(w http.ResponseWriter) error
+}
+
+type GetBatch200JSONResponse Batch
+
+func (response GetBatch200JSONResponse) VisitGetBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBatch401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetBatch401JSONResponse) VisitGetBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBatch404JSONResponse Error
+
+func (response GetBatch404JSONResponse) VisitGetBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBatchItemsRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type ListBatchItemsResponseObject interface {
+	VisitListBatchItemsResponse(w http.ResponseWriter) error
+}
+
+type ListBatchItems200JSONResponse []BatchItem
+
+func (response ListBatchItems200JSONResponse) VisitListBatchItemsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBatchItems401JSONResponse struct{ ErrorJSONResponse }
+
+func (response ListBatchItems401JSONResponse) VisitListBatchItemsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBatchItems404JSONResponse Error
+
+func (response ListBatchItems404JSONResponse) VisitListBatchItemsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceBatchItemsRequestObject struct {
+	Id   int64 `json:"id"`
+	Body *ReplaceBatchItemsJSONRequestBody
+}
+
+type ReplaceBatchItemsResponseObject interface {
+	VisitReplaceBatchItemsResponse(w http.ResponseWriter) error
+}
+
+type ReplaceBatchItems200JSONResponse []BatchItem
+
+func (response ReplaceBatchItems200JSONResponse) VisitReplaceBatchItemsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceBatchItems400JSONResponse struct{ ErrorJSONResponse }
+
+func (response ReplaceBatchItems400JSONResponse) VisitReplaceBatchItemsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceBatchItems401JSONResponse Error
+
+func (response ReplaceBatchItems401JSONResponse) VisitReplaceBatchItemsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceBatchItems404JSONResponse Error
+
+func (response ReplaceBatchItems404JSONResponse) VisitReplaceBatchItemsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceBatchItems409JSONResponse Error
+
+func (response ReplaceBatchItems409JSONResponse) VisitReplaceBatchItemsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ScheduleBatchRequestObject struct {
+	Id   int64 `json:"id"`
+	Body *ScheduleBatchJSONRequestBody
+}
+
+type ScheduleBatchResponseObject interface {
+	VisitScheduleBatchResponse(w http.ResponseWriter) error
+}
+
+type ScheduleBatch200JSONResponse Batch
+
+func (response ScheduleBatch200JSONResponse) VisitScheduleBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ScheduleBatch400JSONResponse struct{ ErrorJSONResponse }
+
+func (response ScheduleBatch400JSONResponse) VisitScheduleBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ScheduleBatch401JSONResponse Error
+
+func (response ScheduleBatch401JSONResponse) VisitScheduleBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ScheduleBatch404JSONResponse Error
+
+func (response ScheduleBatch404JSONResponse) VisitScheduleBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ScheduleBatch409JSONResponse Error
+
+func (response ScheduleBatch409JSONResponse) VisitScheduleBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -1639,6 +2704,41 @@ func (response GetHealth200JSONResponse) VisitGetHealthResponse(w http.ResponseW
 	return err
 }
 
+type ListJobsRequestObject struct {
+}
+
+type ListJobsResponseObject interface {
+	VisitListJobsResponse(w http.ResponseWriter) error
+}
+
+type ListJobs200JSONResponse []Job
+
+func (response ListJobs200JSONResponse) VisitListJobsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListJobs401JSONResponse struct{ ErrorJSONResponse }
+
+func (response ListJobs401JSONResponse) VisitListJobsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListProjectsRequestObject struct {
 	Params ListProjectsParams
 }
@@ -1826,6 +2926,24 @@ type StrictServerInterface interface {
 	// (GET /auth/me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
 
+	// (GET /batches)
+	ListBatches(ctx context.Context, request ListBatchesRequestObject) (ListBatchesResponseObject, error)
+
+	// (POST /batches)
+	CreateBatch(ctx context.Context, request CreateBatchRequestObject) (CreateBatchResponseObject, error)
+
+	// (GET /batches/{id})
+	GetBatch(ctx context.Context, request GetBatchRequestObject) (GetBatchResponseObject, error)
+
+	// (GET /batches/{id}/items)
+	ListBatchItems(ctx context.Context, request ListBatchItemsRequestObject) (ListBatchItemsResponseObject, error)
+
+	// (PUT /batches/{id}/items)
+	ReplaceBatchItems(ctx context.Context, request ReplaceBatchItemsRequestObject) (ReplaceBatchItemsResponseObject, error)
+
+	// (PUT /batches/{id}/schedule)
+	ScheduleBatch(ctx context.Context, request ScheduleBatchRequestObject) (ScheduleBatchResponseObject, error)
+
 	// (GET /contracts)
 	ListContracts(ctx context.Context, request ListContractsRequestObject) (ListContractsResponseObject, error)
 
@@ -1852,6 +2970,9 @@ type StrictServerInterface interface {
 
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
+
+	// (GET /jobs)
+	ListJobs(ctx context.Context, request ListJobsRequestObject) (ListJobsResponseObject, error)
 
 	// (GET /projects)
 	ListProjects(ctx context.Context, request ListProjectsRequestObject) (ListProjectsResponseObject, error)
@@ -1950,6 +3071,181 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMeResponseObject); ok {
 		if err := validResponse.VisitGetMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListBatches operation middleware
+func (sh *strictHandler) ListBatches(w http.ResponseWriter, r *http.Request, params ListBatchesParams) {
+	var request ListBatchesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListBatches(ctx, request.(ListBatchesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListBatches")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListBatchesResponseObject); ok {
+		if err := validResponse.VisitListBatchesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateBatch operation middleware
+func (sh *strictHandler) CreateBatch(w http.ResponseWriter, r *http.Request) {
+	var request CreateBatchRequestObject
+
+	var body CreateBatchJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateBatch(ctx, request.(CreateBatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateBatch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateBatchResponseObject); ok {
+		if err := validResponse.VisitCreateBatchResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetBatch operation middleware
+func (sh *strictHandler) GetBatch(w http.ResponseWriter, r *http.Request, id int64) {
+	var request GetBatchRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetBatch(ctx, request.(GetBatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetBatch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetBatchResponseObject); ok {
+		if err := validResponse.VisitGetBatchResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListBatchItems operation middleware
+func (sh *strictHandler) ListBatchItems(w http.ResponseWriter, r *http.Request, id int64) {
+	var request ListBatchItemsRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListBatchItems(ctx, request.(ListBatchItemsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListBatchItems")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListBatchItemsResponseObject); ok {
+		if err := validResponse.VisitListBatchItemsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReplaceBatchItems operation middleware
+func (sh *strictHandler) ReplaceBatchItems(w http.ResponseWriter, r *http.Request, id int64) {
+	var request ReplaceBatchItemsRequestObject
+
+	request.Id = id
+
+	var body ReplaceBatchItemsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReplaceBatchItems(ctx, request.(ReplaceBatchItemsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReplaceBatchItems")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReplaceBatchItemsResponseObject); ok {
+		if err := validResponse.VisitReplaceBatchItemsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ScheduleBatch operation middleware
+func (sh *strictHandler) ScheduleBatch(w http.ResponseWriter, r *http.Request, id int64) {
+	var request ScheduleBatchRequestObject
+
+	request.Id = id
+
+	var body ScheduleBatchJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ScheduleBatch(ctx, request.(ScheduleBatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ScheduleBatch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ScheduleBatchResponseObject); ok {
+		if err := validResponse.VisitScheduleBatchResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -2204,6 +3500,30 @@ func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListJobs operation middleware
+func (sh *strictHandler) ListJobs(w http.ResponseWriter, r *http.Request) {
+	var request ListJobsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListJobs(ctx, request.(ListJobsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListJobs")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListJobsResponseObject); ok {
+		if err := validResponse.VisitListJobsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListProjects operation middleware
 func (sh *strictHandler) ListProjects(w http.ResponseWriter, r *http.Request, params ListProjectsParams) {
 	var request ListProjectsRequestObject
@@ -2292,49 +3612,76 @@ func (sh *strictHandler) ConfirmProject(w http.ResponseWriter, r *http.Request, 
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"u1bXamOfWOPt8X8GAA==",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

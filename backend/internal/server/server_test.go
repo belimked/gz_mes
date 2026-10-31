@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/oapi-codegen/runtime/types"
 
 	"github.com/belimked/gz_mes/backend/internal/api"
 	"github.com/belimked/gz_mes/backend/internal/auth"
@@ -63,7 +64,7 @@ type env struct {
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	ctx := context.Background()
-	_, err := pool.Exec(ctx, "TRUNCATE contract, customer, project, user_role, role_menu, role, user_factory, app_user, factory RESTART IDENTITY CASCADE")
+	_, err := pool.Exec(ctx, "TRUNCATE batch_item, batch, contract, customer, project, user_role, role_menu, role, user_factory, app_user, factory RESTART IDENTITY CASCADE")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -405,6 +406,132 @@ func TestContractLifecycle(t *testing.T) {
 	}
 	if code := e.do("GET", path, admin, nil, &contract); code != 200 || !contract.CustomerValuationAudited || !contract.OutsourceValuationAudited {
 		t.Fatalf("get: %d %+v", code, contract)
+	}
+}
+
+func TestJobsSeeded(t *testing.T) {
+	e := newEnv(t)
+	var jobs []api.Job
+	if code := e.do("GET", "/jobs", e.login("admin", "admin-pass"), nil, &jobs); code != 200 || len(jobs) != 11 {
+		t.Fatalf("jobs: %d %+v", code, jobs)
+	}
+	for i, j := range jobs {
+		if j.Seq != i+1 {
+			t.Fatalf("job %d: %+v", i, j)
+		}
+	}
+	if jobs[2].Name != "钣金下线" {
+		t.Fatalf("third job: %+v", jobs[2])
+	}
+}
+
+func (e *env) batchContract(token, suffix string) (api.Customer, api.Project, api.Contract) {
+	e.t.Helper()
+	_, c := e.createCustomer(token, e.plant, "客户 "+suffix)
+	_, p := e.createProject(token, e.plant, "P-"+suffix)
+	var contract api.Contract
+	if code := e.do("POST", "/contracts", token, api.ContractCreate{FactoryId: e.plant, ContractNo: "C-" + suffix, CustomerId: c.Id, ProjectId: p.Id}, &contract); code != 201 {
+		e.t.Fatalf("contract: %d", code)
+	}
+	return c, p, contract
+}
+func TestBatchLifecycle(t *testing.T) {
+	e := newEnv(t)
+	admin := e.login("admin", "admin-pass")
+	c, p, contract := e.batchContract(admin, "batch")
+	body := api.BatchCreate{ContractId: contract.Id, LotNo: "201"}
+	var batch api.Batch
+	if code := e.do("POST", "/batches", admin, body, &batch); code != 201 || batch.FactoryId != e.plant || batch.CustomerName != c.Name || batch.ProjectName != p.FullName || batch.Status != "pending" {
+		t.Fatalf("create: %d %+v", code, batch)
+	}
+	var er api.Error
+	if code := e.do("POST", "/batches", admin, body, &er); code != 409 || er.Code != "duplicate_code" {
+		t.Fatalf("duplicate: %d %+v", code, er)
+	}
+	if code := e.do("POST", "/batches", admin, api.BatchCreate{ContractId: 999999, LotNo: "other"}, &er); code != 404 || er.Code != "not_found" {
+		t.Fatalf("missing contract: %d %+v", code, er)
+	}
+	e.outsourceUser("wa", e.outA)
+	wa := e.login("wa", "pw-wa")
+	path := fmt.Sprintf("/batches/%d", batch.Id)
+	if code := e.do("GET", path, wa, nil, &er); code != 404 {
+		t.Fatalf("scope: %d", code)
+	}
+	if code := e.do("PUT", path+"/items", wa, []api.BatchItemInput{}, &er); code != 404 {
+		t.Fatalf("items scope: %d", code)
+	}
+	if code := e.do("POST", "/batches", wa, api.BatchCreate{ContractId: contract.Id, LotNo: "wa"}, &er); code != 404 {
+		t.Fatalf("contract scope: %d", code)
+	}
+	start := api.BatchSchedule{PlanSheetStart: &apiDateForTest}
+	if code := e.do("PUT", path+"/schedule", admin, start, &batch); code != 200 || batch.Status != "scheduled" || batch.PlanSheetStart == nil {
+		t.Fatalf("schedule: %d %+v", code, batch)
+	}
+	if code := e.do("PUT", path+"/schedule", admin, api.BatchSchedule{OutsourceFactoryId: &e.plant}, &er); code != 400 || er.Code != "invalid_reference" {
+		t.Fatalf("own plant: %d %+v", code, er)
+	}
+	if code := e.do("PUT", path+"/schedule", admin, api.BatchSchedule{OutsourceFactoryId: &e.outA}, &batch); code != 200 || batch.OutsourceFactoryName == nil || *batch.OutsourceFactoryName != "外协A" {
+		t.Fatalf("outsource: %d %+v", code, batch)
+	}
+	input := []api.BatchItemInput{{PieceNo: "A", Qty: 2, PieceArea: floatPtr(1.25)}, {PieceNo: "B", Qty: 3, PieceArea: floatPtr(0.5)}, {PieceNo: "C", Qty: 1, PieceArea: floatPtr(2)}}
+	var items []api.BatchItem
+	if code := e.do("PUT", path+"/items", admin, input, &items); code != 200 || len(items) != 3 {
+		t.Fatalf("replace: %d %+v", code, items)
+	}
+	if code := e.do("GET", path, admin, nil, &batch); code != 200 || batch.ItemCount != 3 || batch.ItemQty != 6 || batch.ItemArea != 6 {
+		t.Fatalf("totals: %d %+v", code, batch)
+	}
+	if code := e.do("GET", path+"/items", admin, nil, &items); code != 200 || len(items) != 3 || items[0].Seq != 1 || items[1].PieceNo != "B" || items[2].Seq != 3 {
+		t.Fatalf("order: %d %+v", code, items)
+	}
+	input = append(input, api.BatchItemInput{PieceNo: "B", Qty: 1})
+	if code := e.do("PUT", path+"/items", admin, input, &er); code != 400 || er.Code != "duplicate_piece_no" || er.Message != "构件编号重复: B" {
+		t.Fatalf("duplicate item: %d %+v", code, er)
+	}
+	if _, err := pool.Exec(context.Background(), "UPDATE batch SET status='done' WHERE id=$1", batch.Id); err != nil {
+		t.Fatal(err)
+	}
+	if code := e.do("PUT", path+"/items", admin, input[:3], &er); code != 409 || er.Code != "batch_done" {
+		t.Fatalf("done items: %d %+v", code, er)
+	}
+	if code := e.do("PUT", path+"/schedule", admin, start, &er); code != 409 || er.Code != "batch_done" {
+		t.Fatalf("done schedule: %d %+v", code, er)
+	}
+}
+
+var apiDateForTest = types.Date{Time: time.Date(2026, 3, 12, 0, 0, 0, 0, time.UTC)}
+
+func floatPtr(v float64) *float64 { return &v }
+
+func TestListBatchesFilters(t *testing.T) {
+	e := newEnv(t)
+	admin := e.login("admin", "admin-pass")
+	c, p, contract := e.batchContract(admin, "filters")
+	date := types.Date{Time: time.Date(2026, 3, 12, 0, 0, 0, 0, time.UTC)}
+	urgent := api.Urgency("urgent")
+	var b api.Batch
+	for _, v := range []api.BatchCreate{{ContractId: contract.Id, LotNo: "LOT_001%", RequiredDate: &date, Urgency: &urgent}, {ContractId: contract.Id, LotNo: "LOT-002"}} {
+		if code := e.do("POST", "/batches", admin, v, &b); code != 201 {
+			t.Fatalf("create %s: %d", v.LotNo, code)
+		}
+	}
+	path := fmt.Sprintf("/batches/%d/schedule", b.Id)
+	if code := e.do("PUT", path, admin, api.BatchSchedule{PlanSheetStart: &date}, &b); code != 200 || b.Status != "scheduled" {
+		t.Fatalf("schedule second batch: %d %+v", code, b)
+	}
+	var scheduled api.BatchPage
+	if code := e.do("GET", "/batches?status=scheduled", admin, nil, &scheduled); code != 200 || scheduled.Total != 1 || scheduled.Items[0].LotNo != "LOT-002" {
+		t.Fatalf("scheduled filter: %d %+v", code, scheduled)
+	}
+	for _, query := range []string{"keyword=_001%25", "status=pending&urgency=urgent", fmt.Sprintf("contractId=%d", contract.Id) + "&urgency=urgent", fmt.Sprintf("projectId=%d&customerId=%d", p.Id, c.Id) + "&urgency=urgent", "beginDate=2026-03-12&endDate=2026-03-12"} {
+		var page api.BatchPage
+		if code := e.do("GET", "/batches?"+query, admin, nil, &page); code != 200 || page.Total != 1 || page.Items[0].LotNo != "LOT_001%" {
+			t.Fatalf("filter %s: %d %+v", query, code, page)
+		}
+	}
+	var er api.Error
+	if code := e.do("GET", "/batches?beginDate=2026-03-13&endDate=2026-03-12", admin, nil, &er); code != 400 {
+		t.Fatalf("invalid dates: %d", code)
 	}
 }
 

@@ -117,6 +117,112 @@ export function seedContracts(projects: S['Project'][], customers: S['Customer']
   })
 }
 
+export const jobs: S['Job'][] = [
+  ['10', '开料', 'sheet_metal'],
+  ['15', '折弯', 'sheet_metal'],
+  ['20', '钣金下线', 'sheet_metal'],
+  ['25', '钣金质检', 'sheet_metal'],
+  ['30', '喷涂接收', 'spray'],
+  ['35', '上挂喷涂', 'spray'],
+  ['40', '下挂冷却', 'spray'],
+  ['45', '喷涂质检', 'spray'],
+  ['50', '成品接收', 'finished'],
+  ['55', '成品装架', 'finished'],
+  ['60', '发货对账', 'finished'],
+].map(([code, name, stage], i) => ({ id: i + 1, code: code!, name: name!, seq: i + 1, stage: stage as S['Job']['stage'] }))
+
+const batchDate = (offset: number) => new Date(Date.UTC(2026, 4, 2 + offset)).toISOString().slice(0, 10)
+
+export function seedBatches(contracts: S['Contract'][]): S['Batch'][] {
+  const batches: S['Batch'][] = Array.from({ length: 18 }, (_, i) => {
+    const contract = contracts[i % contracts.length]!
+    const scheduled = i >= 3
+    const orderQty = 40 + i * 8
+    const createdAt = new Date(Date.now() - (i + 1) * 86400000).toISOString()
+    return {
+      id: i + 24,
+      factoryId: contract.factoryId,
+      contractId: contract.id,
+      contractNo: contract.contractNo,
+      customerId: contract.customerId,
+      customerName: contract.customerName,
+      projectId: contract.projectId,
+      projectName: contract.projectName,
+      lotNo: `PC-20241018-${String(i + 1).padStart(2, '0')}`,
+      clientOrderNo: `KH-PC-${String(i + 1).padStart(3, '0')}`,
+      thickness: [2.5, 3.0, 3.5, 4.0][i % 4]!,
+      color: ['RAL 7016 亚光灰', 'RAL 9003 象牙白', 'RAL 5015 天蓝'][i % 3]!,
+      colorNo: ['RAL 7016', 'RAL 9003', 'RAL 5015'][i % 3]!,
+      texture: i % 2 ? '铝合金 3003-H14' : '铝单板',
+      sprayingType: i % 2 ? '粉末' : '氟碳',
+      orderQty,
+      orderArea: Number((orderQty * 3.006).toFixed(2)),
+      deliveryAddress: '演示·示例市收货地址',
+      specialRequest: '',
+      requiredDate: batchDate(i),
+      urgency: i === 1 || i === 11 ? 'urgent' : 'normal',
+      status: i < 3 ? 'pending' : i < 8 ? 'scheduled' : i < 15 ? 'in_production' : 'done',
+      itemCount: 0,
+      itemQty: 0,
+      itemArea: 0,
+      ...(scheduled
+        ? {
+            planTechDate: batchDate(i - 12),
+            planDrawingDate: batchDate(i - 11),
+            planCutDate: batchDate(i - 10),
+            planSheetStart: batchDate(i - 9),
+            planSheetDelivery: batchDate(i - 6),
+            planSprayStart: batchDate(i - 5),
+            planSprayDelivery: batchDate(i - 2),
+          }
+        : {}),
+      ...(contract.factoryId === 2 ? { outsourceFactoryId: 2, outsourceFactoryName: '外协厂A' } : {}),
+      workshop: scheduled ? '钣金一车间' : '',
+      remark: '',
+      createdBy: '演示管理员',
+      createdAt,
+      updatedAt: createdAt,
+    }
+  })
+  const items = seedBatchItems(batches)
+  for (const batch of batches) {
+    const rows = items.filter((item) => item.batchId === batch.id)
+    batch.itemCount = rows.length
+    batch.itemQty = rows.reduce((sum, item) => sum + item.qty, 0)
+    batch.itemArea = Number(rows.reduce((sum, item) => sum + item.pieceArea * item.qty, 0).toFixed(4))
+  }
+  return batches
+}
+
+export function seedBatchItems(batches: S['Batch'][]): S['BatchItem'][] {
+  return batches.flatMap((batch, i) =>
+    Array.from({ length: 3 }, (_, n) => {
+      const length = 1200 + n * 100
+      const width = 800 + n * 50
+      const pieceArea = Number(((length * width) / 1e6).toFixed(4))
+      return {
+        id: 42 + i * 3 + n,
+        batchId: batch.id,
+        seq: n + 1,
+        pieceNo: `YG-${String(i + 1).padStart(2, '0')}-${String(n + 1).padStart(2, '0')}`,
+        drawingNo: '',
+        pattern: '',
+        thickness: batch.thickness,
+        color: batch.color,
+        length,
+        width,
+        pieceArea,
+        sprayingArea: Number((pieceArea * 1.08).toFixed(4)),
+        qty: Math.floor(batch.orderQty / 3),
+        packageQty: 0,
+        weldLine: 0,
+        bendingTimes: 0,
+        remark: '',
+      }
+    }),
+  )
+}
+
 export function seedProjects(): S['Project'][] {
   return [
     {

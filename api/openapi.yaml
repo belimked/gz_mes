@@ -248,6 +248,149 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /jobs:
+    get:
+      operationId: listJobs
+      tags: [production]
+      description: Process steps (工序) in execution order.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Job" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /batches:
+    get:
+      operationId: listBatches
+      tags: [scheduling]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+        - { name: keyword, in: query, schema: { type: string }, description: "Matches lotNo / clientOrderNo / contractNo / customerName / projectName" }
+        - { name: contractId, in: query, schema: { type: integer, format: int64 } }
+        - { name: projectId, in: query, schema: { type: integer, format: int64 } }
+        - { name: customerId, in: query, schema: { type: integer, format: int64 } }
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/BatchStatus" } }
+        - { name: urgency, in: query, schema: { $ref: "#/components/schemas/Urgency" } }
+        - { name: beginDate, in: query, schema: { type: string, format: date }, description: "requiredDate >= beginDate" }
+        - { name: endDate, in: query, schema: { type: string, format: date }, description: "requiredDate <= endDate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchPage" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createBatch
+      tags: [scheduling]
+      description: The batch inherits factoryId, customer and project from its contract.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BatchCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Batch" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /batches/{id}:
+    get:
+      operationId: getBatch
+      tags: [scheduling]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Batch" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /batches/{id}/schedule:
+    put:
+      operationId: scheduleBatch
+      tags: [scheduling]
+      description: |
+        Sets or updates planning fields. Status moves pending → scheduled when planSheetStart is set.
+        Not allowed once the batch is done (409). outsourceFactoryId must be an outsource factory.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BatchSchedule" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Batch" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /batches/{id}/items:
+    get:
+      operationId: listBatchItems
+      tags: [scheduling]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BatchItem" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    put:
+      operationId: replaceBatchItems
+      tags: [scheduling]
+      description: |
+        Replaces the whole component list (import semantics). pieceNo must be unique within the batch.
+        Recomputes itemQty / itemArea on the batch. Not allowed once the batch is done (409).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              maxItems: 5000
+              items: { $ref: "#/components/schemas/BatchItemInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BatchItem" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -489,3 +632,146 @@ components:
         kind:
           type: string
           enum: [customer, outsource]
+
+    Job:
+      type: object
+      required: [id, code, name, seq, stage]
+      properties:
+        id: { type: integer, format: int64 }
+        code: { type: string, example: "20" }
+        name: { type: string, example: 钣金下线 }
+        seq: { type: integer, description: "Execution order, 1-based" }
+        stage:
+          type: string
+          enum: [sheet_metal, spray, finished]
+          description: "钣金工段 / 喷涂工段 / 成品包装发货"
+
+    BatchStatus:
+      type: string
+      enum: [pending, scheduled, in_production, done]
+      description: "待排产 / 已排产 / 生产中 / 已完工"
+
+    Urgency:
+      type: string
+      enum: [normal, urgent]
+
+    Batch:
+      type: object
+      required:
+        [id, factoryId, contractId, contractNo, customerId, customerName, projectId, projectName, lotNo, clientOrderNo,
+         thickness, color, colorNo, texture, sprayingType, orderQty, orderArea, deliveryAddress, specialRequest,
+         requiredDate, urgency, status, itemCount, itemQty, itemArea, workshop, remark, createdBy, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int64 }
+        factoryId: { type: integer, format: int64 }
+        contractId: { type: integer, format: int64 }
+        contractNo: { type: string }
+        customerId: { type: integer, format: int64 }
+        customerName: { type: string }
+        projectId: { type: integer, format: int64 }
+        projectName: { type: string }
+        lotNo: { type: string, description: "批次号，厂区内唯一" }
+        clientOrderNo: { type: string, description: "客户单号" }
+        thickness: { type: number, format: double, description: "板厚 mm" }
+        color: { type: string, description: "客户颜色" }
+        colorNo: { type: string, description: "色号" }
+        texture: { type: string, description: "材质" }
+        sprayingType: { type: string, description: "喷涂类型" }
+        orderQty: { type: integer }
+        orderArea: { type: number, format: double }
+        deliveryAddress: { type: string }
+        specialRequest: { type: string }
+        requiredDate: { type: string, format: date, nullable: true, description: "客户需求交期" }
+        urgency: { $ref: "#/components/schemas/Urgency" }
+        status: { $ref: "#/components/schemas/BatchStatus" }
+        itemCount: { type: integer, description: "构件行数" }
+        itemQty: { type: integer, description: "构件总件数" }
+        itemArea: { type: number, format: double, description: "构件总单件面积合计 m²" }
+        planTechDate: { type: string, format: date, nullable: true, description: "计划工艺日期(计划部)" }
+        planDrawingDate: { type: string, format: date, nullable: true, description: "计划出图日期(技术部)" }
+        planCutDate: { type: string, format: date, nullable: true, description: "计划开料日期" }
+        planSheetStart: { type: string, format: date, nullable: true, description: "计划钣金开始" }
+        planSheetDelivery: { type: string, format: date, nullable: true, description: "计划钣金交期" }
+        planSprayStart: { type: string, format: date, nullable: true }
+        planSprayDelivery: { type: string, format: date, nullable: true }
+        outsourceFactoryId: { type: integer, format: int64, nullable: true, description: "计划外协钣金厂" }
+        outsourceFactoryName: { type: string, nullable: true }
+        workshop: { type: string, description: "计划钣金车间" }
+        remark: { type: string }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    BatchCreate:
+      type: object
+      required: [contractId, lotNo]
+      properties:
+        contractId: { type: integer, format: int64 }
+        lotNo: { type: string, minLength: 1, maxLength: 64 }
+        clientOrderNo: { type: string, maxLength: 64 }
+        thickness: { type: number, format: double, minimum: 0, default: 0 }
+        color: { type: string, maxLength: 100 }
+        colorNo: { type: string, maxLength: 50 }
+        texture: { type: string, maxLength: 50 }
+        sprayingType: { type: string, maxLength: 50 }
+        orderQty: { type: integer, minimum: 0, default: 0 }
+        orderArea: { type: number, format: double, minimum: 0, default: 0 }
+        deliveryAddress: { type: string, maxLength: 300 }
+        specialRequest: { type: string, maxLength: 500 }
+        requiredDate: { type: string, format: date }
+        urgency: { $ref: "#/components/schemas/Urgency" }
+        remark: { type: string, maxLength: 500 }
+
+    BatchSchedule:
+      type: object
+      description: Omitted fields are left unchanged; send null to clear a date.
+      properties:
+        planTechDate: { type: string, format: date, nullable: true }
+        planDrawingDate: { type: string, format: date, nullable: true }
+        planCutDate: { type: string, format: date, nullable: true }
+        planSheetStart: { type: string, format: date, nullable: true }
+        planSheetDelivery: { type: string, format: date, nullable: true }
+        planSprayStart: { type: string, format: date, nullable: true }
+        planSprayDelivery: { type: string, format: date, nullable: true }
+        outsourceFactoryId: { type: integer, format: int64, nullable: true }
+        workshop: { type: string, maxLength: 50 }
+        urgency: { $ref: "#/components/schemas/Urgency" }
+        remark: { type: string, maxLength: 500 }
+
+    BatchPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Batch" }
+        total: { type: integer, format: int64 }
+
+    BatchItemInput:
+      type: object
+      required: [pieceNo, qty]
+      properties:
+        pieceNo: { type: string, minLength: 1, maxLength: 64, description: "编号 / 板号" }
+        drawingNo: { type: string, maxLength: 64, description: "图号" }
+        pattern: { type: string, maxLength: 100, description: "板型" }
+        thickness: { type: number, format: double, minimum: 0, default: 0 }
+        color: { type: string, maxLength: 100 }
+        length: { type: number, format: double, minimum: 0, default: 0, description: "mm" }
+        width: { type: number, format: double, minimum: 0, default: 0, description: "mm" }
+        pieceArea: { type: number, format: double, minimum: 0, default: 0, description: "单件展开面积 m²" }
+        sprayingArea: { type: number, format: double, minimum: 0, default: 0, description: "单件喷涂面积 m²" }
+        qty: { type: integer, minimum: 1 }
+        packageQty: { type: integer, minimum: 0, default: 0, description: "包装数" }
+        weldLine: { type: number, format: double, minimum: 0, default: 0, description: "焊缝 m" }
+        bendingTimes: { type: integer, minimum: 0, default: 0, description: "刀数" }
+        remark: { type: string, maxLength: 300 }
+
+    BatchItem:
+      allOf:
+        - $ref: "#/components/schemas/BatchItemInput"
+        - type: object
+          required: [id, batchId, seq, drawingNo, pattern, thickness, color, length, width, pieceArea, sprayingArea, packageQty, weldLine, bendingTimes, remark]
+          properties:
+            id: { type: integer, format: int64 }
+            batchId: { type: integer, format: int64 }
+            seq: { type: integer, description: "Row order as imported, 1-based" }

@@ -1,16 +1,29 @@
 // In-browser implementation of the API for the public demo build.
 // Behaviour mirrors the Go backend (validation, factory isolation, error codes).
 import type { components } from '../schema'
-import { factories, menus, seedContracts, seedCustomers, seedProjects, users, type DemoUser } from './data'
+import {
+  factories,
+  jobs,
+  menus,
+  seedBatchItems,
+  seedBatches,
+  seedContracts,
+  seedCustomers,
+  seedProjects,
+  users,
+  type DemoUser,
+} from './data'
 
 type S = components['schemas']
 
 interface DemoDB {
-  version: 2
+  version: 3
   nextId: number
   projects: S['Project'][]
   customers: S['Customer'][]
   contracts: S['Contract'][]
+  batches: S['Batch'][]
+  batchItems: S['BatchItem'][]
 }
 
 const KEY = 'gz-mes-demo-v1'
@@ -28,12 +41,16 @@ function fresh(): DemoDB {
   const projects = seedProjects()
   const customers = seedCustomers()
   const contracts = seedContracts(projects, customers)
+  const batches = seedBatches(contracts)
+  const batchItems = seedBatchItems(batches)
   return {
-    version: 2,
-    nextId: Math.max(...[...projects, ...customers, ...contracts].map((item) => item.id)) + 1,
+    version: 3,
+    nextId: Math.max(...[...projects, ...customers, ...contracts, ...batches, ...batchItems].map((item) => item.id)) + 1,
     projects,
     customers,
     contracts,
+    batches,
+    batchItems,
   }
 }
 
@@ -42,12 +59,13 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 2) return parsed
+      if (parsed?.version === 3) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  return (memory ??= fresh())
+  if (memory?.version !== 3) memory = fresh()
+  return memory
 }
 
 function save(db: DemoDB) {
@@ -377,6 +395,212 @@ export async function demoFetch(req: Request): Promise<Response> {
     c[key] = true
     save(db)
     return json(200, c)
+  }
+
+  if (route === 'GET /jobs')
+    return json(
+      200,
+      [...jobs].sort((a, b) => a.seq - b.seq),
+    )
+
+  if (route === 'GET /batches') {
+    const page = Number(url.searchParams.get('page') ?? 1)
+    const size = Number(url.searchParams.get('size') ?? 20)
+    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(size) || size < 1 || size > 200) {
+      return fail(400, 'invalid_request', 'page/size 参数不合法')
+    }
+    const ids = ['contractId', 'projectId', 'customerId'] as const
+    const filters = ids.map((key) => url.searchParams.get(key))
+    if (filters.some((value) => value !== null && (!/^-?\d+$/.test(value) || !Number.isSafeInteger(Number(value))))) {
+      return fail(400, 'invalid_request', '合同/项目/客户参数不合法')
+    }
+    const status = url.searchParams.get('status')
+    const urgency = url.searchParams.get('urgency')
+    if (status !== null && !['pending', 'scheduled', 'in_production', 'done'].includes(status))
+      return fail(400, 'invalid_request', '状态参数不合法')
+    if (urgency !== null && !['normal', 'urgent'].includes(urgency)) return fail(400, 'invalid_request', '紧急程度参数不合法')
+    const beginDate = url.searchParams.get('beginDate')
+    const endDate = url.searchParams.get('endDate')
+    const validDate = (value: string) =>
+      /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+      !Number.isNaN(Date.parse(value)) &&
+      new Date(Date.parse(value)).toISOString().slice(0, 10) === value
+    if ((beginDate && !validDate(beginDate)) || (endDate && !validDate(endDate))) return fail(400, 'invalid_request', '日期参数不合法')
+    const kw = (url.searchParams.get('keyword') ?? '').trim().toLowerCase()
+    const all = db.batches
+      .filter((batch) => inScope(u, batch.factoryId))
+      .filter(
+        (batch) =>
+          !kw ||
+          [batch.lotNo, batch.clientOrderNo, batch.contractNo, batch.customerName, batch.projectName].some((s) =>
+            s.toLowerCase().includes(kw),
+          ),
+      )
+      .filter((batch) => ids.every((key, i) => filters[i] === null || batch[key] === Number(filters[i])))
+      .filter((batch) => status === null || batch.status === status)
+      .filter((batch) => urgency === null || batch.urgency === urgency)
+      .filter(
+        (batch) =>
+          (!beginDate && !endDate) ||
+          (batch.requiredDate !== null && (!beginDate || batch.requiredDate >= beginDate) && (!endDate || batch.requiredDate <= endDate)),
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id)
+    return json(200, { items: all.slice((page - 1) * size, page * size), total: all.length })
+  }
+
+  if (route === 'POST /batches') {
+    const b = await body(req)
+    if (!b || b.contractId == null || !Number.isSafeInteger(b.contractId) || typeof b.lotNo !== 'string')
+      return fail(400, 'invalid_request', '缺少必填字段')
+    const contract = db.contracts.find((c) => c.id === b.contractId && inScope(u, c.factoryId))
+    if (!contract) return fail(404, 'not_found', '合同不存在')
+    const lotNo = str(b.lotNo)
+    if (!lotNo) return fail(400, 'invalid_request', '批次号不能为空')
+    if (db.batches.some((batch) => batch.factoryId === contract.factoryId && batch.lotNo === lotNo))
+      return fail(409, 'duplicate_code', '批次号已存在')
+    const thickness = b.thickness === undefined ? 0 : b.thickness
+    const orderQty = b.orderQty === undefined ? 0 : b.orderQty
+    const orderArea = b.orderArea === undefined ? 0 : b.orderArea
+    if (
+      [thickness, orderArea].some((v) => typeof v !== 'number' || !Number.isFinite(v) || v < 0) ||
+      typeof orderQty !== 'number' ||
+      !Number.isInteger(orderQty) ||
+      orderQty < 0
+    )
+      return fail(400, 'invalid_request', '订单数量、面积或板厚不合法')
+    if (b.urgency != null && b.urgency !== 'normal' && b.urgency !== 'urgent') return fail(400, 'invalid_request', '紧急程度不合法')
+    const now = new Date().toISOString()
+    const batch: S['Batch'] = {
+      id: db.nextId++,
+      factoryId: contract.factoryId,
+      contractId: contract.id,
+      contractNo: contract.contractNo,
+      customerId: contract.customerId,
+      customerName: contract.customerName,
+      projectId: contract.projectId,
+      projectName: contract.projectName,
+      lotNo,
+      clientOrderNo: str(b.clientOrderNo),
+      thickness: thickness as number,
+      color: str(b.color),
+      colorNo: str(b.colorNo),
+      texture: str(b.texture),
+      sprayingType: str(b.sprayingType),
+      orderQty,
+      orderArea: orderArea as number,
+      deliveryAddress: str(b.deliveryAddress),
+      specialRequest: str(b.specialRequest),
+      requiredDate: str(b.requiredDate) || null,
+      urgency: (b.urgency ?? 'normal') as S['Urgency'],
+      status: 'pending',
+      itemCount: 0,
+      itemQty: 0,
+      itemArea: 0,
+      workshop: '',
+      remark: str(b.remark),
+      createdBy: u.displayName,
+      createdAt: now,
+      updatedAt: now,
+    }
+    db.batches.push(batch)
+    save(db)
+    return json(201, batch)
+  }
+
+  const batchRoute = /^(GET|PUT) \/batches\/(\d+)(?:\/(schedule|items))?$/.exec(route)
+  if (batchRoute) {
+    const batch = db.batches.find((x) => x.id === Number(batchRoute[2]) && inScope(u, x.factoryId))
+    if (!batch) return fail(404, 'not_found', '批次不存在')
+    const action = batchRoute[3]
+    if (batchRoute[1] === 'GET' && !action) return json(200, batch)
+    if (batchRoute[1] === 'GET' && action === 'items')
+      return json(
+        200,
+        db.batchItems.filter((item) => item.batchId === batch.id).sort((a, b) => a.seq - b.seq),
+      )
+    if (batchRoute[1] === 'PUT' && (action === 'schedule' || action === 'items')) {
+      if (batch.status === 'done') return fail(409, 'batch_done', '批次已完工，不能修改')
+      if (action === 'schedule') {
+        const b = await body(req)
+        if (!b || Array.isArray(b)) return fail(400, 'invalid_request', '请求参数不合法')
+        const outsourceFactory =
+          b.outsourceFactoryId == null ? null : factories.find((f) => f.id === b.outsourceFactoryId && f.kind === 'outsource')
+        if (b.outsourceFactoryId != null && !outsourceFactory) return fail(400, 'invalid_reference', '外协厂不存在或不是外协类型')
+        if (b.urgency != null && b.urgency !== 'normal' && b.urgency !== 'urgent') return fail(400, 'invalid_request', '紧急程度不合法')
+        const dateFields = [
+          'planTechDate',
+          'planDrawingDate',
+          'planCutDate',
+          'planSheetStart',
+          'planSheetDelivery',
+          'planSprayStart',
+          'planSprayDelivery',
+        ] as const
+        for (const key of dateFields) if (b[key] != null) batch[key] = b[key] as string
+        if (outsourceFactory) {
+          batch.outsourceFactoryId = outsourceFactory.id
+          batch.outsourceFactoryName = outsourceFactory.name
+        }
+        if (b.workshop != null) batch.workshop = str(b.workshop)
+        if (b.remark != null) batch.remark = str(b.remark)
+        if (b.urgency != null) batch.urgency = b.urgency as S['Urgency']
+        if (batch.planSheetStart && batch.status === 'pending') batch.status = 'scheduled'
+        batch.updatedAt = new Date().toISOString()
+        save(db)
+        return json(200, batch)
+      }
+      let input: unknown
+      try {
+        input = await req.json()
+      } catch {
+        /* invalid request below */
+      }
+      if (
+        !Array.isArray(input) ||
+        input.some(
+          (item) =>
+            !item ||
+            typeof item !== 'object' ||
+            !str(item.pieceNo) ||
+            typeof item.qty !== 'number' ||
+            !Number.isInteger(item.qty) ||
+            item.qty < 1,
+        )
+      )
+        return fail(400, 'invalid_request', '构件编号或数量不合法')
+      const seen = new Set<string>()
+      for (const item of input) {
+        const pieceNo = str(item.pieceNo)
+        if (seen.has(pieceNo)) return fail(400, 'duplicate_piece_no', `构件编号重复: ${pieceNo}`)
+        seen.add(pieceNo)
+      }
+      const items: S['BatchItem'][] = input.map((item, i) => ({
+        id: db.nextId++,
+        batchId: batch.id,
+        seq: i + 1,
+        pieceNo: str(item.pieceNo),
+        drawingNo: str(item.drawingNo),
+        pattern: str(item.pattern),
+        thickness: item.thickness ?? 0,
+        color: str(item.color),
+        length: item.length ?? 0,
+        width: item.width ?? 0,
+        pieceArea: item.pieceArea ?? 0,
+        sprayingArea: item.sprayingArea ?? 0,
+        qty: item.qty,
+        packageQty: item.packageQty ?? 0,
+        weldLine: item.weldLine ?? 0,
+        bendingTimes: item.bendingTimes ?? 0,
+        remark: str(item.remark),
+      }))
+      db.batchItems = db.batchItems.filter((item) => item.batchId !== batch.id).concat(items)
+      batch.itemCount = items.length
+      batch.itemQty = items.reduce((sum, item) => sum + item.qty, 0)
+      batch.itemArea = Number(items.reduce((sum, item) => sum + item.pieceArea * item.qty, 0).toFixed(4))
+      batch.updatedAt = new Date().toISOString()
+      save(db)
+      return json(200, items)
+    }
   }
 
   return fail(404, 'not_found', `演示环境未实现：${route}`)
