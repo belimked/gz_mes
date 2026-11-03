@@ -6,10 +6,9 @@ const baseURL = process.env.E2E_BASE_URL
 
 export default defineConfig({
   testDir: 'e2e',
-  outputDir: '../.tmp/playwright-results',
   timeout: 30_000,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [['github'], ['html', { open: 'never', outputFolder: '../.tmp/playwright-report' }]] : 'list',
+  reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: baseURL ?? 'http://127.0.0.1:14173',
     trace: 'retain-on-failure',

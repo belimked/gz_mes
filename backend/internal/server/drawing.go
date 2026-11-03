@@ -236,6 +236,7 @@ func (s *Server) rawFile(w http.ResponseWriter, r *http.Request) {
 		disposition = "attachment"
 	}
 	w.Header().Set("Content-Type", d.ContentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("%s; filename*=UTF-8''%s", disposition, url.PathEscape(d.OriginalName)))
 	w.Header().Set("Content-Length", strconv.FormatInt(d.SizeBytes, 10))
 	_, _ = io.Copy(w, f)
