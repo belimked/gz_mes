@@ -16,6 +16,30 @@ beforeEach(() => {
 })
 
 describe('demo api', () => {
+  it('spray board only includes audited plans for today and sums rows', async () => {
+    const admin = await login('admin', 'admin123')
+    const today = new Date().toISOString().slice(0, 10)
+    const board = await call(api.GET('/boards/spray-daily', { ...admin, params: { query: { date: today } } }))
+    expect(board.rows.length).toBeGreaterThan(0)
+    expect(board.rows.every((r) => r.startDate <= today && r.endDate >= today)).toBe(true)
+    expect(board.summary.count).toBe(board.rows.length)
+    expect(board.summary.daySprayedArea).toBeCloseTo(board.rows.reduce((s, r) => s + r.daySprayedArea, 0))
+    const empty = await call(api.GET('/boards/spray-daily', { ...admin, params: { query: { date: '2020-01-01' } } }))
+    expect(empty.rows).toEqual([])
+    expect((await api.GET('/boards/spray-daily', { ...admin, params: { query: { date: 'bad' } } })).response.status).toBe(400)
+  })
+  it('sheet board sums daily areas and respects factory scope', async () => {
+    const admin = await login('admin', 'admin123')
+    const wx = await login('waixie', 'demo123')
+    const today = new Date().toISOString().slice(0, 10)
+    const board = await call(api.GET('/boards/sheet-daily', { ...admin, params: { query: { date: today } } }))
+    expect(board.rows.length).toBeGreaterThan(0)
+    expect(board.rows.every((r) => r.startDate <= today && r.endDate >= today)).toBe(true)
+    expect(board.summary.count).toBe(board.rows.length)
+    expect(board.summary.dayPlanArea).toBeCloseTo(board.rows.reduce((s, r) => s + r.dayPlanArea, 0))
+    const scoped = await call(api.GET('/boards/sheet-daily', { ...wx, params: { query: { date: today } } }))
+    expect(scoped.rows.every((r) => board.rows.some((x) => x.planId === r.planId))).toBe(true)
+  })
   it('reports daily and monthly workshop output with zero periods and totals', async () => {
     const admin = await login('admin', 'admin123')
     for (const granularity of ['day', 'month'] as const) {
@@ -109,9 +133,10 @@ describe('demo api', () => {
     const admin = await call(api.GET('/auth/me', await login('admin', 'admin123')))
     expect(admin.menus.length).toBeGreaterThan(1)
     const wx = await call(api.GET('/auth/me', await login('waixie', 'demo123')))
-    expect(wx.menus.map((m) => m.title)).toEqual(['销售管理', '排程管理'])
-    expect(wx.menus[0]?.children?.map((c) => c.path)).toEqual(['/sale/projects', '/sale/contracts'])
-    expect(wx.menus[1]?.children?.map((c) => c.path)).toEqual([
+    expect(wx.menus.map((m) => m.title)).toEqual(['看板管理', '销售管理', '排程管理'])
+    expect(wx.menus[0]?.children?.map((c) => c.path)).toEqual(['/board/spray-daily', '/board/sheet-daily'])
+    expect(wx.menus[1]?.children?.map((c) => c.path)).toEqual(['/sale/projects', '/sale/contracts'])
+    expect(wx.menus[2]?.children?.map((c) => c.path)).toEqual([
       '/scheduling/sheet-week',
       '/scheduling/sheet-daily',
       '/scheduling/spray-daily',

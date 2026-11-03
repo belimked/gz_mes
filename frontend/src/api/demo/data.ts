@@ -51,6 +51,9 @@ export const factories: S['Factory'][] = [
 
 // Mirrors backend/db/migrations/00001_init.sql.
 export const menus: { id: number; parentId: number | null; title: string; path: string; icon?: string }[] = [
+  { id: 1100, parentId: null, title: '看板管理', path: '/board', icon: 'dashboard' },
+  { id: 1101, parentId: 1100, title: '喷涂日排产看板', path: '/board/spray-daily', icon: 'dashboard' },
+  { id: 1102, parentId: 1100, title: '钣金日排程看板', path: '/board/sheet-daily', icon: 'dashboard' },
   { id: 100, parentId: null, title: '系统管理', path: '/system', icon: 'setting' },
   { id: 101, parentId: 100, title: '厂区管理', path: '/system/factories', icon: 'home' },
   { id: 102, parentId: 100, title: '用户管理', path: '/system/users', icon: 'team' },
@@ -112,7 +115,7 @@ export const users: DemoUser[] = [
     isAdmin: false,
     enabled: true,
     factoryIds: [2],
-    menuIds: [201, 203, 302, 303, 304, 305],
+    menuIds: [201, 203, 302, 303, 304, 305, 1100, 1101, 1102],
     createdAt: '2026-01-01T00:00:00.000Z',
   },
 ]
@@ -606,6 +609,17 @@ export function seedPlans(batches: S['Batch'][], jobList: S['Job'][], scans: S['
     plan.shift = ['早班', '中班', '晚班'][index % 3]!
     plan.sprayType = batch.sprayingType
     plans.push(index % 2 === 0 ? audit(plan) : plan)
+  }
+  // Board fixtures always cover today, independently of the original historical flow.
+  for (const [index, batch] of producing.slice(0, 4).entries()) {
+    const sheet = base(batch, 'sheet_daily', todayMs - dayMs, todayMs + dayMs)
+    sheet.workshop = index % 2 ? '钣金二车间' : '钣金一车间'
+    sheet.jobId = jobByCode('20').id
+    plans.push(audit(sheet))
+    const spray = base(batch, 'spray_daily', todayMs - dayMs, todayMs + dayMs)
+    spray.paintLine = index % 2 ? '2号线' : '1号线'
+    spray.shift = '早班'
+    plans.push(audit(spray))
   }
   return plans
 }

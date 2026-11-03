@@ -19,6 +19,7 @@ import { brand, layout } from '@/theme'
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
+const boardFullscreen = computed(() => route.path.startsWith('/board/') && route.query.fullscreen === '1')
 const collapsed = ref(false)
 const mobile = ref(false)
 const mobileOpen = ref(false)
@@ -75,7 +76,7 @@ function fullscreen() {
 <template>
   <a-layout class="layout">
     <a-layout-sider
-      v-if="!mobile"
+      v-if="!mobile && !boardFullscreen"
       v-model:collapsed="collapsed"
       :width="layout.siderWidth"
       :collapsed-width="48"
@@ -141,7 +142,7 @@ function fullscreen() {
       </a-menu>
     </a-drawer>
     <a-layout class="main">
-      <a-layout-header class="header">
+      <a-layout-header v-if="!boardFullscreen" class="header">
         <button class="icon-button" aria-label="切换菜单" @click="toggle">
           <MenuUnfoldOutlined v-if="collapsed || mobile" />
           <MenuFoldOutlined v-else />
@@ -187,13 +188,16 @@ function fullscreen() {
           </template>
         </a-dropdown>
       </a-layout-header>
-      <a-layout-content class="content">
+      <a-layout-content class="content" :class="{ 'board-content': boardFullscreen }">
         <router-view />
       </a-layout-content>
     </a-layout>
   </a-layout>
 </template>
 <style scoped>
+.board-content {
+  padding: 0;
+}
 .layout {
   min-height: 100vh;
 }

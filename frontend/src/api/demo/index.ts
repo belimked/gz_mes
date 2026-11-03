@@ -1,6 +1,7 @@
 // In-browser implementation of the API for the public demo build.
 // Behaviour mirrors the Go backend (validation, factory isolation, error codes).
 import type { components } from '../schema'
+import { dailyBoard } from './board'
 import { workshopReport } from './workshop'
 import {
   factories as seedFactories,
@@ -30,7 +31,7 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 19
+  version: 20
   factories: S['Factory'][]
   users: DemoUser[]
   nextId: number
@@ -73,6 +74,16 @@ function fresh(): DemoDB {
   const batchItems = seedBatchItems(batches)
   const labels = seedLabels(batches, batchItems)
   const scans = seedScans(batches, labels, jobs)
+  const boardBatches = batches.filter((b) => b.status === 'in_production').slice(0, 4)
+  const today = new Date().toISOString().slice(0, 10)
+  for (const scan of scans) {
+    if (
+      boardBatches.some((b) => b.id === scan.batchId) &&
+      ['20', '40'].includes(jobs.find((j) => j.id === scan.jobId)?.code ?? '') &&
+      scan.id % 3 === 0
+    )
+      scan.scannedAt = `${today}T09:00:00.000Z`
+  }
   const machines: S['Machine'][] = [10, 15, 35].flatMap((code) => {
     const job = jobs.find((j) => j.code === String(code))!
     return [1, 2].map((n) => ({
@@ -152,7 +163,7 @@ function fresh(): DemoDB {
   const qc = seedQc(labels, scans, jobs)
   for (const row of qc) row.id = nextId++
   return {
-    version: 19,
+    version: 20,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
     nextId,
@@ -182,12 +193,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 19) return parsed
+      if (parsed?.version === 20) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 19) memory = fresh()
+  if (memory?.version !== 20) memory = fresh()
   return memory
 }
 
@@ -509,6 +520,11 @@ export async function demoFetch(req: Request): Promise<Response> {
       user: { id: u.id, username: u.username, displayName: u.displayName, staffNo: u.staffNo, isAdmin: u.isAdmin },
       menus: menuTree(u),
     })
+  }
+
+  if (route === 'GET /boards/spray-daily' || route === 'GET /boards/sheet-daily') {
+    const result = dailyBoard(db, url.searchParams, route.endsWith('spray-daily') ? 'spray_daily' : 'sheet_daily', (id) => inScope(u, id))
+    return json(result.status, result.body)
   }
 
   if (route === 'GET /factories')

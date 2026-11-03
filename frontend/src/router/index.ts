@@ -2,6 +2,18 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const children: RouteRecordRaw[] = [
+  {
+    path: 'board/spray-daily',
+    name: 'board-spray-daily',
+    component: () => import('@/views/board/SprayDailyBoard.vue'),
+    meta: { title: '喷涂日排产看板', group: '看板管理' },
+  },
+  {
+    path: 'board/sheet-daily',
+    name: 'board-sheet-daily',
+    component: () => import('@/views/board/SheetDailyBoard.vue'),
+    meta: { title: '钣金日排程看板', group: '看板管理' },
+  },
   { path: '', name: 'home', component: () => import('@/views/Home.vue'), meta: { title: '首页', public: true } },
   {
     path: 'sale/projects',

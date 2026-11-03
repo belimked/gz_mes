@@ -969,6 +969,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/boards/spray-daily": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getSprayDailyBoard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/boards/sheet-daily": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getSheetDailyBoard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/workshop-output": {
         parameters: {
             query?: never;
@@ -1586,6 +1618,93 @@ export interface components {
             jobSeq: number;
             /** Format: date-time */
             createdAt: string;
+        };
+        SprayBoardRow: {
+            /** Format: int64 */
+            planId: number;
+            seq: number;
+            projectName: string;
+            lotNo: string;
+            color: string;
+            colorNo: string;
+            sprayingType: string;
+            paintLine: string;
+            shift: string;
+            urgency: string;
+            /** Format: date */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+            plannedArea: number;
+            plannedQty: number;
+            sheetArea: number;
+            sprayedArea: number;
+            daySprayedArea: number;
+            unsprayedArea: number;
+            progress: number;
+            state: string;
+            dueToday: boolean;
+        };
+        SheetBoardRow: {
+            /** Format: int64 */
+            planId: number;
+            seq: number;
+            projectName: string;
+            lotNo: string;
+            workshop: string;
+            /** Format: int64 */
+            jobId: number;
+            jobName: string;
+            urgency: string;
+            /** Format: date */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+            orderQty: number;
+            orderArea: number;
+            dayPlanArea: number;
+            doneQty: number;
+            doneArea: number;
+            dayDoneQty: number;
+            dayDoneArea: number;
+            remainingQty: number;
+            progress: number;
+            state: string;
+            dueToday: boolean;
+        };
+        SprayLineSummary: {
+            paintLine: string;
+            plannedArea: number;
+            daySprayedArea: number;
+            count: number;
+        };
+        SheetJobSummary: {
+            jobName: string;
+            dayPlanArea: number;
+            dayDoneArea: number;
+            count: number;
+        };
+        SprayDailyBoard: {
+            rows: components["schemas"]["SprayBoardRow"][];
+            summary: {
+                count: number;
+                plannedArea: number;
+                daySprayedArea: number;
+                sprayedArea: number;
+                doneCount: number;
+                byLine: components["schemas"]["SprayLineSummary"][];
+            };
+        };
+        SheetDailyBoard: {
+            rows: components["schemas"]["SheetBoardRow"][];
+            summary: {
+                count: number;
+                orderArea: number;
+                dayPlanArea: number;
+                dayDoneArea: number;
+                doneCount: number;
+                byJob: components["schemas"]["SheetJobSummary"][];
+            };
         };
         WorkshopOutputRow: {
             period: string;
@@ -4663,6 +4782,55 @@ export interface operations {
             };
             400: components["responses"]["Error"];
             401: components["responses"]["Error"];
+        };
+    };
+    getSprayDailyBoard: {
+        parameters: {
+            query?: {
+                date?: string;
+                paintLine?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SprayDailyBoard"];
+                };
+            };
+            400: components["responses"]["Error"];
+        };
+    };
+    getSheetDailyBoard: {
+        parameters: {
+            query?: {
+                date?: string;
+                workshop?: string;
+                jobId?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetDailyBoard"];
+                };
+            };
+            400: components["responses"]["Error"];
         };
     };
     getWorkshopOutputReport: {

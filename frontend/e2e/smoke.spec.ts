@@ -15,6 +15,33 @@ async function login(page: Page, u = user, p = password) {
   await page.getByTestId('login-submit').click()
 }
 
+test('both daily boards render KPI, table and empty state on an empty database', async ({ page }) => {
+  await login(page)
+  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
+  for (const [path, title] of [
+    ['spray-daily', '喷涂日排产看板'],
+    ['sheet-daily', '钣金日排程看板'],
+  ]) {
+    await page.goto(`/board/${path}`)
+    await expect(page.getByRole('heading', { name: title })).toBeVisible()
+    await expect(page.locator('.board .kpi')).toHaveCount(5)
+    await expect(page.locator('.board table')).toBeVisible()
+    await page.goto(`/board/${path}?fullscreen=1`)
+    await expect(page.getByRole('heading', { name: title })).toBeVisible()
+    await expect(page.getByTestId('side-menu')).toHaveCount(0)
+  }
+})
+
+test('board seed plans appear in both boards', async ({ page }) => {
+  needsSeed()
+  await login(page)
+  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
+  for (const path of ['spray-daily', 'sheet-daily']) {
+    await page.goto(`/board/${path}`)
+    await expect(page.locator('.board tbody tr').first()).toBeVisible()
+  }
+})
+
 test('workshop daily and monthly reports render chart, total and comparison on an empty database', async ({ page }) => {
   await login(page)
   await page.getByTestId('side-menu').getByText('生产报表').click()
