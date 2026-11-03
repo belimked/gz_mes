@@ -143,6 +143,7 @@ func (s *Store) MenusFor(ctx context.Context, p *auth.Principal) ([]*Menu, error
 			SELECT m.* FROM menu m
 			JOIN role_menu rm ON rm.menu_id = m.id
 			JOIN user_role ur ON ur.role_id = rm.role_id
+			JOIN role r ON r.id = ur.role_id AND NOT r.is_stop
 			WHERE ur.user_id = $1
 			UNION
 			SELECT p.* FROM menu p JOIN granted g ON g.parent_id = p.id
@@ -234,8 +235,8 @@ func (s *Store) GrantFactory(ctx context.Context, userID, factoryID int64) error
 func (s *Store) GrantMenus(ctx context.Context, userID int64, roleCode string, menuIDs ...int64) error {
 	var roleID int64
 	err := s.db.QueryRow(ctx,
-		"INSERT INTO role (code, name) VALUES ($1, $1) ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name RETURNING id",
-		roleCode).Scan(&roleID)
+		"INSERT INTO role (code, name, is_personal) VALUES ($1, $1, $2) ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name RETURNING id",
+		roleCode, strings.HasPrefix(roleCode, "user:")).Scan(&roleID)
 	if err != nil {
 		return err
 	}

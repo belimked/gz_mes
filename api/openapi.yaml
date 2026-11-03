@@ -190,6 +190,73 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
 
+  /roles:
+    get:
+      operationId: listRoles
+      tags: [system]
+      description: Admin only. Excludes personal roles.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Role" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createRole
+      tags: [system]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RoleInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Role" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /roles/{id}:
+    put:
+      operationId: updateRole
+      tags: [system]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RoleInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Role" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteRole
+      tags: [system]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
   /users:
     get:
       operationId: listUsers
@@ -1748,17 +1815,46 @@ components:
         name: { type: string, minLength: 1, maxLength: 100 }
         isStop: { type: boolean }
 
+    Role:
+      type: object
+      required: [id, code, name, remark, isStop, menuIds, userCount, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        code: { type: string }
+        name: { type: string }
+        remark: { type: string }
+        isStop: { type: boolean }
+        menuIds:
+          type: array
+          items: { type: integer, format: int64 }
+        userCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+    RoleInput:
+      type: object
+      required: [code, name, isStop, menuIds]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 50 }
+        name: { type: string, minLength: 1, maxLength: 50 }
+        remark: { type: string, default: '' }
+        isStop: { type: boolean }
+        menuIds:
+          type: array
+          items: { type: integer, format: int64 }
+
     UserDetail:
       allOf:
         - $ref: "#/components/schemas/User"
         - type: object
-          required: [enabled, factoryIds, menuIds, createdAt]
+          required: [enabled, factoryIds, menuIds, roleIds, createdAt]
           properties:
             enabled: { type: boolean }
             factoryIds:
               type: array
               items: { type: integer, format: int64 }
             menuIds:
+              type: array
+              items: { type: integer, format: int64 }
+            roleIds:
               type: array
               items: { type: integer, format: int64 }
             createdAt: { type: string, format: date-time }
@@ -1788,6 +1884,10 @@ components:
           type: array
           items: { type: integer, format: int64 }
 
+        roleIds:
+          type: array
+          items: { type: integer, format: int64 }
+
     UserUpdate:
       type: object
       required: [displayName, enabled, isAdmin, factoryIds, menuIds]
@@ -1800,6 +1900,10 @@ components:
           type: array
           items: { type: integer, format: int64 }
         menuIds:
+          type: array
+          items: { type: integer, format: int64 }
+
+        roleIds:
           type: array
           items: { type: integer, format: int64 }
 

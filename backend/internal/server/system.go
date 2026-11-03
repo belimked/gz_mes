@@ -15,14 +15,11 @@ var usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9_.-]{2,32}$`)
 
 func adminOnly(ctx context.Context) bool { return auth.FromContext(ctx).IsAdmin }
 func forbidden() api.ErrorJSONResponse   { return apiErr("forbidden", "仅管理员可操作") }
-func badReference() api.ErrorJSONResponse {
-	return apiErr("invalid_reference", "厂区或菜单不存在")
-}
 func toAPIFactory(f *store.Factory) api.Factory {
 	return api.Factory{Id: f.ID, Code: f.Code, Name: f.Name, Kind: api.FactoryKind(f.Kind), IsStop: f.IsStop}
 }
 func toAPIUserDetail(d *store.UserDetail) api.UserDetail {
-	return api.UserDetail{Id: d.ID, Username: d.Username, DisplayName: d.DisplayName, StaffNo: d.StaffNo, IsAdmin: d.IsAdmin, Enabled: d.Enabled, FactoryIds: d.FactoryIDs, MenuIds: d.MenuIDs, CreatedAt: d.CreatedAt}
+	return api.UserDetail{Id: d.ID, Username: d.Username, DisplayName: d.DisplayName, StaffNo: d.StaffNo, IsAdmin: d.IsAdmin, Enabled: d.Enabled, FactoryIds: d.FactoryIDs, MenuIds: d.MenuIDs, RoleIds: d.RoleIDs, CreatedAt: d.CreatedAt}
 }
 func validPassword(p string) bool { return len(p) >= 6 && len(p) <= 72 }
 
@@ -121,6 +118,9 @@ func (s *Server) CreateUser(ctx context.Context, req api.CreateUserRequestObject
 	if b.MenuIds != nil {
 		in.MenuIDs = *b.MenuIds
 	}
+	if b.RoleIds != nil {
+		in.RoleIDs = *b.RoleIds
+	}
 	if !usernamePattern.MatchString(in.Username) || in.DisplayName == "" || len(in.DisplayName) > 50 || !validPassword(in.Password) {
 		return api.CreateUser400JSONResponse{ErrorJSONResponse: apiErr("invalid_request", "用户名、显示名称或密码无效")}, nil
 	}
@@ -130,7 +130,7 @@ func (s *Server) CreateUser(ctx context.Context, req api.CreateUserRequestObject
 	d, err := s.store.CreateUserFull(ctx, in)
 	switch {
 	case errors.Is(err, store.ErrBadRef):
-		return api.CreateUser400JSONResponse{ErrorJSONResponse: badReference()}, nil
+		return api.CreateUser400JSONResponse{ErrorJSONResponse: apiErr("invalid_reference", "厂区、菜单或角色不存在或已停用")}, nil
 	case errors.Is(err, store.ErrConflict):
 		return api.CreateUser409JSONResponse(apiErr("duplicate_code", "用户名已存在")), nil
 	case err != nil:
@@ -172,12 +172,12 @@ func (s *Server) UpdateUser(ctx context.Context, req api.UpdateUserRequestObject
 	if b.StaffNo != nil {
 		staffNo = strings.TrimSpace(*b.StaffNo)
 	}
-	d, err := s.store.UpdateUser(ctx, req.Id, store.UserUpdate{DisplayName: name, StaffNo: staffNo, Enabled: b.Enabled, IsAdmin: b.IsAdmin, FactoryIDs: b.FactoryIds, MenuIDs: b.MenuIds})
+	d, err := s.store.UpdateUser(ctx, req.Id, store.UserUpdate{DisplayName: name, StaffNo: staffNo, Enabled: b.Enabled, IsAdmin: b.IsAdmin, FactoryIDs: b.FactoryIds, MenuIDs: b.MenuIds, RoleIDs: b.RoleIds})
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		return api.UpdateUser404JSONResponse(apiErr("not_found", "用户不存在")), nil
 	case errors.Is(err, store.ErrBadRef):
-		return api.UpdateUser400JSONResponse{ErrorJSONResponse: badReference()}, nil
+		return api.UpdateUser400JSONResponse{ErrorJSONResponse: apiErr("invalid_reference", "厂区、菜单或角色不存在或已停用")}, nil
 	case err != nil:
 		return nil, err
 	}

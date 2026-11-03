@@ -33,6 +33,7 @@ type UserDetail struct {
 	Enabled     bool
 	FactoryIDs  []int64
 	MenuIDs     []int64
+	RoleIDs     []int64
 	CreatedAt   time.Time
 }
 
@@ -49,6 +50,7 @@ type UserCreate struct {
 	IsAdmin     bool
 	FactoryIDs  []int64
 	MenuIDs     []int64
+	RoleIDs     []int64
 }
 
 type UserUpdate struct {
@@ -58,16 +60,18 @@ type UserUpdate struct {
 	IsAdmin     bool
 	FactoryIDs  []int64
 	MenuIDs     []int64
+	RoleIDs     *[]int64
 }
 
 const detailSelect = `SELECT u.id, u.username, u.display_name, u.is_admin, u.enabled,
  COALESCE((SELECT array_agg(uf.factory_id ORDER BY uf.factory_id) FROM user_factory uf WHERE uf.user_id = u.id), ARRAY[]::bigint[]),
  COALESCE((SELECT array_agg(rm.menu_id ORDER BY rm.menu_id) FROM user_role ur JOIN role r ON r.id = ur.role_id JOIN role_menu rm ON rm.role_id = r.id WHERE ur.user_id = u.id AND r.code = 'user:' || u.username), ARRAY[]::bigint[]),
- u.created_at, u.staff_no FROM app_user u`
+ u.created_at, u.staff_no,
+ COALESCE((SELECT array_agg(r.id ORDER BY r.id) FROM user_role ur JOIN role r ON r.id=ur.role_id WHERE ur.user_id=u.id AND NOT r.is_personal), ARRAY[]::bigint[]) FROM app_user u`
 
 func scanDetail(row pgx.Row) (*UserDetail, error) {
 	d := &UserDetail{}
-	err := row.Scan(&d.ID, &d.Username, &d.DisplayName, &d.IsAdmin, &d.Enabled, &d.FactoryIDs, &d.MenuIDs, &d.CreatedAt, &d.StaffNo)
+	err := row.Scan(&d.ID, &d.Username, &d.DisplayName, &d.IsAdmin, &d.Enabled, &d.FactoryIDs, &d.MenuIDs, &d.CreatedAt, &d.StaffNo, &d.RoleIDs)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -100,7 +104,7 @@ func (s *Store) ListUsers(ctx context.Context, f UserFilter, page, size int) ([]
 }
 
 // replaceUserGrants validates references and replaces both sets in a transaction.
-func replaceUserGrants(ctx context.Context, tx pgx.Tx, id int64, username string, factories, menus []int64) error {
+func replaceUserGrants(ctx context.Context, tx pgx.Tx, id int64, username string, factories, menus []int64, roles *[]int64) error {
 	for _, item := range []struct {
 		table string
 		ids   []int64
@@ -124,13 +128,25 @@ func replaceUserGrants(ctx context.Context, tx pgx.Tx, id int64, username string
 		return mapErr(err)
 	}
 	var roleID int64
-	if err := tx.QueryRow(ctx, "INSERT INTO role (code, name) VALUES ($1, $1) ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name RETURNING id", "user:"+username).Scan(&roleID); err != nil {
+	if err := tx.QueryRow(ctx, "INSERT INTO role (code, name, is_personal) VALUES ($1, $1, true) ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name RETURNING id", "user:"+username).Scan(&roleID); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, "DELETE FROM user_role WHERE user_id = $1", id); err != nil {
-		return err
+	if roles != nil {
+		var invalid int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM unnest($2::bigint[]) AS v(id) WHERE NOT EXISTS (SELECT 1 FROM role r WHERE r.id=v.id AND NOT r.is_personal AND (NOT r.is_stop OR EXISTS(SELECT 1 FROM user_role ur WHERE ur.user_id=$1 AND ur.role_id=r.id)))`, id, *roles).Scan(&invalid); err != nil {
+			return err
+		}
+		if invalid != 0 {
+			return ErrBadRef
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM user_role ur USING role r WHERE ur.user_id=$1 AND ur.role_id=r.id AND NOT r.is_personal`, id); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO user_role(user_id,role_id) SELECT $1,unnest($2::bigint[]) ON CONFLICT DO NOTHING`, id, *roles); err != nil {
+			return err
+		}
 	}
-	if _, err := tx.Exec(ctx, "INSERT INTO user_role (user_id, role_id) VALUES ($1, $2)", id, roleID); err != nil {
+	if _, err := tx.Exec(ctx, "INSERT INTO user_role (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", id, roleID); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, "DELETE FROM role_menu WHERE role_id = $1", roleID); err != nil {
@@ -155,7 +171,7 @@ func (s *Store) CreateUserFull(ctx context.Context, in UserCreate) (*UserDetail,
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	if err := replaceUserGrants(ctx, tx, id, in.Username, in.FactoryIDs, in.MenuIDs); err != nil {
+	if err := replaceUserGrants(ctx, tx, id, in.Username, in.FactoryIDs, in.MenuIDs, &in.RoleIDs); err != nil {
 		return nil, err
 	}
 	d, err := scanDetail(tx.QueryRow(ctx, detailSelect+" WHERE u.id = $1", id))
@@ -185,7 +201,7 @@ func (s *Store) UpdateUser(ctx context.Context, id int64, in UserUpdate) (*UserD
 	if _, err := tx.Exec(ctx, "UPDATE app_user SET display_name=$2, enabled=$3, is_admin=$4, staff_no=$5, updated_at=now() WHERE id=$1", id, in.DisplayName, in.Enabled, in.IsAdmin, in.StaffNo); err != nil {
 		return nil, err
 	}
-	if err := replaceUserGrants(ctx, tx, id, username, in.FactoryIDs, in.MenuIDs); err != nil {
+	if err := replaceUserGrants(ctx, tx, id, username, in.FactoryIDs, in.MenuIDs, in.RoleIDs); err != nil {
 		return nil, err
 	}
 	d, err := scanDetail(tx.QueryRow(ctx, detailSelect+" WHERE u.id = $1", id))
