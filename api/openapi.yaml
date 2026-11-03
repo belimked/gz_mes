@@ -797,6 +797,8 @@ paths:
         - { name: customerId, in: query, schema: { type: integer, format: int64 } }
         - { name: keyword, in: query, schema: { type: string }, description: "Matches noteNo / lotNo / projectName / plateNo" }
         - { name: accounted, in: query, schema: { type: boolean }, description: "Already on a deliver account" }
+        - { name: unplanned, in: query, schema: { type: boolean } }
+        - { name: factoryId, in: query, schema: { type: integer, format: int64 } }
         - { name: beginDate, in: query, schema: { type: string, format: date } }
         - { name: endDate, in: query, schema: { type: string, format: date } }
       responses:
@@ -844,6 +846,103 @@ paths:
               schema: { $ref: "#/components/schemas/DeliveryNoteDetail" }
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
+
+  /delivery-plans:
+    get:
+      operationId: listDeliveryPlans
+      tags: [delivery]
+      parameters:
+        - { name: createdFrom, in: query, schema: { type: string, format: date } }
+        - { name: createdTo, in: query, schema: { type: string, format: date } }
+        - { name: estimatedFrom, in: query, schema: { type: string, format: date } }
+        - { name: estimatedTo, in: query, schema: { type: string, format: date } }
+        - { name: confirmed, in: query, schema: { type: boolean } }
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliveryPlanPage" }
+    post:
+      operationId: createDeliveryPlan
+      tags: [delivery]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeliveryPlanInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliveryPlanDetail" }
+        "400": { $ref: "#/components/responses/Error" }
+    
+  /delivery-plans/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    get:
+      operationId: getDeliveryPlan
+      tags: [delivery]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliveryPlanDetail" }
+        "404": { $ref: "#/components/responses/Error" }
+    put:
+      operationId: updateDeliveryPlan
+      tags: [delivery]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeliveryPlanInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliveryPlanDetail" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteDeliveryPlan
+      tags: [delivery]
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /delivery-plans/{id}/confirm:
+    post:
+      operationId: confirmDeliveryPlan
+      tags: [delivery]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [departureDate]
+              properties:
+                departureDate: { type: string, format: date }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliveryPlanDetail" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
 
   /deliver-accounts:
     get:
@@ -1200,6 +1299,25 @@ paths:
               schema: { $ref: "#/components/schemas/QualityReport" }
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
+
+  /reports/outsource-orders:
+    get:
+      operationId: getOutsourceOrders
+      tags: [report]
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: outsourceFactoryId, in: query, schema: { type: integer, format: int64 } }
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OutsourceOrderPage" }
+        "400": { $ref: "#/components/responses/Error" }
 
   /reports/defect-daily:
     get:
@@ -1956,6 +2074,82 @@ components:
           items: { type: string }
         remark: { type: string, maxLength: 500 }
 
+    DeliveryPlanInput:
+      type: object
+      required: [factoryId, estimatedDepartureDate, noteIds]
+      properties:
+        factoryId: { type: integer, format: int64 }
+        logisticsCompany: { type: string }
+        contact: { type: string }
+        phone: { type: string }
+        shippingAddress: { type: string }
+        receivingAddress: { type: string }
+        carModel: { type: string }
+        plateNo: { type: string }
+        driver: { type: string }
+        driverPhone: { type: string }
+        cost: { type: number, format: double }
+        extraCost: { type: number, format: double }
+        estimatedDepartureDate: { type: string, format: date }
+        remark: { type: string }
+        noteIds:
+          type: array
+          items: { type: integer, format: int64 }
+    DeliveryPlan:
+      type: object
+      required: [id, planNo, factoryId, logisticsCompany, contact, phone, shippingAddress, receivingAddress, carModel, plateNo, driver, driverPhone, cost, extraCost, estimatedDepartureDate, remark, createdAt, noteCount, qty, area]
+      properties:
+        id: { type: integer, format: int64 }
+        planNo: { type: string }
+        factoryId: { type: integer, format: int64 }
+        logisticsCompany: { type: string }
+        contact: { type: string }
+        phone: { type: string }
+        shippingAddress: { type: string }
+        receivingAddress: { type: string }
+        carModel: { type: string }
+        plateNo: { type: string }
+        driver: { type: string }
+        driverPhone: { type: string }
+        cost: { type: number, format: double }
+        extraCost: { type: number, format: double }
+        estimatedDepartureDate: { type: string, format: date }
+        confirmedDepartureDate: { type: string, format: date, nullable: true }
+        confirmedBy: { type: string, nullable: true }
+        confirmedAt: { type: string, format: date-time, nullable: true }
+        remark: { type: string }
+        createdAt: { type: string, format: date-time }
+        noteCount: { type: integer }
+        qty: { type: integer }
+        area: { type: number, format: double }
+    DeliveryPlanDetail:
+      allOf:
+        - $ref: "#/components/schemas/DeliveryPlan"
+        - type: object
+          required: [notes]
+          properties:
+            notes:
+              type: array
+              items: { $ref: "#/components/schemas/DeliveryNote" }
+    DeliveryPlanPage:
+      type: object
+      required: [items, total, summary]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DeliveryPlan" }
+        total: { type: integer, format: int64 }
+        summary:
+          type: object
+          required: [plans, confirmed, cost, extraCost, qty, area]
+          properties:
+            plans: { type: integer }
+            confirmed: { type: integer }
+            cost: { type: number, format: double }
+            extraCost: { type: number, format: double }
+            qty: { type: integer }
+            area: { type: number, format: double }
+
     DeliveryNote:
       type: object
       required: [id, noteNo, factoryId, batchId, lotNo, projectName, customerId, customerName, contractNo, deliveryBatch, qty, area, logisticsCompany, plateNo, driver, driverPhone, deliveredAt, remark, accounted, createdBy, createdAt]
@@ -1980,6 +2174,8 @@ components:
         remark: { type: string }
         accounted: { type: boolean }
         accountId: { type: integer, format: int64, nullable: true }
+        planId: { type: integer, format: int64, nullable: true }
+        planNo: { type: string, nullable: true }
         createdBy: { type: string }
         createdAt: { type: string, format: date-time }
 
@@ -2498,6 +2694,53 @@ components:
         reinspectedArea: { type: number, format: double }
         pendingQty: { type: integer }
         pendingArea: { type: number, format: double }
+
+    OutsourceProgress:
+      type: object
+      required: [scannedQty, scannedArea, unscannedQty, unscannedArea, percent]
+      properties:
+        scannedQty: { type: integer }
+        scannedArea: { type: number, format: double }
+        unscannedQty: { type: integer }
+        unscannedArea: { type: number, format: double }
+        percent: { type: number, format: double }
+    OutsourceOrder:
+      type: object
+      required: [batchId, lotNo, projectName, customerName, clientOrderNo, createdAt, thickness, color, sprayingType, outsourceFactoryId, outsourceFactoryName, status, itemQty, itemArea, cutting, shipping]
+      properties:
+        batchId: { type: integer, format: int64 }
+        lotNo: { type: string }
+        projectName: { type: string }
+        customerName: { type: string }
+        clientOrderNo: { type: string }
+        createdAt: { type: string, format: date-time }
+        thickness: { type: number, format: double }
+        color: { type: string }
+        sprayingType: { type: string }
+        outsourceFactoryId: { type: integer, format: int64 }
+        outsourceFactoryName: { type: string }
+        status: { type: string }
+        itemQty: { type: integer }
+        itemArea: { type: number, format: double }
+        cutting: { $ref: "#/components/schemas/OutsourceProgress" }
+        shipping: { $ref: "#/components/schemas/OutsourceProgress" }
+    OutsourceOrderPage:
+      type: object
+      required: [items, total, summary]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/OutsourceOrder" }
+        total: { type: integer, format: int64 }
+        summary:
+          type: object
+          required: [batches, plannedQty, plannedArea, cuttingScannedQty, shippingScannedQty]
+          properties:
+            batches: { type: integer }
+            plannedQty: { type: integer }
+            plannedArea: { type: number, format: double }
+            cuttingScannedQty: { type: integer }
+            shippingScannedQty: { type: integer }
 
     DefectDailyRow:
       type: object

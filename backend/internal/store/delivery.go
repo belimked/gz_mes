@@ -257,12 +257,14 @@ type DeliveryNote struct {
 	Remark                                         string
 	Accounted                                      bool
 	AccountID                                      *int64
+	PlanID                                         *int64
+	PlanNo                                         *string
 	CreatedBy                                      string
 	CreatedAt                                      time.Time
 }
 
-const noteFrom = ` FROM delivery_note d JOIN batch b ON b.id=d.batch_id JOIN contract c ON c.id=b.contract_id JOIN project p ON p.id=c.project_id JOIN customer cu ON cu.id=d.customer_id JOIN app_user u ON u.id=d.created_by`
-const noteSelect = `SELECT d.id,d.note_no,d.factory_id,d.batch_id,b.lot_no,p.full_name,d.customer_id,cu.name,c.contract_no,d.delivery_batch,d.qty,d.area::float8,d.logistics_company,d.plate_no,d.driver,d.driver_phone,d.delivered_at,d.remark,(d.account_id IS NOT NULL),d.account_id,u.display_name,d.created_at` + noteFrom
+const noteFrom = ` FROM delivery_note d JOIN batch b ON b.id=d.batch_id JOIN contract c ON c.id=b.contract_id JOIN project p ON p.id=c.project_id JOIN customer cu ON cu.id=d.customer_id JOIN app_user u ON u.id=d.created_by LEFT JOIN delivery_plan dp ON dp.id=d.plan_id`
+const noteSelect = `SELECT d.id,d.note_no,d.factory_id,d.batch_id,b.lot_no,p.full_name,d.customer_id,cu.name,c.contract_no,d.delivery_batch,d.qty,d.area::float8,d.logistics_company,d.plate_no,d.driver,d.driver_phone,d.delivered_at,d.remark,(d.account_id IS NOT NULL),d.account_id,d.plan_id,dp.plan_no,u.display_name,d.created_at` + noteFrom
 
 func (s *Store) GetDeliveryNote(ctx context.Context, sc auth.Scope, id int64) (*DeliveryNote, []Label, error) {
 	rows, err := s.db.Query(ctx, noteSelect+` WHERE d.id=$1 AND ($2 OR d.factory_id=ANY($3))`, id, sc.All, sc.FactoryIDs)
@@ -281,10 +283,11 @@ func (s *Store) GetDeliveryNote(ctx context.Context, sc auth.Scope, id int64) (*
 }
 
 type DeliveryNoteFilter struct {
-	BatchID, CustomerID *int64
-	Keyword             string
-	Accounted           *bool
-	Begin, End          *time.Time
+	BatchID, CustomerID, FactoryID *int64
+	Unplanned                      *bool
+	Keyword                        string
+	Accounted                      *bool
+	Begin, End                     *time.Time
 }
 
 func (s *Store) ListDeliveryNotes(ctx context.Context, sc auth.Scope, f DeliveryNoteFilter, page, size int) ([]DeliveryNote, int64, error) {
@@ -299,6 +302,12 @@ func (s *Store) ListDeliveryNotes(ctx context.Context, sc auth.Scope, f Delivery
 	}
 	if f.Accounted != nil {
 		add(` AND (d.account_id IS NOT NULL)=$%d`, *f.Accounted)
+	}
+	if f.FactoryID != nil {
+		add(` AND d.factory_id=$%d`, *f.FactoryID)
+	}
+	if f.Unplanned != nil {
+		add(` AND (d.plan_id IS NULL)=$%d`, *f.Unplanned)
 	}
 	if f.Begin != nil {
 		add(` AND d.delivered_at >= $%d`, *f.Begin)

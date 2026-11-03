@@ -82,6 +82,28 @@ func TestHandoverAndDeliveryFlow(t *testing.T) {
 	if code := e.do("POST", "/delivery-notes", admin, note, &n); code != 201 || n.Qty != 3 || len(n.Labels) != 3 || !regexp.MustCompile(`^FH\d{8}\d{4}$`).MatchString(n.NoteNo) {
 		t.Fatalf("note: %d %+v", code, n)
 	}
+	// Plans associate notes transactionally; confirmation fills only blank logistics fields.
+	company, plate := "计划物流", "粤A12345"
+	planInput := api.DeliveryPlanInput{FactoryId: e.plant, EstimatedDepartureDate: types.Date{Time: time.Now()}, NoteIds: []int64{n.Id}, LogisticsCompany: &company, PlateNo: &plate}
+	var dp api.DeliveryPlanDetail
+	if code := e.do("POST", "/delivery-plans", admin, planInput, &dp); code != 201 || dp.NoteCount != 1 || dp.Qty != 3 {
+		t.Fatalf("plan: %d %+v", code, dp)
+	}
+	var planErr api.Error
+	if code := e.do("POST", "/delivery-plans", admin, planInput, &planErr); code != 400 || planErr.Code != "invalid_reference" {
+		t.Fatalf("duplicate plan note: %d %+v", code, planErr)
+	}
+	planPath := fmt.Sprintf("/delivery-plans/%d", dp.Id)
+	if code := e.do("POST", planPath+"/confirm", admin, map[string]any{"departureDate": time.Now().Format("2006-01-02")}, &dp); code != 200 || dp.ConfirmedDepartureDate == nil {
+		t.Fatalf("confirm plan: %d %+v", code, dp)
+	}
+	var plannedNote api.DeliveryNoteDetail
+	if code := e.do("GET", fmt.Sprintf("/delivery-notes/%d", n.Id), admin, nil, &plannedNote); code != 200 || plannedNote.PlanNo == nil || *plannedNote.PlanNo != dp.PlanNo || plannedNote.LogisticsCompany != company {
+		t.Fatalf("planned note: %d %+v", code, plannedNote)
+	}
+	if code := e.do("DELETE", planPath, admin, nil, &planErr); code != 409 {
+		t.Fatalf("confirmed plan deletion: %d", code)
+	}
 	var progress api.BatchProgress
 	if code := e.do("GET", path+"/progress", admin, nil, &progress); code != 200 || progress.Status != "done" {
 		t.Fatalf("progress: %d %+v", code, progress)

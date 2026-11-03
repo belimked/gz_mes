@@ -40,11 +40,11 @@ func handoverDetail(v *store.Handover, labels []store.Label) api.HandoverDetail 
 	return d
 }
 func toAPINote(v *store.DeliveryNote) api.DeliveryNote {
-	return api.DeliveryNote{Id: v.ID, NoteNo: v.NoteNo, FactoryId: v.FactoryID, BatchId: v.BatchID, LotNo: v.LotNo, ProjectName: v.ProjectName, CustomerId: v.CustomerID, CustomerName: v.CustomerName, ContractNo: v.ContractNo, DeliveryBatch: v.DeliveryBatch, Qty: v.Qty, Area: v.Area, LogisticsCompany: v.LogisticsCompany, PlateNo: v.PlateNo, Driver: v.Driver, DriverPhone: v.DriverPhone, DeliveredAt: types.Date{Time: v.DeliveredAt}, Remark: v.Remark, Accounted: v.Accounted, AccountId: v.AccountID, CreatedBy: v.CreatedBy, CreatedAt: v.CreatedAt}
+	return api.DeliveryNote{Id: v.ID, NoteNo: v.NoteNo, FactoryId: v.FactoryID, BatchId: v.BatchID, LotNo: v.LotNo, ProjectName: v.ProjectName, CustomerId: v.CustomerID, CustomerName: v.CustomerName, ContractNo: v.ContractNo, DeliveryBatch: v.DeliveryBatch, Qty: v.Qty, Area: v.Area, LogisticsCompany: v.LogisticsCompany, PlateNo: v.PlateNo, Driver: v.Driver, DriverPhone: v.DriverPhone, DeliveredAt: types.Date{Time: v.DeliveredAt}, Remark: v.Remark, Accounted: v.Accounted, AccountId: v.AccountID, PlanId: v.PlanID, PlanNo: v.PlanNo, CreatedBy: v.CreatedBy, CreatedAt: v.CreatedAt}
 }
 func noteDetail(v *store.DeliveryNote, labels []store.Label) api.DeliveryNoteDetail {
 	x := toAPINote(v)
-	d := api.DeliveryNoteDetail{Id: x.Id, NoteNo: x.NoteNo, FactoryId: x.FactoryId, BatchId: x.BatchId, LotNo: x.LotNo, ProjectName: x.ProjectName, CustomerId: x.CustomerId, CustomerName: x.CustomerName, ContractNo: x.ContractNo, DeliveryBatch: x.DeliveryBatch, Qty: x.Qty, Area: x.Area, LogisticsCompany: x.LogisticsCompany, PlateNo: x.PlateNo, Driver: x.Driver, DriverPhone: x.DriverPhone, DeliveredAt: x.DeliveredAt, Remark: x.Remark, Accounted: x.Accounted, AccountId: x.AccountId, CreatedBy: x.CreatedBy, CreatedAt: x.CreatedAt, Labels: make([]api.Label, 0, len(labels))}
+	d := api.DeliveryNoteDetail{Id: x.Id, NoteNo: x.NoteNo, FactoryId: x.FactoryId, BatchId: x.BatchId, LotNo: x.LotNo, ProjectName: x.ProjectName, CustomerId: x.CustomerId, CustomerName: x.CustomerName, ContractNo: x.ContractNo, DeliveryBatch: x.DeliveryBatch, Qty: x.Qty, Area: x.Area, LogisticsCompany: x.LogisticsCompany, PlateNo: x.PlateNo, Driver: x.Driver, DriverPhone: x.DriverPhone, DeliveredAt: x.DeliveredAt, Remark: x.Remark, Accounted: x.Accounted, AccountId: x.AccountId, PlanId: x.PlanId, PlanNo: x.PlanNo, CreatedBy: x.CreatedBy, CreatedAt: x.CreatedAt, Labels: make([]api.Label, 0, len(labels))}
 	for i := range labels {
 		d.Labels = append(d.Labels, toAPILabel(&labels[i]))
 	}
@@ -120,7 +120,7 @@ func (s *Server) ReceiveHandover(ctx context.Context, req api.ReceiveHandoverReq
 	return api.ReceiveHandover200JSONResponse(toAPIHandover(v)), nil
 }
 func (s *Server) ListDeliveryNotes(ctx context.Context, req api.ListDeliveryNotesRequestObject) (api.ListDeliveryNotesResponseObject, error) {
-	f := store.DeliveryNoteFilter{BatchID: req.Params.BatchId, CustomerID: req.Params.CustomerId, Keyword: optionalString(req.Params.Keyword), Accounted: req.Params.Accounted, Begin: dateValue(req.Params.BeginDate), End: dateValue(req.Params.EndDate)}
+	f := store.DeliveryNoteFilter{BatchID: req.Params.BatchId, CustomerID: req.Params.CustomerId, FactoryID: req.Params.FactoryId, Unplanned: req.Params.Unplanned, Keyword: optionalString(req.Params.Keyword), Accounted: req.Params.Accounted, Begin: dateValue(req.Params.BeginDate), End: dateValue(req.Params.EndDate)}
 	if f.Begin != nil && f.End != nil && f.Begin.After(*f.End) {
 		return api.ListDeliveryNotes400JSONResponse{ErrorJSONResponse: apiErr("invalid_request", "日期范围无效")}, nil
 	}
