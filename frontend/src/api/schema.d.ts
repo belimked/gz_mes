@@ -969,6 +969,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/workshop-output": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getWorkshopOutputReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/machine-output": {
         parameters: {
             query?: never;
@@ -1570,6 +1586,35 @@ export interface components {
             jobSeq: number;
             /** Format: date-time */
             createdAt: string;
+        };
+        WorkshopOutputRow: {
+            period: string;
+            batchCount: number;
+            batchArea: number;
+            scheduledCount: number;
+            scheduledArea: number;
+            sheetQty: number;
+            sheetArea: number;
+            sheetOwnArea: number;
+            sheetOutsourceArea: number;
+            sprayQty: number;
+            sprayArea: number;
+            deliveredQty: number;
+            deliveredArea: number;
+            workshopSheetArea: number[];
+        };
+        WorkshopComparison: {
+            workshop: string;
+            prevPrevArea: number;
+            prevArea: number;
+            currentArea: number;
+            chainRate: number | null;
+        };
+        WorkshopOutputReport: {
+            periods: components["schemas"]["WorkshopOutputRow"][];
+            workshops: string[];
+            total: components["schemas"]["WorkshopOutputRow"];
+            comparison: components["schemas"]["WorkshopComparison"][] | null;
         };
         MachineOutputRow: {
             /** Format: int64 */
@@ -4618,6 +4663,33 @@ export interface operations {
             };
             400: components["responses"]["Error"];
             401: components["responses"]["Error"];
+        };
+    };
+    getWorkshopOutputReport: {
+        parameters: {
+            query: {
+                granularity: "day" | "month";
+                from?: string;
+                to?: string;
+                factoryId?: number;
+                workshop?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkshopOutputReport"];
+                };
+            };
+            400: components["responses"]["Error"];
         };
     };
     getMachineOutputReport: {

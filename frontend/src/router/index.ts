@@ -118,6 +118,20 @@ const children: RouteRecordRaw[] = [
     meta: { title: '扫描记录', group: '生产报表' },
   },
   {
+    path: 'report/workshop-daily',
+    name: 'report-workshop-daily',
+    component: () => import('@/views/report/WorkshopOutput.vue'),
+    props: { mode: 'day' },
+    meta: { title: '车间产量日报', group: '生产报表' },
+  },
+  {
+    path: 'report/workshop-monthly',
+    name: 'report-workshop-monthly',
+    component: () => import('@/views/report/WorkshopOutput.vue'),
+    props: { mode: 'month' },
+    meta: { title: '车间产量月报', group: '生产报表' },
+  },
+  {
     path: 'report/machine-output',
     name: 'report-machine-output',
     component: () => import('@/views/report/MachineOutput.vue'),

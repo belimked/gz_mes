@@ -83,6 +83,8 @@ export const menus: { id: number; parentId: number | null; title: string; path: 
   { id: 1005, parentId: 1000, title: '生产平衡表', path: '/report/production-balance', icon: 'calculator' },
   { id: 1006, parentId: 1000, title: '不良品日报', path: '/report/defect-daily', icon: 'file-text' },
   { id: 1007, parentId: 1000, title: '机台产量', path: '/report/machine-output', icon: 'bar-chart' },
+  { id: 1008, parentId: 1000, title: '车间产量日报', path: '/report/workshop-daily', icon: 'bar-chart' },
+  { id: 1009, parentId: 1000, title: '车间产量月报', path: '/report/workshop-monthly', icon: 'bar-chart' },
   { id: 700, parentId: null, title: '质量管理', path: '/quality', icon: 'audit' },
   { id: 701, parentId: 700, title: '质检扫描记录', path: '/quality/qc-scans', icon: 'scan' },
   { id: 702, parentId: 700, title: '质量报表', path: '/quality/report', icon: 'bar-chart' },
@@ -576,6 +578,7 @@ export function seedPlans(batches: S['Batch'][], jobList: S['Job'][], scans: S['
     const start = monday + [0, -7, 7][index % 3]! * dayMs
     const plan = base(batch, 'sheet_week', start, start + 4 * dayMs)
     plan.workshop = index % 2 ? '钣金二车间' : '钣金一车间'
+    batch.workshop = plan.workshop
     if (index === 1) {
       plan.stopState = 'paused'
       plan.stopReason = '等待来料'

@@ -15,6 +15,18 @@ async function login(page: Page, u = user, p = password) {
   await page.getByTestId('login-submit').click()
 }
 
+test('workshop daily and monthly reports render chart, total and comparison on an empty database', async ({ page }) => {
+  await login(page)
+  await page.getByTestId('side-menu').getByText('生产报表').click()
+  await page.getByTestId('side-menu').getByText('车间产量日报').click()
+  await expect(page.getByTestId('workshop-total')).toContainText('合计')
+  await expect(page.getByTestId('workshop-chart')).toBeVisible()
+  await expect(page.getByTestId('workshop-table')).toBeVisible()
+  await page.getByTestId('side-menu').getByText('车间产量月报').click()
+  await expect(page.getByTestId('workshop-comparison')).toBeVisible()
+  await expect(page.getByText('钣金车间环比')).toBeVisible()
+})
+
 test('login, create and confirm a project, logout', async ({ page }) => {
   await login(page)
   await expect(page.getByTestId('side-menu')).toBeVisible()

@@ -1,6 +1,7 @@
 // In-browser implementation of the API for the public demo build.
 // Behaviour mirrors the Go backend (validation, factory isolation, error codes).
 import type { components } from '../schema'
+import { workshopReport } from './workshop'
 import {
   factories as seedFactories,
   jobs,
@@ -29,7 +30,7 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 18
+  version: 19
   factories: S['Factory'][]
   users: DemoUser[]
   nextId: number
@@ -151,7 +152,7 @@ function fresh(): DemoDB {
   const qc = seedQc(labels, scans, jobs)
   for (const row of qc) row.id = nextId++
   return {
-    version: 18,
+    version: 19,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
     nextId,
@@ -181,12 +182,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 18) return parsed
+      if (parsed?.version === 19) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 18) memory = fresh()
+  if (memory?.version !== 19) memory = fresh()
   return memory
 }
 
@@ -2577,6 +2578,8 @@ export async function demoFetch(req: Request): Promise<Response> {
       },
     } satisfies S['BatchJobReport'])
   }
+
+  if (route === 'GET /reports/workshop-output') return workshopReport(db, url.searchParams, (id) => inScope(u, id))
 
   if (route === 'GET /reports/machine-output') {
     const from = url.searchParams.get('from') ?? new Date().toISOString().slice(0, 10)

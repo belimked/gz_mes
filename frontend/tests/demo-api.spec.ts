@@ -16,6 +16,31 @@ beforeEach(() => {
 })
 
 describe('demo api', () => {
+  it('reports daily and monthly workshop output with zero periods and totals', async () => {
+    const admin = await login('admin', 'admin123')
+    for (const granularity of ['day', 'month'] as const) {
+      const report = await call(
+        api.GET('/reports/workshop-output', { ...admin, params: { query: { granularity, from: '2026-01-01', to: '2026-01-03' } } }),
+      )
+      expect(report.periods.length).toBe(granularity === 'day' ? 3 : 1)
+      for (const field of ['batchCount', 'scheduledCount', 'sheetQty', 'sprayQty', 'deliveredQty', 'sheetArea'] as const)
+        expect(report.total[field]).toBeCloseTo(report.periods.reduce((sum, row) => sum + row[field], 0))
+      expect(report.periods.every((row) => row.workshopSheetArea.length === report.workshops.length)).toBe(true)
+      expect(report.comparison === null).toBe(granularity === 'day')
+    }
+    const empty = await call(
+      api.GET('/reports/workshop-output', { ...admin, params: { query: { granularity: 'day', from: '2020-01-01', to: '2020-01-02' } } }),
+    )
+    expect(empty.periods.map((r) => r.sheetArea)).toEqual([0, 0])
+    expect(
+      (
+        await api.GET('/reports/workshop-output', {
+          ...admin,
+          params: { query: { granularity: 'day', from: '2020-01-01', to: '2022-01-01' } },
+        })
+      ).response.status,
+    ).toBe(400)
+  })
   it('manages machines and reports output with factory isolation', async () => {
     const admin = await login('admin', 'admin123')
     const wx = await login('waixie', 'demo123')
