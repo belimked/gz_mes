@@ -4,6 +4,8 @@ import { expect, test, type Page } from '@playwright/test'
 // (then E2E_USER / E2E_PASSWORD must be an admin account).
 const user = process.env.E2E_USER ?? 'admin'
 const password = process.env.E2E_PASSWORD ?? 'admin123'
+// The real stack starts with an empty database; tests that read demo seed data only run on the demo build.
+const needsSeed = () => test.skip(!!process.env.E2E_BASE_URL, 'needs demo seed data')
 
 async function login(page: Page, u = user, p = password) {
   await page.goto('/')
@@ -39,6 +41,7 @@ test('login, create and confirm a project, logout', async ({ page }) => {
 })
 
 test('scan records page lists seeded scans and filters by keyword', async ({ page }) => {
+  needsSeed()
   await login(page)
   await page.getByTestId('side-menu').getByText('生产报表').click()
   await page.getByTestId('side-menu').getByText('扫描记录', { exact: true }).click()
@@ -55,6 +58,7 @@ test('scan records page lists seeded scans and filters by keyword', async ({ pag
 })
 
 test('production balance page and progress summary toggle', async ({ page }) => {
+  needsSeed()
   await login(page)
   await page.getByTestId('side-menu').getByText('生产报表').click()
   await page.getByTestId('side-menu').getByText('生产平衡表').click()
@@ -70,6 +74,7 @@ test('production balance page and progress summary toggle', async ({ page }) => 
 })
 
 test('quality pages list inspections and the scan page records a fail verdict', async ({ page }) => {
+  needsSeed()
   await login(page)
   await page.getByTestId('side-menu').getByText('质量管理').click()
   await page.getByTestId('side-menu').getByText('质检扫描记录').click()
@@ -100,6 +105,7 @@ test('quality pages list inspections and the scan page records a fail verdict', 
 })
 
 test('outsource orders and delivery plans pages', async ({ page }) => {
+  needsSeed()
   await login(page)
   await page.getByTestId('side-menu').getByText('排程管理').click()
   await page.getByTestId('side-menu').getByText('外协单查看').click()
