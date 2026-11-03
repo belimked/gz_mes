@@ -15,6 +15,21 @@ async function login(page: Page, u = user, p = password) {
   await page.getByTestId('login-submit').click()
 }
 
+test('drawing list and drawer upload', async ({ page }) => {
+  needsSeed()
+  await login(page)
+  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
+  await page.goto('/drawing/list')
+  await expect(page.getByText('图纸查询').first()).toBeVisible()
+  await expect(page.locator('tbody tr').first()).toBeVisible()
+  await page.getByRole('button', { name: '管理' }).first().click()
+  await expect(page.locator('.ant-drawer button').filter({ hasText: '上传展开加工图' })).toBeVisible()
+  await page
+    .locator('.ant-drawer input[type=file]')
+    .setInputFiles({ name: 'e2e.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 e2e') })
+  await expect(page.getByText('e2e.pdf')).toBeVisible()
+})
+
 test('both daily boards render KPI, table and empty state on an empty database', async ({ page }) => {
   await login(page)
   await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)

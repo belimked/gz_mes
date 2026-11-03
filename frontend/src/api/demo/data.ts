@@ -51,6 +51,8 @@ export const factories: S['Factory'][] = [
 
 // Mirrors backend/db/migrations/00001_init.sql.
 export const menus: { id: number; parentId: number | null; title: string; path: string; icon?: string }[] = [
+  { id: 1200, parentId: null, title: '图纸管理', path: '/drawing', icon: 'radar-chart' },
+  { id: 1201, parentId: 1200, title: '图纸查询', path: '/drawing/list', icon: 'file-search' },
   { id: 1100, parentId: null, title: '看板管理', path: '/board', icon: 'dashboard' },
   { id: 1101, parentId: 1100, title: '喷涂日排产看板', path: '/board/spray-daily', icon: 'dashboard' },
   { id: 1102, parentId: 1100, title: '钣金日排程看板', path: '/board/sheet-daily', icon: 'dashboard' },

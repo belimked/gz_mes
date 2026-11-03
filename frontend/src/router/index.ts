@@ -3,6 +3,12 @@ import { useAuthStore } from '@/stores/auth'
 
 const children: RouteRecordRaw[] = [
   {
+    path: 'drawing/list',
+    name: 'drawings',
+    component: () => import('@/views/drawing/Drawings.vue'),
+    meta: { title: '图纸查询', group: '图纸管理' },
+  },
+  {
     path: 'board/spray-daily',
     name: 'board-spray-daily',
     component: () => import('@/views/board/SprayDailyBoard.vue'),

@@ -2,6 +2,7 @@
 // Behaviour mirrors the Go backend (validation, factory isolation, error codes).
 import type { components } from '../schema'
 import { dailyBoard } from './board'
+import { drawingRoute, seedDrawings } from './drawing'
 import { workshopReport } from './workshop'
 import {
   factories as seedFactories,
@@ -31,7 +32,7 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 21
+  version: 22
   factories: S['Factory'][]
   users: DemoUser[]
   nextId: number
@@ -51,6 +52,7 @@ interface DemoDB {
   labels: S['Label'][]
   scans: S['Scan'][]
   machines: S['Machine'][]
+  drawings: S['Drawing'][]
   qc: DemoQc[]
   plans: DemoPlan[]
 }
@@ -163,7 +165,7 @@ function fresh(): DemoDB {
   const qc = seedQc(labels, scans, jobs)
   for (const row of qc) row.id = nextId++
   return {
-    version: 21,
+    version: 22,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
     nextId,
@@ -183,6 +185,7 @@ function fresh(): DemoDB {
     labels,
     scans,
     machines,
+    drawings: seedDrawings(batches),
     qc,
     plans,
   }
@@ -193,12 +196,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 21) return parsed
+      if (parsed?.version === 22) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 21) memory = fresh()
+  if (memory?.version !== 22) memory = fresh()
   return memory
 }
 
@@ -514,6 +517,9 @@ export async function demoFetch(req: Request): Promise<Response> {
 
   const u = principal(req, db)
   if (!u) return fail(401, 'unauthorized', '请先登录')
+
+  const drawing = await drawingRoute(req, path, url.searchParams, db, u, () => save(db))
+  if (drawing) return drawing
 
   if (route === 'GET /auth/me') {
     return json(200, {

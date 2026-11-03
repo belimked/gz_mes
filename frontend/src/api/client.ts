@@ -40,6 +40,21 @@ export function makeClient(baseUrl: string, fetchImpl?: (req: Request) => Promis
 export const client = makeClient('/api', isDemo ? demoFetch : undefined)
 client.use(authMiddleware)
 
+/** Binary/multipart transport, sharing the same bearer token and demo adapter. */
+export async function fileRequest(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers)
+  const token = tokenStore.get()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const request = new Request(new URL(`/api${path}`, window.location.origin), { ...init, headers })
+  const response = await (isDemo ? demoFetch(request) : fetch(request))
+  if (response.status === 401) onUnauthorized()
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as Partial<Schemas['Error']>
+    throw new ApiError(response.status, body.code ?? `http_${response.status}`, body.message ?? `请求失败（${response.status}）`)
+  }
+  return response
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
