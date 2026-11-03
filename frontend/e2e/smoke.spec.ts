@@ -99,6 +99,21 @@ test('quality pages list inspections and the scan page records a fail verdict', 
   await expect(page.getByRole('button', { name: '记录不合格' })).toBeVisible()
 })
 
+test('outsource orders and delivery plans pages', async ({ page }) => {
+  await login(page)
+  await page.getByTestId('side-menu').getByText('排程管理').click()
+  await page.getByTestId('side-menu').getByText('外协单查看').click()
+  await expect(page).toHaveURL(/\/scheduling\/outsource-orders/)
+  await expect(page.locator('tbody tr.ant-table-row')).not.toHaveCount(0)
+  await expect(page.getByText('开料进度')).toBeVisible()
+  await page.getByTestId('side-menu').getByText('发货管理').click()
+  await page.getByTestId('side-menu').getByText('发货计划').click()
+  await expect(page).toHaveURL(/\/delivery\/plans/)
+  await expect(page.locator('tbody tr.ant-table-row')).not.toHaveCount(0)
+  await page.getByRole('button', { name: '新建计划' }).click()
+  await expect(page.getByText('选择未挂计划的发货单')).toBeVisible()
+})
+
 test('wrong password shows an error', async ({ page }) => {
   await login(page, user, 'definitely-wrong')
   await expect(page.getByText('用户名或密码错误')).toBeVisible()

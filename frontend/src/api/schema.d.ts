@@ -589,6 +589,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/delivery-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listDeliveryPlans"];
+        put?: never;
+        post: operations["createDeliveryPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/delivery-plans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        get: operations["getDeliveryPlan"];
+        put: operations["updateDeliveryPlan"];
+        post?: never;
+        delete: operations["deleteDeliveryPlan"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/delivery-plans/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["confirmDeliveryPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/deliver-accounts": {
         parameters: {
             query?: never;
@@ -842,6 +892,22 @@ export interface paths {
          *     reinspectedQty counts pieces that later passed. Ordered by date desc, qty desc.
          */
         get: operations["getQualityReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/outsource-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getOutsourceOrders"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1620,6 +1686,80 @@ export interface components {
             barCodes: string[];
             remark?: string;
         };
+        DeliveryPlanInput: {
+            /** Format: int64 */
+            factoryId: number;
+            logisticsCompany?: string;
+            contact?: string;
+            phone?: string;
+            shippingAddress?: string;
+            receivingAddress?: string;
+            carModel?: string;
+            plateNo?: string;
+            driver?: string;
+            driverPhone?: string;
+            /** Format: double */
+            cost?: number;
+            /** Format: double */
+            extraCost?: number;
+            /** Format: date */
+            estimatedDepartureDate: string;
+            remark?: string;
+            noteIds: number[];
+        };
+        DeliveryPlan: {
+            /** Format: int64 */
+            id: number;
+            planNo: string;
+            /** Format: int64 */
+            factoryId: number;
+            logisticsCompany: string;
+            contact: string;
+            phone: string;
+            shippingAddress: string;
+            receivingAddress: string;
+            carModel: string;
+            plateNo: string;
+            driver: string;
+            driverPhone: string;
+            /** Format: double */
+            cost: number;
+            /** Format: double */
+            extraCost: number;
+            /** Format: date */
+            estimatedDepartureDate: string;
+            /** Format: date */
+            confirmedDepartureDate?: string | null;
+            confirmedBy?: string | null;
+            /** Format: date-time */
+            confirmedAt?: string | null;
+            remark: string;
+            /** Format: date-time */
+            createdAt: string;
+            noteCount: number;
+            qty: number;
+            /** Format: double */
+            area: number;
+        };
+        DeliveryPlanDetail: components["schemas"]["DeliveryPlan"] & {
+            notes: components["schemas"]["DeliveryNote"][];
+        };
+        DeliveryPlanPage: {
+            items: components["schemas"]["DeliveryPlan"][];
+            /** Format: int64 */
+            total: number;
+            summary: {
+                plans: number;
+                confirmed: number;
+                /** Format: double */
+                cost: number;
+                /** Format: double */
+                extraCost: number;
+                qty: number;
+                /** Format: double */
+                area: number;
+            };
+        };
         DeliveryNote: {
             /** Format: int64 */
             id: number;
@@ -1649,6 +1789,9 @@ export interface components {
             accounted: boolean;
             /** Format: int64 */
             accountId?: number | null;
+            /** Format: int64 */
+            planId?: number | null;
+            planNo?: string | null;
             createdBy: string;
             /** Format: date-time */
             createdAt: string;
@@ -2218,6 +2361,52 @@ export interface components {
             pendingQty: number;
             /** Format: double */
             pendingArea: number;
+        };
+        OutsourceProgress: {
+            scannedQty: number;
+            /** Format: double */
+            scannedArea: number;
+            unscannedQty: number;
+            /** Format: double */
+            unscannedArea: number;
+            /** Format: double */
+            percent: number;
+        };
+        OutsourceOrder: {
+            /** Format: int64 */
+            batchId: number;
+            lotNo: string;
+            projectName: string;
+            customerName: string;
+            clientOrderNo: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: double */
+            thickness: number;
+            color: string;
+            sprayingType: string;
+            /** Format: int64 */
+            outsourceFactoryId: number;
+            outsourceFactoryName: string;
+            status: string;
+            itemQty: number;
+            /** Format: double */
+            itemArea: number;
+            cutting: components["schemas"]["OutsourceProgress"];
+            shipping: components["schemas"]["OutsourceProgress"];
+        };
+        OutsourceOrderPage: {
+            items: components["schemas"]["OutsourceOrder"][];
+            /** Format: int64 */
+            total: number;
+            summary: {
+                batches: number;
+                plannedQty: number;
+                /** Format: double */
+                plannedArea: number;
+                cuttingScannedQty: number;
+                shippingScannedQty: number;
+            };
         };
         DefectDailyRow: {
             /** Format: int64 */
@@ -3462,6 +3651,8 @@ export interface operations {
                 keyword?: string;
                 /** @description Already on a deliver account */
                 accounted?: boolean;
+                unplanned?: boolean;
+                factoryId?: number;
                 beginDate?: string;
                 endDate?: string;
             };
@@ -3534,6 +3725,166 @@ export interface operations {
             };
             401: components["responses"]["Error"];
             404: components["responses"]["Error"];
+        };
+    };
+    listDeliveryPlans: {
+        parameters: {
+            query?: {
+                createdFrom?: string;
+                createdTo?: string;
+                estimatedFrom?: string;
+                estimatedTo?: string;
+                confirmed?: boolean;
+                keyword?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryPlanPage"];
+                };
+            };
+        };
+    };
+    createDeliveryPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryPlanInput"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryPlanDetail"];
+                };
+            };
+            400: components["responses"]["Error"];
+        };
+    };
+    getDeliveryPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryPlanDetail"];
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    updateDeliveryPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryPlanInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryPlanDetail"];
+                };
+            };
+            400: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    deleteDeliveryPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    confirmDeliveryPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: date */
+                    departureDate: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryPlanDetail"];
+                };
+            };
+            400: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
         };
     };
     listDeliverAccounts: {
@@ -4020,6 +4371,34 @@ export interface operations {
             };
             400: components["responses"]["Error"];
             401: components["responses"]["Error"];
+        };
+    };
+    getOutsourceOrders: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                outsourceFactoryId?: number;
+                keyword?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutsourceOrderPage"];
+                };
+            };
+            400: components["responses"]["Error"];
         };
     };
     getDefectDailyReport: {

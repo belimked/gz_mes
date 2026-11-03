@@ -16,6 +16,34 @@ beforeEach(() => {
 })
 
 describe('demo api', () => {
+  it('reports outsource orders with factory scope and scan progress', async () => {
+    const admin = await login('admin', 'admin123')
+    const wx = await login('waixie', 'demo123')
+    const all = await call(api.GET('/reports/outsource-orders', admin))
+    const scoped = await call(api.GET('/reports/outsource-orders', wx))
+    expect(scoped.items.length).toBeGreaterThan(0)
+    expect(scoped.items.every((r) => r.outsourceFactoryId === 2)).toBe(true)
+    expect(all.total).toBeGreaterThanOrEqual(scoped.total)
+    expect(scoped.items[0]!.cutting.unscannedQty).toBe(Math.max(0, scoped.items[0]!.itemQty - scoped.items[0]!.cutting.scannedQty))
+  })
+
+  it('creates, edits, confirms and protects delivery plans', async () => {
+    const admin = await login('admin', 'admin123')
+    const notes = await call(api.GET('/delivery-notes', { ...admin, params: { query: { factoryId: 1, unplanned: true } } }))
+    expect(notes.items.length).toBeGreaterThan(0)
+    const input = { factoryId: 1, estimatedDepartureDate: '2026-01-02', noteIds: [notes.items[0]!.id], logisticsCompany: '演示新物流', plateNo: '粤A12345' }
+    const created = await call(api.POST('/delivery-plans', { ...admin, body: input }))
+    expect(created.notes).toHaveLength(1)
+    const linked = await call(api.GET('/delivery-notes/{id}', { ...admin, params: { path: { id: notes.items[0]!.id } } }))
+    expect(linked.planNo).toBe(created.planNo)
+    const dup = await api.POST('/delivery-plans', { ...admin, body: input })
+    expect(dup.response.status).toBe(400)
+    const confirmed = await call(api.POST('/delivery-plans/{id}/confirm', { ...admin, params: { path: { id: created.id } }, body: { departureDate: '2026-01-03' } }))
+    expect(confirmed.confirmedDepartureDate).toBe('2026-01-03')
+    const blocked = await api.DELETE('/delivery-plans/{id}', { ...admin, params: { path: { id: created.id } } })
+    expect(blocked.response.status).toBe(409)
+  })
+
   it('rejects bad credentials and anonymous access', async () => {
     const bad = await api.POST('/auth/login', { body: { username: 'admin', password: 'x' } })
     expect(bad.response.status).toBe(401)
@@ -33,6 +61,7 @@ describe('demo api', () => {
       '/scheduling/sheet-week',
       '/scheduling/sheet-daily',
       '/scheduling/spray-daily',
+      '/scheduling/outsource-orders',
     ])
   })
 

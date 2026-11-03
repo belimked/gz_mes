@@ -28,6 +28,12 @@ const children: RouteRecordRaw[] = [
     meta: { title: '生产批次查询', group: '排程管理' },
   },
   {
+    path: 'scheduling/outsource-orders',
+    name: 'outsource-orders',
+    component: () => import('@/views/scheduling/OutsourceOrders.vue'),
+    meta: { title: '外协单查看', group: '排程管理' },
+  },
+  {
     path: 'scheduling/sheet-week',
     name: 'sheet-week',
     component: () => import('@/views/scheduling/SheetWeek.vue'),
@@ -68,6 +74,12 @@ const children: RouteRecordRaw[] = [
     name: 'delivery-notes',
     component: () => import('@/views/delivery/Notes.vue'),
     meta: { title: '发货查询', group: '发货管理' },
+  },
+  {
+    path: 'delivery/plans',
+    name: 'delivery-plans',
+    component: () => import('@/views/delivery/Plans.vue'),
+    meta: { title: '发货计划', group: '发货管理' },
   },
   {
     path: 'finance/batch-valuation',

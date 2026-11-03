@@ -57,6 +57,7 @@ const columns = [
   { title: '客户', dataIndex: 'customerName', width: 150 },
   { title: '合同号', dataIndex: 'contractNo', width: 140 },
   { title: '发货批次', dataIndex: 'deliveryBatch', width: 100 },
+  { title: '发货计划', dataIndex: 'planNo', width: 160 },
   { title: '件数', dataIndex: 'qty', width: 80 },
   { title: '面积', dataIndex: 'area', width: 100 },
   { title: '物流公司 / 车牌', dataIndex: 'logisticsCompany', width: 150 },
