@@ -1397,6 +1397,36 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
 
+  /boards/spray-daily:
+    get:
+      operationId: getSprayDailyBoard
+      tags: [board]
+      parameters:
+        - { name: date, in: query, schema: { type: string, format: date } }
+        - { name: paintLine, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SprayDailyBoard" }
+        "400": { $ref: "#/components/responses/Error" }
+  /boards/sheet-daily:
+    get:
+      operationId: getSheetDailyBoard
+      tags: [board]
+      parameters:
+        - { name: date, in: query, schema: { type: string, format: date } }
+        - { name: workshop, in: query, schema: { type: string } }
+        - { name: jobId, in: query, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SheetDailyBoard" }
+        "400": { $ref: "#/components/responses/Error" }
+
   /reports/workshop-output:
     get:
       operationId: getWorkshopOutputReport
@@ -1993,6 +2023,102 @@ components:
             jobName: { type: string }
             jobSeq: { type: integer }
             createdAt: { type: string, format: date-time }
+    SprayBoardRow:
+      type: object
+      required: [planId, seq, projectName, lotNo, color, colorNo, sprayingType, paintLine, shift, urgency, startDate, endDate, plannedArea, plannedQty, sheetArea, sprayedArea, daySprayedArea, unsprayedArea, progress, state, dueToday]
+      properties:
+        planId: { type: integer, format: int64 }
+        seq: { type: integer }
+        projectName: { type: string }
+        lotNo: { type: string }
+        color: { type: string }
+        colorNo: { type: string }
+        sprayingType: { type: string }
+        paintLine: { type: string }
+        shift: { type: string }
+        urgency: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        plannedArea: { type: number }
+        plannedQty: { type: integer }
+        sheetArea: { type: number }
+        sprayedArea: { type: number }
+        daySprayedArea: { type: number }
+        unsprayedArea: { type: number }
+        progress: { type: number }
+        state: { type: string }
+        dueToday: { type: boolean }
+    SheetBoardRow:
+      type: object
+      required: [planId, seq, projectName, lotNo, workshop, jobId, jobName, urgency, startDate, endDate, orderQty, orderArea, dayPlanArea, doneQty, doneArea, dayDoneQty, dayDoneArea, remainingQty, progress, state, dueToday]
+      properties:
+        planId: { type: integer, format: int64 }
+        seq: { type: integer }
+        projectName: { type: string }
+        lotNo: { type: string }
+        workshop: { type: string }
+        jobId: { type: integer, format: int64 }
+        jobName: { type: string }
+        urgency: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        orderQty: { type: integer }
+        orderArea: { type: number }
+        dayPlanArea: { type: number }
+        doneQty: { type: integer }
+        doneArea: { type: number }
+        dayDoneQty: { type: integer }
+        dayDoneArea: { type: number }
+        remainingQty: { type: integer }
+        progress: { type: number }
+        state: { type: string }
+        dueToday: { type: boolean }
+    SprayLineSummary:
+      type: object
+      required: [paintLine, plannedArea, daySprayedArea, count]
+      properties:
+        paintLine: { type: string }
+        plannedArea: { type: number }
+        daySprayedArea: { type: number }
+        count: { type: integer }
+    SheetJobSummary:
+      type: object
+      required: [jobName, dayPlanArea, dayDoneArea, count]
+      properties:
+        jobName: { type: string }
+        dayPlanArea: { type: number }
+        dayDoneArea: { type: number }
+        count: { type: integer }
+    SprayDailyBoard:
+      type: object
+      required: [rows, summary]
+      properties:
+        rows: { type: array, items: { $ref: "#/components/schemas/SprayBoardRow" } }
+        summary:
+          type: object
+          required: [count, plannedArea, daySprayedArea, sprayedArea, doneCount, byLine]
+          properties:
+            count: { type: integer }
+            plannedArea: { type: number }
+            daySprayedArea: { type: number }
+            sprayedArea: { type: number }
+            doneCount: { type: integer }
+            byLine: { type: array, items: { $ref: "#/components/schemas/SprayLineSummary" } }
+    SheetDailyBoard:
+      type: object
+      required: [rows, summary]
+      properties:
+        rows: { type: array, items: { $ref: "#/components/schemas/SheetBoardRow" } }
+        summary:
+          type: object
+          required: [count, orderArea, dayPlanArea, dayDoneArea, doneCount, byJob]
+          properties:
+            count: { type: integer }
+            orderArea: { type: number }
+            dayPlanArea: { type: number }
+            dayDoneArea: { type: number }
+            doneCount: { type: integer }
+            byJob: { type: array, items: { $ref: "#/components/schemas/SheetJobSummary" } }
     WorkshopOutputRow:
       type: object
       required: [period, batchCount, batchArea, scheduledCount, scheduledArea, sheetQty, sheetArea, sheetOwnArea, sheetOutsourceArea, sprayQty, sprayArea, deliveredQty, deliveredArea, workshopSheetArea]
