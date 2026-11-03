@@ -20,6 +20,9 @@ const rows = ref<User[]>([])
 const factories = ref<Schemas['Factory'][]>([])
 const factoryNames = computed(() => new Map(factories.value.map((f) => [f.id, f.name])))
 const menus = ref<Menu[]>([])
+const roles = ref<Schemas['Role'][]>([])
+const roleNames = computed(() => new Map(roles.value.map((r) => [r.id, r.name])))
+const roleOptions = computed(() => roles.value.map((r) => ({ value: r.id, label: r.name + (r.isStop ? '（已停用）' : ''), disabled: r.isStop && !form.value.roleIds.includes(r.id) })))
 const menuTree = computed(() => {
   type TreeNode = { key: number; title: string; children: TreeNode[] }
   const nodes = new Map<number, TreeNode>()
@@ -46,7 +49,8 @@ const columns = [
   { title: '用户名', dataIndex: 'username', width: 130 },
   { title: '姓名', dataIndex: 'displayName', width: 120 },
   { title: '工号', dataIndex: 'staffNo', width: 110 },
-  { title: '角色', dataIndex: 'isAdmin', width: 110 },
+  { title: '类型', dataIndex: 'isAdmin', width: 110 },
+  { title: '角色', dataIndex: 'roleIds', width: 170 },
   { title: '厂区', dataIndex: 'factoryIds', width: 220 },
   { title: '菜单数', dataIndex: 'menuIds', width: 90 },
   { title: '状态', dataIndex: 'enabled', width: 100 },
@@ -99,10 +103,11 @@ const form = ref({
   isAdmin: false,
   factoryIds: [] as number[],
   menuIds: [] as number[],
+  roleIds: [] as number[],
 })
 function openCreate() {
   editing.value = undefined
-  form.value = { username: '', displayName: '', staffNo: '', password: '', enabled: true, isAdmin: false, factoryIds: [], menuIds: [] }
+  form.value = { username: '', displayName: '', staffNo: '', password: '', enabled: true, isAdmin: false, factoryIds: [], menuIds: [], roleIds: [] }
   open.value = true
 }
 async function openEdit(row: User) {
@@ -118,6 +123,7 @@ async function openEdit(row: User) {
       isAdmin: detail.isAdmin,
       factoryIds: [...detail.factoryIds],
       menuIds: [...detail.menuIds],
+      roleIds: [...detail.roleIds],
     }
     open.value = true
   } catch (e) {
@@ -149,6 +155,7 @@ async function save() {
       isAdmin: form.value.isAdmin,
       factoryIds: form.value.factoryIds,
       menuIds: form.value.menuIds,
+      roleIds: form.value.roleIds,
     }
     if (editing.value) {
       await call(client.PUT('/users/{id}', { params: { path: { id: editing.value.id } }, body: { ...body, enabled: form.value.enabled } }))
@@ -178,6 +185,7 @@ async function toggle(row: User) {
           isAdmin: detail.isAdmin,
           factoryIds: detail.factoryIds,
           menuIds: detail.menuIds,
+          roleIds: detail.roleIds,
         },
       }),
     )
@@ -224,9 +232,10 @@ onMounted(async () => {
   if (!auth.user?.isAdmin) return
   void load()
   try {
-    const [fs, ms] = await Promise.all([call(client.GET('/factories')), call(client.GET('/menus'))])
+    const [fs, ms, rs] = await Promise.all([call(client.GET('/factories')), call(client.GET('/menus')), call(client.GET('/roles'))])
     factories.value = fs
     menus.value = ms
+    roles.value = rs
   } catch (e) {
     message.error(errorMessage(e))
   }
@@ -282,6 +291,7 @@ onMounted(async () => {
             ><a-tag v-for="id in record.factoryIds" :key="id">{{ factoryNames.get(id) ?? id }}</a-tag
             ><span v-if="!record.factoryIds.length">—</span></template
           >
+          <template v-else-if="column.dataIndex === 'roleIds'"><a-tag v-for="id in record.roleIds" :key="id">{{ roleNames.get(id) ?? id }}</a-tag><span v-if="!record.roleIds.length">—</span></template>
           <template v-else-if="column.dataIndex === 'menuIds'">{{ record.menuIds.length }}</template>
           <template v-else-if="column.dataIndex === 'enabled'"
             ><StatusTag :tone="record.enabled ? 'success' : 'neutral'" :label="record.enabled ? '启用' : '停用'"
@@ -338,7 +348,8 @@ onMounted(async () => {
             placeholder="选择厂区"
             :options="factories.map((f) => ({ value: f.id, label: f.name }))"
         /></a-form-item>
-        <a-form-item label="菜单"><a-tree :tree-data="menuTree" checkable :checked-keys="form.menuIds" @check="onMenuCheck" /></a-form-item>
+        <a-form-item label="角色"><a-select v-model:value="form.roleIds" mode="multiple" placeholder="选择角色" :options="roleOptions" /></a-form-item>
+        <a-form-item label="额外菜单"><a-tree :tree-data="menuTree" checkable :checked-keys="form.menuIds" @check="onMenuCheck" /></a-form-item>
       </a-form>
     </a-modal>
     <a-modal

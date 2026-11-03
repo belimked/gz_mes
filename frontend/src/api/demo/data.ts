@@ -61,6 +61,7 @@ export const menus: { id: number; parentId: number | null; title: string; path: 
   { id: 102, parentId: 100, title: '用户管理', path: '/system/users', icon: 'team' },
   { id: 103, parentId: 100, title: '机台管理', path: '/system/machines', icon: 'deployment-unit' },
   { id: 104, parentId: 100, title: '基础字典', path: '/system/dicts', icon: 'book' },
+  { id: 105, parentId: 100, title: '角色管理', path: '/system/roles', icon: 'team' },
   { id: 200, parentId: null, title: '销售管理', path: '/sale', icon: 'shop' },
   { id: 201, parentId: 200, title: '项目管理', path: '/sale/projects', icon: 'project' },
   { id: 202, parentId: 200, title: '客户管理', path: '/sale/customers', icon: 'contacts' },
@@ -107,6 +108,7 @@ export const users: DemoUser[] = [
     enabled: true,
     factoryIds: [],
     menuIds: menus.map((m) => m.id),
+    roleIds: [],
     createdAt: '2026-01-01T00:00:00.000Z',
   },
   {
@@ -119,6 +121,7 @@ export const users: DemoUser[] = [
     enabled: true,
     factoryIds: [2],
     menuIds: [201, 203, 302, 303, 304, 305, 1100, 1101, 1102],
+    roleIds: [],
     createdAt: '2026-01-01T00:00:00.000Z',
   },
 ]

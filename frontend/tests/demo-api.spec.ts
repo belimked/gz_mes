@@ -27,6 +27,29 @@ beforeEach(() => {
 })
 
 describe('demo api', () => {
+  it('manages roles, user assignments and stopped menu grants', async () => {
+    const admin = await login('admin', 'admin123')
+    const guest = await login('waixie', 'demo123')
+    const input = { code: 'auditor', name: '审核员', isStop: false, menuIds: [105], remark: '' }
+    expect((await api.GET('/roles', guest)).response.status).toBe(403)
+    const role = await call(api.POST('/roles', { ...admin, body: input }))
+    expect((await api.POST('/roles', { ...admin, body: input })).response.status).toBe(409)
+    expect((await api.POST('/roles', { ...admin, body: { ...input, code: 'user:bad' } })).response.status).toBe(400)
+    const users = await call(api.GET('/users', { ...admin }))
+    const person = users.items.find((u) => u.username === 'waixie')!
+    const path = { id: person.id }
+    const body = { displayName: person.displayName, staffNo: person.staffNo ?? '', enabled: true, isAdmin: false, factoryIds: person.factoryIds, menuIds: person.menuIds, roleIds: [role.id] }
+    await call(api.PUT('/users/{id}', { ...admin, params: { path }, body }))
+    expect((await api.DELETE('/roles/{id}', { ...admin, params: { path: { id: role.id } } })).response.status).toBe(409)
+    const unchanged = await call(api.PUT('/users/{id}', { ...admin, params: { path }, body: { ...body, roleIds: undefined } }))
+    expect(unchanged.roleIds).toEqual([role.id])
+    await call(api.PUT('/roles/{id}', { ...admin, params: { path: { id: role.id } }, body: { ...input, isStop: true } }))
+    expect((await call(api.GET('/auth/me', guest))).menus.flatMap((m) => m.children ?? []).some((m) => m.id === 105)).toBe(false)
+    await call(api.PUT('/users/{id}', { ...admin, params: { path }, body: { ...body, roleIds: [] } }))
+    await call(api.DELETE('/roles/{id}', { ...admin, params: { path: { id: role.id } } }))
+    expect(await call(api.GET('/roles', admin))).toEqual([])
+  })
+
   it('maintains dictionaries and cascades renamed values', async () => {
     const admin = await login('admin', 'admin123')
     const guest = await login('waixie', 'demo123')

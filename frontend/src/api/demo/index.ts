@@ -32,9 +32,10 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 23
+  version: 24
   factories: S['Factory'][]
   users: DemoUser[]
+  roles: S['Role'][]
   nextId: number
   docSeq: Record<string, number>
   handovers: S['Handover'][]
@@ -166,9 +167,10 @@ function fresh(): DemoDB {
   const qc = seedQc(labels, scans, jobs)
   for (const row of qc) row.id = nextId++
   return {
-    version: 23,
+    version: 24,
     factories: seedFactories.map((f) => ({ ...f })),
-    users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
+    users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds], roleIds: [] })),
+    roles: [],
     nextId,
     docSeq: {},
     handovers,
@@ -216,12 +218,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 23) return parsed
+      if (parsed?.version === 24) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 23) memory = fresh()
+  if (memory?.version !== 24) memory = fresh()
   return memory
 }
 
@@ -255,6 +257,7 @@ function userDetail(u: DemoUser): S['UserDetail'] {
     enabled: u.enabled,
     factoryIds: [...u.factoryIds],
     menuIds: [...u.menuIds],
+    roleIds: [...u.roleIds],
     createdAt: u.createdAt,
   }
 }
@@ -265,10 +268,10 @@ const validReferences = (db: DemoDB, factoryIds: number[], menuIds: number[]) =>
 
 const inScope = (u: DemoUser, factoryId: number) => u.isAdmin || u.factoryIds.includes(factoryId)
 
-function menuTree(u: DemoUser): S['MenuItem'][] {
+function menuTree(u: DemoUser, db: DemoDB): S['MenuItem'][] {
   const visible = new Set<number>()
   for (const m of menus) {
-    if (u.isAdmin || u.menuIds.includes(m.id)) {
+    if (u.isAdmin || u.menuIds.includes(m.id) || db.roles.some((r) => !r.isStop && u.roleIds.includes(r.id) && r.menuIds.includes(m.id))) {
       visible.add(m.id)
       if (m.parentId !== null) visible.add(m.parentId)
     }
@@ -606,7 +609,7 @@ export async function demoFetch(req: Request): Promise<Response> {
   if (route === 'GET /auth/me') {
     return json(200, {
       user: { id: u.id, username: u.username, displayName: u.displayName, staffNo: u.staffNo, isAdmin: u.isAdmin },
-      menus: menuTree(u),
+      menus: menuTree(u, db),
     })
   }
 
@@ -629,7 +632,7 @@ export async function demoFetch(req: Request): Promise<Response> {
     route === 'GET /menus' ||
     route === 'GET /users' ||
     route === 'POST /users' ||
-    userRoute
+    userRoute || route === 'GET /roles' || route === 'POST /roles' || /^PUT \/roles\/\d+$/.test(route) || /^DELETE \/roles\/\d+$/.test(route)
   ) {
     if (!u.isAdmin) return fail(403, 'forbidden', '仅管理员可操作')
   }
@@ -657,7 +660,31 @@ export async function demoFetch(req: Request): Promise<Response> {
     return json(200, factory)
   }
 
-  if (route === 'GET /menus') return json(200, menuTree(u))
+  if (route === 'GET /menus') return json(200, menuTree(u, db))
+
+  const roleRoute = /^(PUT|DELETE) \/roles\/(\d+)$/.exec(route)
+  if (route === 'GET /roles') return json(200, db.roles.map((r) => ({ ...r, userCount: users.filter((x) => x.roleIds.includes(r.id)).length })))
+  if (route === 'POST /roles' || roleRoute?.[1] === 'PUT') {
+    const b = await body(req)
+    const code = str(b?.code).trim(), name = str(b?.name).trim()
+    if (!code || code.length > 50 || code.startsWith('user:') || !name || name.length > 50) return fail(400, 'invalid_request', '角色编码或名称无效')
+    const old = roleRoute ? db.roles.find((r) => r.id === Number(roleRoute[2])) : undefined
+    if (roleRoute && !old) return fail(404, 'not_found', '角色不存在')
+    if (!validIds(b?.menuIds) || !b.menuIds.every((id: number) => menus.some((m) => m.id === id))) return fail(400, 'invalid_reference', '菜单不存在')
+    if (db.roles.some((r) => r.id !== old?.id && r.code === code)) return fail(409, 'duplicate_code', '角色编码已存在')
+    const value: S['Role'] = { id: old?.id ?? db.nextId++, code, name, remark: str(b?.remark), isStop: b?.isStop === true, menuIds: [...new Set(b.menuIds as number[])], userCount: old?.userCount ?? 0, createdAt: old?.createdAt ?? new Date().toISOString() }
+    if (old) Object.assign(old, value)
+    else db.roles.push(value)
+    save(db)
+    return json(old ? 200 : 201, value)
+  }
+  if (roleRoute?.[1] === 'DELETE') {
+    const index = db.roles.findIndex((r) => r.id === Number(roleRoute[2]))
+    if (index < 0) return fail(404, 'not_found', '角色不存在')
+    const count = users.filter((x) => x.roleIds.includes(Number(roleRoute[2]))).length
+    if (count) return fail(409, 'role_occupied', `角色仍分配给 ${count} 个用户，请先移除或改为停用`)
+    db.roles.splice(index, 1); save(db); return new Response(null, { status: 204 })
+  }
 
   if (route === 'GET /users') {
     const page = Number(url.searchParams.get('page') ?? 1)
@@ -685,14 +712,15 @@ export async function demoFetch(req: Request): Promise<Response> {
       (b.staffNo !== undefined && (typeof b.staffNo !== 'string' || b.staffNo.length > 20)) ||
       (b.isAdmin !== undefined && typeof b.isAdmin !== 'boolean') ||
       (b.factoryIds !== undefined && !validIds(b.factoryIds)) ||
-      (b.menuIds !== undefined && !validIds(b.menuIds))
+      (b.menuIds !== undefined && !validIds(b.menuIds)) ||
+      (b.roleIds !== undefined && !validIds(b.roleIds))
     )
       return fail(400, 'invalid_request', '用户参数不合法')
     const isAdmin = b.isAdmin === true
     const factoryIds = (b.factoryIds ?? []) as number[]
     const menuIds = (b.menuIds ?? []) as number[]
     if (!isAdmin && !factoryIds.length) return fail(400, 'invalid_request', '非管理员用户至少需要一个厂区')
-    if (!validReferences(db, factoryIds, menuIds)) return fail(400, 'invalid_reference', '厂区或菜单不存在')
+    if (!validReferences(db, factoryIds, menuIds) || !(b.roleIds ?? []).every((id: number) => db.roles.some((r) => r.id === id && !r.isStop))) return fail(400, 'invalid_reference', '厂区、菜单或角色不存在或已停用')
     if (users.some((x) => x.username === username)) return fail(409, 'duplicate_code', '用户名已存在')
     const created: DemoUser = {
       id: Math.max(0, ...users.map((x) => x.id)) + 1,
@@ -704,6 +732,7 @@ export async function demoFetch(req: Request): Promise<Response> {
       enabled: true,
       factoryIds: [...new Set(factoryIds)],
       menuIds: [...new Set(menuIds)],
+      roleIds: [...new Set((b.roleIds ?? []) as number[])],
       createdAt: new Date().toISOString(),
     }
     users.push(created)
@@ -731,18 +760,20 @@ export async function demoFetch(req: Request): Promise<Response> {
         typeof b?.enabled !== 'boolean' ||
         typeof b.isAdmin !== 'boolean' ||
         !validIds(b.factoryIds) ||
-        !validIds(b.menuIds)
+        !validIds(b.menuIds) ||
+        (b.roleIds !== undefined && !validIds(b.roleIds))
       )
         return fail(400, 'invalid_request', '用户参数不合法')
       if (target.id === u.id && (!b.enabled || !b.isAdmin)) return fail(409, 'self_lock', '不能停用自己或取消自己的管理员权限')
       if (!b.isAdmin && !b.factoryIds.length) return fail(400, 'invalid_request', '非管理员用户至少需要一个厂区')
-      if (!validReferences(db, b.factoryIds, b.menuIds)) return fail(400, 'invalid_reference', '厂区或菜单不存在')
+      if (!validReferences(db, b.factoryIds, b.menuIds) || (b.roleIds ?? target.roleIds).some((id: number) => !db.roles.some((r) => r.id === id && (!r.isStop || target.roleIds.includes(id))))) return fail(400, 'invalid_reference', '厂区、菜单或角色不存在或已停用')
       target.displayName = str(b.displayName)
       target.staffNo = str(b.staffNo)
       target.enabled = b.enabled
       target.isAdmin = b.isAdmin
       target.factoryIds = [...new Set(b.factoryIds)]
       target.menuIds = [...new Set(b.menuIds)]
+      if (b.roleIds !== undefined) target.roleIds = [...new Set(b.roleIds)]
       save(db)
       return json(200, userDetail(target))
     }

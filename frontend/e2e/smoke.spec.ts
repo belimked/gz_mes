@@ -15,6 +15,23 @@ async function login(page: Page, u = user, p = password) {
   await page.getByTestId('login-submit').click()
 }
 
+test('role CRUD and user assignment', async ({ page }) => {
+  await login(page)
+  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
+  await page.goto('/system/roles')
+  await page.getByTestId('role-new').click()
+  await page.getByTestId('role-code').fill('e2e-role')
+  await page.getByTestId('role-name').fill('测试角色')
+  await page.locator('.ant-modal').getByRole('button', { name: /确\s*定|OK/ }).click()
+  await expect(page.getByTestId('role-table')).toContainText('测试角色')
+  await page.goto('/system/users')
+  await page.getByTestId('user-table').getByText('编辑').first().click()
+  await page.locator('.ant-modal').getByRole('combobox').last().click()
+  await page.locator('.ant-select-dropdown:visible').getByText('测试角色').click()
+  await page.locator('.ant-modal').getByRole('button', { name: '保 存' }).click()
+  await expect(page.getByTestId('user-table')).toContainText('测试角色')
+})
+
 test('dictionary line appears in spray plan selector', async ({ page }) => {
   await login(page)
   await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
