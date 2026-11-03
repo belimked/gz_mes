@@ -12,10 +12,26 @@ import {
 } from '@ant-design/icons-vue'
 import MenuIcon from '@/components/MenuIcon.vue'
 import { isDemo } from '@/api/client'
+import { useDicts } from '@/composables/useDicts'
 import { factories } from '@/api/demo/data'
 import { useAuthStore } from '@/stores/auth'
 import { brand, layout } from '@/theme'
 
+const shiftDict = useDicts('shift')
+const now = ref(new Date())
+let clock: ReturnType<typeof setInterval> | undefined
+const currentShift = computed(() => {
+  const minutes = now.value.getHours() * 60 + now.value.getMinutes()
+  const match = shiftDict.items.value.find((item) => {
+    if (item.isStop || !item.startTime || !item.endTime) return false
+    const [sh, sm] = item.startTime.split(':').map(Number)
+    const [eh, em] = item.endTime.split(':').map(Number)
+    const start = sh! * 60 + sm!
+    const end = eh! * 60 + em!
+    return start < end ? minutes >= start && minutes < end : minutes >= start || minutes < end
+  })
+  return match ? `${match.name} ${match.startTime}–${match.endTime}` : '非班次时间'
+})
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
@@ -52,10 +68,17 @@ function resize() {
   collapsed.value = window.innerWidth < 1200
 }
 onMounted(() => {
+  void shiftDict.load()
+  clock = setInterval(() => {
+    now.value = new Date()
+  }, 60000)
   resize()
   window.addEventListener('resize', resize)
 })
-onUnmounted(() => window.removeEventListener('resize', resize))
+onUnmounted(() => {
+  window.removeEventListener('resize', resize)
+  clearInterval(clock)
+})
 function go({ key }: { key: string | number }) {
   void router.push(String(key))
 }
@@ -163,7 +186,7 @@ function fullscreen() {
           </template>
         </a-input>
         <div class="spacer" />
-        <div class="shift desktop"><span class="live-dot" />早班 08:00–17:00 <b>节拍: 正常</b></div>
+        <div class="shift desktop"><span class="live-dot" />{{ currentShift }} <b>节拍: 正常</b></div>
         <a-tag v-if="isDemo" class="desktop" color="orange">演示环境 · 数据为虚构</a-tag>
         <a-badge dot class="desktop">
           <button class="icon-button" aria-label="通知">

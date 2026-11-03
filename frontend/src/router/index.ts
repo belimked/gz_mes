@@ -192,6 +192,12 @@ const children: RouteRecordRaw[] = [
     meta: { title: '机台管理', group: '系统管理' },
   },
   {
+    path: 'system/dicts',
+    name: 'dicts',
+    component: () => import('@/views/system/Dicts.vue'),
+    meta: { title: '基础字典' },
+  },
+  {
     path: 'system/users',
     name: 'users',
     component: () => import('@/views/system/Users.vue'),

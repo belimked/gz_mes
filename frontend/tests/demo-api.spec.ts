@@ -27,6 +27,26 @@ beforeEach(() => {
 })
 
 describe('demo api', () => {
+  it('maintains dictionaries and cascades renamed values', async () => {
+    const admin = await login('admin', 'admin123')
+    const guest = await login('waixie', 'demo123')
+    const seeded = await call(api.GET('/dicts', { ...admin, params: { query: { kind: 'shift' } } }))
+    expect(seeded.map((d) => d.name)).toEqual(['早班', '中班', '晚班'])
+    const input = { kind: 'workshop' as const, name: '钣金一车间', sort: 1, isStop: false }
+    expect((await api.POST('/dicts', { ...admin, body: input })).response.status).toBe(409)
+    expect((await api.POST('/dicts', { ...guest, body: { ...input, name: '其他' } })).response.status).toBe(403)
+    const original = (await call(api.GET('/dicts', { ...admin, params: { query: { kind: 'workshop' } } })))[0]!
+    await call(
+      api.PUT('/dicts/{id}', { ...admin, params: { path: { id: original.id } }, body: { ...input, name: '改名车间', isStop: true } }),
+    )
+    const hidden = await call(api.GET('/dicts', { ...admin, params: { query: { kind: 'workshop' } } }))
+    expect(hidden.some((d) => d.name === '改名车间')).toBe(false)
+    const all = await call(api.GET('/dicts', { ...admin, params: { query: { kind: 'workshop', includeStopped: true } } }))
+    expect(all.some((d) => d.name === '改名车间')).toBe(true)
+    const batches = await call(api.GET('/batches', { ...admin, params: { query: { size: 200 } } }))
+    expect(batches.items.some((b) => b.workshop === '改名车间')).toBe(true)
+  })
+
   it('seeds no overlapping active plans for the same batch and target job', () => {
     const batches = seedBatches(seedContracts(seedProjects(), seedCustomers()))
     const scans = seedScans(batches, seedLabels(batches, seedBatchItems(batches)), jobs)

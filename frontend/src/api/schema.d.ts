@@ -520,6 +520,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dicts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listDicts"];
+        put?: never;
+        post: operations["createDict"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dicts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["updateDict"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/machines": {
         parameters: {
             query?: never;
@@ -1703,6 +1735,24 @@ export interface components {
             created: number;
             /** @description Labels now existing for the batch (excluding cancelled) */
             total: number;
+        };
+        DictInput: {
+            /** @enum {string} */
+            kind: "workshop" | "paint_line" | "shift";
+            name: string;
+            sort: number;
+            /** @description HH:mm */
+            startTime?: string | null;
+            /** @description HH:mm */
+            endTime?: string | null;
+            isStop: boolean;
+            remark?: string;
+        };
+        DictItem: components["schemas"]["DictInput"] & {
+            /** Format: int64 */
+            id: number;
+            /** Format: date-time */
+            createdAt: string;
         };
         MachineInput: {
             /** Format: int64 */
@@ -3941,6 +3991,87 @@ export interface operations {
                 };
             };
             401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    listDicts: {
+        parameters: {
+            query?: {
+                kind?: "workshop" | "paint_line" | "shift";
+                includeStopped?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DictItem"][];
+                };
+            };
+            400: components["responses"]["Error"];
+        };
+    };
+    createDict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DictInput"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DictItem"];
+                };
+            };
+            400: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    updateDict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DictInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DictItem"];
+                };
+            };
+            400: components["responses"]["Error"];
+            403: components["responses"]["Error"];
             404: components["responses"]["Error"];
             409: components["responses"]["Error"];
         };

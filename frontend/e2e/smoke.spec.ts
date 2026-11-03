@@ -15,6 +15,26 @@ async function login(page: Page, u = user, p = password) {
   await page.getByTestId('login-submit').click()
 }
 
+test('dictionary line appears in spray plan selector', async ({ page }) => {
+  await login(page)
+  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
+  await page.goto('/system/dicts')
+  await expect(page.getByTestId('dict-table').locator('tbody tr').first()).toBeVisible()
+  await page.getByRole('tab', { name: '喷涂线' }).click()
+  await expect(page.getByTestId('dict-table').locator('tbody tr').first()).toBeVisible()
+  await page.getByTestId('dict-new').click()
+  await page.getByTestId('dict-name').fill('3号线')
+  await page
+    .locator('.ant-modal')
+    .getByRole('button', { name: /确\s*定|OK/ })
+    .click()
+  await expect(page.getByTestId('dict-table')).toContainText('3号线')
+  await page.goto('/scheduling/spray-daily')
+  await page.getByTestId('plan-new').click()
+  await page.locator('.ant-modal #form_item_paintLine').click()
+  await expect(page.locator('.ant-select-dropdown:visible .ant-select-item-option-content', { hasText: '3号线' })).toBeVisible()
+})
+
 test('drawing list and drawer upload', async ({ page }) => {
   needsSeed()
   await login(page)

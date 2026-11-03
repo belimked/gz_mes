@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useDicts } from '@/composables/useDicts'
 import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import type { FormInstance, TablePaginationConfig } from 'ant-design-vue'
@@ -346,7 +347,10 @@ async function importItems() {
     importing.value = false
   }
 }
+const workshopDict = useDicts('workshop')
+const workshopOptions = workshopDict.options(() => schedule.value.workshop)
 onMounted(async () => {
+  void workshopDict.load()
   await Promise.all([
     load(),
     (async () => {
@@ -588,7 +592,9 @@ onMounted(async () => {
                   placeholder="未指定"
                   :options="factories.filter((f) => f.kind === 'outsource').map((f) => ({ value: f.id, label: f.name }))"
               /></a-form-item>
-              <a-form-item label="计划钣金车间"><a-input v-model:value="schedule.workshop" /></a-form-item>
+              <a-form-item label="计划钣金车间"
+                ><a-select v-model:value="schedule.workshop" allow-clear :options="workshopOptions"
+              /></a-form-item>
               <a-form-item label="紧急程度"
                 ><a-select
                   v-model:value="schedule.urgency"

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useDicts } from '@/composables/useDicts'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
@@ -37,7 +38,8 @@ const SCANNED_OPTIONS = [
   { value: 'yes', label: '有报工' },
   { value: 'no', label: '未报工' },
 ]
-const WORKSHOPS = ['钣金一车间', '钣金二车间'].map((v) => ({ value: v, label: v }))
+const workshops = useDicts('workshop')
+const WORKSHOPS = workshops.options()
 const statusLabel: Record<string, string> = { pending: '待排产', scheduled: '已排产', in_production: '生产中', done: '已完工' }
 const statusTone: Record<string, 'neutral' | 'warning' | 'processing' | 'success'> = {
   pending: 'neutral',
@@ -267,6 +269,7 @@ function fmtTime(v: string | null | undefined) {
 }
 
 onMounted(() => {
+  void workshops.load()
   void load()
   void (async () => {
     try {

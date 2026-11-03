@@ -32,7 +32,7 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 22
+  version: 23
   factories: S['Factory'][]
   users: DemoUser[]
   nextId: number
@@ -52,6 +52,7 @@ interface DemoDB {
   labels: S['Label'][]
   scans: S['Scan'][]
   machines: S['Machine'][]
+  dicts: S['DictItem'][]
   drawings: S['Drawing'][]
   qc: DemoQc[]
   plans: DemoPlan[]
@@ -165,7 +166,7 @@ function fresh(): DemoDB {
   const qc = seedQc(labels, scans, jobs)
   for (const row of qc) row.id = nextId++
   return {
-    version: 22,
+    version: 23,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
     nextId,
@@ -185,6 +186,25 @@ function fresh(): DemoDB {
     labels,
     scans,
     machines,
+    dicts: [
+      ['workshop', '钣金一车间', 1, null, null],
+      ['workshop', '钣金二车间', 2, null, null],
+      ['paint_line', '1号线', 1, null, null],
+      ['paint_line', '2号线', 2, null, null],
+      ['shift', '早班', 1, '08:00', '17:00'],
+      ['shift', '中班', 2, '16:00', '00:00'],
+      ['shift', '晚班', 3, '00:00', '08:00'],
+    ].map(([kind, name, sort, startTime, endTime], i) => ({
+      id: i + 1,
+      kind: kind as S['DictItem']['kind'],
+      name: name as string,
+      sort: sort as number,
+      startTime: startTime as string | null,
+      endTime: endTime as string | null,
+      isStop: false,
+      remark: '',
+      createdAt: '2026-01-01T00:00:00Z',
+    })),
     drawings: seedDrawings(batches),
     qc,
     plans,
@@ -196,12 +216,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 22) return parsed
+      if (parsed?.version === 23) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 22) memory = fresh()
+  if (memory?.version !== 23) memory = fresh()
   return memory
 }
 
@@ -520,6 +540,68 @@ export async function demoFetch(req: Request): Promise<Response> {
 
   const drawing = await drawingRoute(req, path, url.searchParams, db, u, () => save(db))
   if (drawing) return drawing
+
+  if (route === 'GET /dicts')
+    return json(
+      200,
+      db.dicts
+        .filter(
+          (d) =>
+            (!url.searchParams.get('kind') || d.kind === url.searchParams.get('kind')) &&
+            (url.searchParams.get('includeStopped') === 'true' || !d.isStop),
+        )
+        .sort((a, b) => a.kind.localeCompare(b.kind) || a.sort - b.sort || a.id - b.id),
+    )
+  const dictUpdate = /^PUT \/dicts\/(\d+)$/.exec(route)
+  if (route === 'POST /dicts' || dictUpdate) {
+    if (!u.isAdmin) return fail(403, 'forbidden', '无权维护基础字典')
+    const b = await body(req)
+    const kind = b?.kind
+    const name = str(b?.name).trim()
+    const startTime = b?.startTime || null
+    const endTime = b?.endTime || null
+    if (
+      !['workshop', 'paint_line', 'shift'].includes(kind as string) ||
+      !name ||
+      name.length > 50 ||
+      !!startTime !== !!endTime ||
+      (kind !== 'shift' && !!startTime) ||
+      [startTime, endTime].some((v) => v && (typeof v !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(v)))
+    )
+      return fail(400, 'invalid_request', '字典名称、类型或时间无效')
+    const old = dictUpdate ? db.dicts.find((d) => d.id === Number(dictUpdate[1])) : undefined
+    if (dictUpdate && !old) return fail(404, 'not_found', '字典项不存在')
+    if (old && old.kind !== kind) return fail(400, 'invalid_request', '字典类型不能修改')
+    if (db.dicts.some((d) => d.id !== old?.id && d.kind === kind && d.name === name)) return fail(409, 'duplicate_name', '名称已存在')
+    const item: S['DictItem'] = {
+      id: old?.id ?? db.nextId++,
+      kind: kind as S['DictItem']['kind'],
+      name,
+      sort: Number(b?.sort) || 0,
+      startTime: startTime as string | null,
+      endTime: endTime as string | null,
+      isStop: !!b?.isStop,
+      remark: str(b?.remark),
+      createdAt: old?.createdAt ?? new Date().toISOString(),
+    }
+    if (old) {
+      if (old.name !== name) {
+        if (kind === 'workshop') {
+          for (const batch of db.batches) if (batch.workshop === old.name) batch.workshop = name
+          for (const plan of db.plans) if (plan.workshop === old.name) plan.workshop = name
+        }
+        if (kind === 'paint_line') for (const plan of db.plans) if (plan.paintLine === old.name) plan.paintLine = name
+        if (kind === 'shift') for (const plan of db.plans) if (plan.shift === old.name) plan.shift = name
+      }
+      Object.assign(old, item)
+    } else db.dicts.push(item)
+    save(db)
+    return json(old ? 200 : 201, item)
+  }
+  const invalidDict = (kind: S['DictItem']['kind'], value: string, previous = '') =>
+    value !== '' && value !== previous && !db.dicts.some((d) => d.kind === kind && d.name === value && !d.isStop)
+  const dictError = (kind: S['DictItem']['kind'], value: string) =>
+    `${{ workshop: '车间', paint_line: '喷涂线', shift: '班次' }[kind]}「${value}」不在启用的基础字典中`
 
   if (route === 'GET /auth/me') {
     return json(200, {
@@ -2425,6 +2507,8 @@ export async function demoFetch(req: Request): Promise<Response> {
           batch.outsourceFactoryId = outsourceFactory.id
           batch.outsourceFactoryName = outsourceFactory.name
         }
+        if (b.workshop != null && invalidDict('workshop', str(b.workshop), batch.workshop))
+          return fail(400, 'invalid_request', dictError('workshop', str(b.workshop)))
         if (b.workshop != null) batch.workshop = str(b.workshop)
         if (b.remark != null) batch.remark = str(b.remark)
         if (b.urgency != null) batch.urgency = b.urgency as S['Urgency']
@@ -2853,6 +2937,12 @@ export async function demoFetch(req: Request): Promise<Response> {
     if (fieldError) return fail(400, 'invalid_request', fieldError)
     if (kind === 'sheet_daily' && b.jobId == null) return fail(400, 'invalid_request', '钣金日计划必须指定工序')
     if (kind === 'spray_daily' && (!str(b.paintLine) || !str(b.shift))) return fail(400, 'invalid_request', '喷涂日计划必须指定产线和班次')
+    for (const [kind, value] of [
+      ['workshop', b.workshop],
+      ['paint_line', b.paintLine],
+      ['shift', b.shift],
+    ] as const)
+      if (invalidDict(kind, str(value))) return fail(400, 'invalid_request', dictError(kind, str(value)))
     const batch = db.batches.find((x) => x.id === b.batchId)
     if (!batch) return fail(404, 'not_found', '批次不存在')
     if (!inScope(u, batch.factoryId)) return fail(403, 'forbidden_factory', '无权在该厂区创建数据')
@@ -2916,6 +3006,12 @@ export async function demoFetch(req: Request): Promise<Response> {
       if (b.sprayType !== undefined) next.sprayType = str(b.sprayType)
       if (b.urgency !== undefined) next.urgency = b.urgency as S['Urgency']
       if (b.remark !== undefined) next.remark = str(b.remark)
+      for (const [kind, value, previous] of [
+        ['workshop', next.workshop, plan.workshop],
+        ['paint_line', next.paintLine, plan.paintLine],
+        ['shift', next.shift, plan.shift],
+      ] as const)
+        if (invalidDict(kind, value, previous)) return fail(400, 'invalid_request', dictError(kind, str(value)))
       if (next.stopState !== 'stopped' && duplicatePlan(db, next)) return fail(409, 'duplicate_plan', '该批次在此日期范围内已有计划')
       Object.assign(plan, next, { updatedAt: new Date().toISOString() })
       save(db)

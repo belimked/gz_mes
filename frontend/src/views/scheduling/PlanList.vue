@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useDicts } from '@/composables/useDicts'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import type { FormInstance, TablePaginationConfig } from 'ant-design-vue'
@@ -28,9 +29,12 @@ const isSheet = computed(() => props.kind !== 'spray_daily')
 const isSheetDaily = computed(() => props.kind === 'sheet_daily')
 const isSpray = computed(() => props.kind === 'spray_daily')
 
-const WORKSHOPS = ['钣金一车间', '钣金二车间'].map((v) => ({ value: v, label: v }))
-const PAINT_LINES = ['1号线', '2号线'].map((v) => ({ value: v, label: v }))
-const SHIFTS = ['早班', '中班', '晚班'].map((v) => ({ value: v, label: v }))
+const workshops = useDicts('workshop')
+const paintLines = useDicts('paint_line')
+const shifts = useDicts('shift')
+const WORKSHOPS = workshops.options(() => form.value.workshop)
+const PAINT_LINES = paintLines.options(() => form.value.paintLine)
+const SHIFTS = shifts.options(() => form.value.shift)
 const URGENCY = [
   { value: 'normal', label: '普通' },
   { value: 'urgent', label: '加急' },
@@ -331,6 +335,7 @@ function closeForm() {
 }
 
 onMounted(() => {
+  void Promise.all([workshops.load(), paintLines.load(), shifts.load()])
   void load()
   void (async () => {
     try {
