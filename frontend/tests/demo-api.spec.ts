@@ -1,6 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { call, makeClient } from '@/api/client'
 import { demoFetch, resetDemo } from '@/api/demo'
+import {
+  jobs,
+  seedBatchItems,
+  seedBatches,
+  seedContracts,
+  seedCustomers,
+  seedLabels,
+  seedPlans,
+  seedProjects,
+  seedScans,
+} from '@/api/demo/data'
 
 // The demo API must behave like the Go backend; these tests mirror backend/internal/server/server_test.go.
 const api = makeClient('http://demo.local/api', demoFetch)
@@ -16,6 +27,24 @@ beforeEach(() => {
 })
 
 describe('demo api', () => {
+  it('seeds no overlapping active plans for the same batch and target job', () => {
+    const batches = seedBatches(seedContracts(seedProjects(), seedCustomers()))
+    const scans = seedScans(batches, seedLabels(batches, seedBatchItems(batches)), jobs)
+    const plans = seedPlans(batches, jobs, scans).filter((p) => p.stopState !== 'stopped')
+    for (const [index, plan] of plans.entries()) {
+      const overlaps = plans
+        .slice(index + 1)
+        .some(
+          (other) =>
+            other.kind === plan.kind &&
+            other.batchId === plan.batchId &&
+            (plan.kind !== 'sheet_daily' || other.jobId === plan.jobId) &&
+            other.startDate <= plan.endDate &&
+            other.endDate >= plan.startDate,
+        )
+      expect(overlaps, `${plan.kind} batch ${plan.batchId} job ${plan.jobId} ${plan.startDate}–${plan.endDate}`).toBe(false)
+    }
+  })
   it('spray board only includes audited plans for today and sums rows', async () => {
     const admin = await login('admin', 'admin123')
     const today = new Date().toISOString().slice(0, 10)
@@ -23,6 +52,7 @@ describe('demo api', () => {
     expect(board.rows.length).toBeGreaterThan(0)
     expect(board.rows.every((r) => r.startDate <= today && r.endDate >= today)).toBe(true)
     expect(board.summary.count).toBe(board.rows.length)
+    expect(board.rows.some((r) => r.dueToday)).toBe(true)
     expect(board.summary.daySprayedArea).toBeCloseTo(board.rows.reduce((s, r) => s + r.daySprayedArea, 0))
     const empty = await call(api.GET('/boards/spray-daily', { ...admin, params: { query: { date: '2020-01-01' } } }))
     expect(empty.rows).toEqual([])

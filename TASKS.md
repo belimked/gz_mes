@@ -8,7 +8,7 @@
 ## 基础设施 ✅
 
 - ✅ Go API（chi + oapi-codegen + pgx + goose）、PostgreSQL 16、`api/openapi.yaml` 单一契约
-- ✅ Vue 3 + AntD 前端，统一主题 `src/theme.ts`，demo 模式（浏览器内模拟后端，DemoDB v20）
+- ✅ Vue 3 + AntD 前端，统一主题 `src/theme.ts`，demo 模式（浏览器内模拟后端，DemoDB v21）
 - ✅ JWT 登录、厂区隔离（admin 全部 / 普通用户按 user_factory）、菜单权限（role_menu）
 - ✅ CI（gen 一致性、go test -race、lint、typecheck、vitest、demo E2E、compose 全栈 E2E）、Demo 自动部署 Cloudflare Pages、tag 发版推 GHCR
 - ✅ 登录页 4 套 aurora 风格切换

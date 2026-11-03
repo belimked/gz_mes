@@ -31,7 +31,7 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 20
+  version: 21
   factories: S['Factory'][]
   users: DemoUser[]
   nextId: number
@@ -163,7 +163,7 @@ function fresh(): DemoDB {
   const qc = seedQc(labels, scans, jobs)
   for (const row of qc) row.id = nextId++
   return {
-    version: 20,
+    version: 21,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
     nextId,
@@ -193,12 +193,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 20) return parsed
+      if (parsed?.version === 21) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 20) memory = fresh()
+  if (memory?.version !== 21) memory = fresh()
   return memory
 }
 

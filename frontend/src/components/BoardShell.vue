@@ -28,13 +28,29 @@ const visible = computed(() => props.rows.slice(page.value * 12, (page.value + 1
 const chart = computed<EChartsOption>(() => ({
   backgroundColor: 'transparent',
   tooltip: { trigger: 'axis' },
-  legend: { textStyle: { color: '#b9d7f0' } },
-  grid: { left: 44, right: 18, top: 38, bottom: 35 },
+  legend: { top: 0, right: 0, textStyle: { color: '#b9d7f0' } },
+  grid: { left: 44, right: 18, top: 36, bottom: 30, containLabel: true },
   xAxis: { type: 'category', data: props.chartLabels, axisLabel: { color: '#a8c5df' } },
   yAxis: { type: 'value', axisLabel: { color: '#a8c5df' }, splitLine: { lineStyle: { color: '#28415b' } } },
   series: [
-    { name: '计划面积', type: 'bar', data: props.chartPlanned, itemStyle: { color: '#2389e6' } },
-    { name: '当日完成', type: 'bar', data: props.chartDone, itemStyle: { color: '#25d4c8' } },
+    {
+      name: '计划面积',
+      type: 'bar',
+      xAxisIndex: 0,
+      barGap: '20%',
+      barMaxWidth: 48,
+      data: props.chartPlanned,
+      itemStyle: { color: '#2389e6' },
+    },
+    {
+      name: '当日完成',
+      type: 'bar',
+      xAxisIndex: 0,
+      barGap: '20%',
+      barMaxWidth: 48,
+      data: props.chartDone,
+      itemStyle: { color: '#25d4c8' },
+    },
   ],
 }))
 let tick: ReturnType<typeof setInterval> | undefined

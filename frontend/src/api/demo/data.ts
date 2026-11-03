@@ -616,12 +616,27 @@ export function seedPlans(batches: S['Batch'][], jobList: S['Job'][], scans: S['
     sheet.workshop = index % 2 ? '钣金二车间' : '钣金一车间'
     sheet.jobId = jobByCode('20').id
     plans.push(audit(sheet))
-    const spray = base(batch, 'spray_daily', todayMs - dayMs, todayMs + dayMs)
+    const spray = base(batch, 'spray_daily', todayMs - dayMs, index === 0 ? todayMs : todayMs + dayMs)
     spray.paintLine = index % 2 ? '2号线' : '1号线'
     spray.shift = '早班'
     plans.push(audit(spray))
   }
-  return plans
+  // Later board fixtures take precedence over legacy plans for the same target and
+  // overlapping dates. Stopped plans do not participate in duplicate detection.
+  return plans.filter(
+    (plan, index) =>
+      plan.stopState === 'stopped' ||
+      !plans.some(
+        (other, otherIndex) =>
+          otherIndex > index &&
+          other.stopState !== 'stopped' &&
+          other.kind === plan.kind &&
+          other.batchId === plan.batchId &&
+          (plan.kind !== 'sheet_daily' || other.jobId === plan.jobId) &&
+          other.startDate <= plan.endDate &&
+          other.endDate >= plan.startDate,
+      ),
+  )
 }
 
 export function seedHandovers(batches: S['Batch'][], labels: S['Label'][], scans: S['Scan'][], jobList: S['Job'][]) {
