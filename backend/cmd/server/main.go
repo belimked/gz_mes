@@ -15,6 +15,7 @@ import (
 	"github.com/belimked/gz_mes/backend/internal/config"
 	"github.com/belimked/gz_mes/backend/internal/db"
 	"github.com/belimked/gz_mes/backend/internal/server"
+	"github.com/belimked/gz_mes/backend/internal/storage"
 	"github.com/belimked/gz_mes/backend/internal/store"
 )
 
@@ -31,6 +32,10 @@ func main() {
 
 func run() error {
 	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	files, err := storage.NewLocal(cfg.FileStorageDir)
 	if err != nil {
 		return err
 	}
@@ -61,7 +66,7 @@ func run() error {
 		slog.Info("bootstrapped default factory")
 	}
 
-	h, err := server.New(st, auth.NewTokens(cfg.JWTSecret, 12*time.Hour), version).Handler()
+	h, err := server.NewWithFiles(st, auth.NewTokens(cfg.JWTSecret, 12*time.Hour), version, files, int64(cfg.MaxUploadMB)*1024*1024).Handler()
 	if err != nil {
 		return err
 	}

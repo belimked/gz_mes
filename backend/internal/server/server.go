@@ -17,21 +17,23 @@ import (
 
 	"github.com/belimked/gz_mes/backend/internal/api"
 	"github.com/belimked/gz_mes/backend/internal/auth"
+	"github.com/belimked/gz_mes/backend/internal/storage"
 	"github.com/belimked/gz_mes/backend/internal/store"
 )
 
 // Server implements api.StrictServerInterface.
 type Server struct {
-	store   *store.Store
-	tokens  *auth.Tokens
-	version string
+	store     *store.Store
+	tokens    *auth.Tokens
+	version   string
+	files     storage.Files
+	maxUpload int64
 }
 
 var _ api.StrictServerInterface = (*Server)(nil)
 
-// New returns a Server.
-func New(st *store.Store, tokens *auth.Tokens, version string) *Server {
-	return &Server{store: st, tokens: tokens, version: version}
+func NewWithFiles(st *store.Store, tokens *auth.Tokens, version string, files storage.Files, maxUpload int64) *Server {
+	return &Server{store: st, tokens: tokens, version: version, files: files, maxUpload: maxUpload}
 }
 
 // Handler builds the full HTTP handler mounted under /api.
@@ -60,7 +62,18 @@ func (s *Server) Handler() (http.Handler, error) {
 	})
 
 	inner := chi.NewRouter()
-	inner.Use(validator, s.authenticate)
+	// Multipart validation consumes the stream before MaxBytesReader can enforce our
+	// upload limit. Binary responses also cannot be serialized by the strict handler.
+	// These two routes use raw HTTP handlers after the same authentication middleware.
+	inner.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if (r.Method == "POST" && strings.HasPrefix(r.URL.Path, "/batches/") && strings.HasSuffix(r.URL.Path, "/drawings")) || (r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/drawings/") && strings.HasSuffix(r.URL.Path, "/file")) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			validator(next).ServeHTTP(w, r)
+		})
+	}, s.authenticate)
 	api.HandlerFromMux(strict, inner)
 
 	r := chi.NewRouter()
@@ -103,7 +116,16 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 			writeErr(w, http.StatusInternalServerError, "internal", "internal server error")
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(auth.WithPrincipal(r.Context(), p)))
+		r = r.WithContext(auth.WithPrincipal(r.Context(), p))
+		if r.Method == "POST" && strings.HasPrefix(r.URL.Path, "/batches/") && strings.HasSuffix(r.URL.Path, "/drawings") {
+			s.rawUpload(w, r)
+			return
+		}
+		if r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/drawings/") && strings.HasSuffix(r.URL.Path, "/file") {
+			s.rawFile(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 

@@ -18,6 +18,7 @@ import (
 	"github.com/belimked/gz_mes/backend/internal/auth"
 	"github.com/belimked/gz_mes/backend/internal/db"
 	"github.com/belimked/gz_mes/backend/internal/server"
+	"github.com/belimked/gz_mes/backend/internal/storage"
 	"github.com/belimked/gz_mes/backend/internal/store"
 )
 
@@ -76,7 +77,11 @@ func newEnv(t *testing.T) *env {
 	if _, err := st.EnsureAdmin(ctx, "admin", "admin-pass"); err != nil {
 		t.Fatal(err)
 	}
-	h, err := server.New(st, auth.NewTokens("test-secret-test-secret-test-secret!", time.Hour), "test").Handler()
+	files, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := server.NewWithFiles(st, auth.NewTokens("test-secret-test-secret-test-secret!", time.Hour), "test", files, 50*1024*1024).Handler()
 	if err != nil {
 		t.Fatal(err)
 	}

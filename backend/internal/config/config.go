@@ -15,6 +15,8 @@ type Config struct {
 	AdminUsername  string
 	AdminPassword  string // only used to bootstrap the first admin when no user exists
 	MigrateOnStart bool
+	FileStorageDir string
+	MaxUploadMB    int
 }
 
 // Load reads configuration from the environment.
@@ -26,6 +28,15 @@ func Load() (Config, error) {
 		AdminUsername:  env("ADMIN_USERNAME", "admin"),
 		AdminPassword:  os.Getenv("ADMIN_PASSWORD"),
 		MigrateOnStart: envBool("MIGRATE_ON_START", true),
+		FileStorageDir: env("FILE_STORAGE_DIR", "/data/files"),
+		MaxUploadMB:    50,
+	}
+	if v := os.Getenv("MAX_UPLOAD_MB"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n <= 0 {
+			return c, errors.New("MAX_UPLOAD_MB must be positive")
+		}
+		c.MaxUploadMB = n
 	}
 	if c.DatabaseURL == "" {
 		return c, errors.New("DATABASE_URL is required")

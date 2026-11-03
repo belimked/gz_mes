@@ -44,6 +44,8 @@ cd deploy && cp .env.example .env   # 修改所有密码/密钥
 docker compose up -d                # 默认拉取 ghcr.io/belimked/gz-mes-{api,web}:latest
 ```
 
+API 使用 `FILE_STORAGE_DIR`（默认 `/data/files`）保存图纸，`MAX_UPLOAD_MB`（默认 50）限制上传大小；启动时目录必须可写。Compose 将命名卷 `file-data` 挂载到 `/data/files`，备份数据库时请同时备份该卷。开发时可用 `FILE_STORAGE_DIR=$PWD/.tmp/files make api`。
+
 打 `v*` 标签会构建并推送镜像到 GHCR，并在 GitHub Release 附上锁定版本的 `docker-compose.yml`。
 
 ## CI / CD
