@@ -1397,6 +1397,24 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
 
+  /reports/workshop-output:
+    get:
+      operationId: getWorkshopOutputReport
+      tags: [report]
+      parameters:
+        - { name: granularity, in: query, required: true, schema: { type: string, enum: [day, month] } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: factoryId, in: query, schema: { type: integer, format: int64 } }
+        - { name: workshop, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkshopOutputReport" }
+        "400": { $ref: "#/components/responses/Error" }
+
   /reports/machine-output:
     get:
       operationId: getMachineOutputReport
@@ -1975,6 +1993,41 @@ components:
             jobName: { type: string }
             jobSeq: { type: integer }
             createdAt: { type: string, format: date-time }
+    WorkshopOutputRow:
+      type: object
+      required: [period, batchCount, batchArea, scheduledCount, scheduledArea, sheetQty, sheetArea, sheetOwnArea, sheetOutsourceArea, sprayQty, sprayArea, deliveredQty, deliveredArea, workshopSheetArea]
+      properties:
+        period: { type: string }
+        batchCount: { type: integer }
+        batchArea: { type: number }
+        scheduledCount: { type: integer }
+        scheduledArea: { type: number }
+        sheetQty: { type: integer }
+        sheetArea: { type: number }
+        sheetOwnArea: { type: number }
+        sheetOutsourceArea: { type: number }
+        sprayQty: { type: integer }
+        sprayArea: { type: number }
+        deliveredQty: { type: integer }
+        deliveredArea: { type: number }
+        workshopSheetArea: { type: array, items: { type: number } }
+    WorkshopComparison:
+      type: object
+      required: [workshop, prevPrevArea, prevArea, currentArea, chainRate]
+      properties:
+        workshop: { type: string }
+        prevPrevArea: { type: number }
+        prevArea: { type: number }
+        currentArea: { type: number }
+        chainRate: { type: number, nullable: true }
+    WorkshopOutputReport:
+      type: object
+      required: [periods, workshops, total, comparison]
+      properties:
+        periods: { type: array, items: { $ref: "#/components/schemas/WorkshopOutputRow" } }
+        workshops: { type: array, items: { type: string } }
+        total: { $ref: "#/components/schemas/WorkshopOutputRow" }
+        comparison: { type: array, items: { $ref: "#/components/schemas/WorkshopComparison" }, nullable: true }
     MachineOutputRow:
       type: object
       required: [machineId, code, name, factoryName, jobName, qty, pieceArea, sprayingArea, days, batchId, lotNo, projectName, capacityQty, capacityArea, qtyLoad, areaLoad, loadFactor]
