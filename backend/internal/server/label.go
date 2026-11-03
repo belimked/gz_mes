@@ -14,7 +14,7 @@ func toAPILabel(l *store.Label) api.Label {
 	return api.Label{Id: l.ID, BarCode: l.BarCode, FactoryId: l.FactoryID, BatchId: l.BatchID, LotNo: l.LotNo, ProjectName: l.ProjectName, BatchItemId: l.BatchItemID, PieceNo: l.PieceNo, PieceIndex: l.PieceIndex, Qty: l.Qty, DrawingNo: l.DrawingNo, Pattern: l.Pattern, Thickness: l.Thickness, Color: l.Color, PieceArea: l.PieceArea, Cancelled: l.Cancelled, LastJobId: l.LastJobID, LastJobName: l.LastJobName, LastScannedAt: l.LastScannedAt, CreatedAt: l.CreatedAt}
 }
 func toAPIScan(v store.Scan) api.Scan {
-	return api.Scan{Id: v.ID, LabelId: v.LabelID, BarCode: v.BarCode, BatchId: v.BatchID, LotNo: v.LotNo, ProjectName: v.ProjectName, PieceNo: v.PieceNo, PieceIndex: v.PieceIndex, PieceArea: v.PieceArea, JobId: v.JobID, JobName: v.JobName, ScannedBy: v.ScannedBy, StaffNo: v.StaffNo, ScannedAt: v.ScannedAt, Device: v.Device}
+	return api.Scan{Id: v.ID, LabelId: v.LabelID, BarCode: v.BarCode, BatchId: v.BatchID, LotNo: v.LotNo, ProjectName: v.ProjectName, PieceNo: v.PieceNo, PieceIndex: v.PieceIndex, PieceArea: v.PieceArea, JobId: v.JobID, JobName: v.JobName, ScannedBy: v.ScannedBy, StaffNo: v.StaffNo, ScannedAt: v.ScannedAt, Device: v.Device, MachineId: v.MachineID, MachineName: v.MachineName}
 }
 func toAPIJob(j store.Job) api.Job {
 	return api.Job{Id: j.ID, Code: j.Code, Name: j.Name, Seq: j.Seq, Stage: api.JobStage(j.Stage), IsQc: j.IsQc}
@@ -104,7 +104,7 @@ func (s *Server) CancelLabel(ctx context.Context, req api.CancelLabelRequestObje
 	return api.CancelLabel200JSONResponse(toAPILabel(l)), nil
 }
 func (s *Server) ListScans(ctx context.Context, req api.ListScansRequestObject) (api.ListScansResponseObject, error) {
-	f := store.ScanFilter{BatchID: req.Params.BatchId, JobID: req.Params.JobId, Begin: dateValue(req.Params.BeginDate), Keyword: optionalString(req.Params.Keyword), Staff: optionalString(req.Params.Staff), Newest: true}
+	f := store.ScanFilter{BatchID: req.Params.BatchId, JobID: req.Params.JobId, MachineID: req.Params.MachineId, Begin: dateValue(req.Params.BeginDate), Keyword: optionalString(req.Params.Keyword), Staff: optionalString(req.Params.Staff), Newest: true}
 	if req.Params.EndDate != nil {
 		end := req.Params.EndDate.AddDate(0, 0, 1)
 		f.End = &end
@@ -126,7 +126,7 @@ func (s *Server) ListScans(ctx context.Context, req api.ListScansRequestObject) 
 func (s *Server) ScanLabel(ctx context.Context, req api.ScanLabelRequestObject) (api.ScanLabelResponseObject, error) {
 	p := auth.FromContext(ctx)
 	b := req.Body
-	in := store.ScanInput{BarCode: strings.TrimSpace(b.BarCode), JobCode: strings.TrimSpace(b.JobCode), Device: optionalString(b.Device), UserID: p.UserID, DefectJobID: b.DefectJobId, DefectCategory: optionalString(b.DefectCategory), DefectReason: optionalString(b.DefectReason)}
+	in := store.ScanInput{BarCode: strings.TrimSpace(b.BarCode), JobCode: strings.TrimSpace(b.JobCode), Device: optionalString(b.Device), UserID: p.UserID, MachineID: b.MachineId, DefectJobID: b.DefectJobId, DefectCategory: optionalString(b.DefectCategory), DefectReason: optionalString(b.DefectReason)}
 	if b.Result != nil {
 		in.Result = string(*b.Result)
 	}
@@ -139,6 +139,8 @@ func (s *Server) ScanLabel(ctx context.Context, req api.ScanLabelRequestObject) 
 		return api.ScanLabel404JSONResponse(apiErr("not_found", "标签不存在")), nil
 	case errors.Is(err, store.ErrBadRef):
 		return api.ScanLabel400JSONResponse{ErrorJSONResponse: apiErr("invalid_job", "工序代码不存在")}, nil
+	case errors.Is(err, store.ErrInvalidMachine):
+		return api.ScanLabel400JSONResponse{ErrorJSONResponse: apiErr("invalid_machine", "机台不存在、已停用或与标签厂区／当前工序不匹配")}, nil
 	case errors.Is(err, store.ErrQcResultRequired):
 		return api.ScanLabel400JSONResponse{ErrorJSONResponse: apiErr("qc_result_required", "质检岗位必须选择合格 / 不合格")}, nil
 	case errors.Is(err, store.ErrLabelCancelled):

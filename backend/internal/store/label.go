@@ -170,15 +170,17 @@ type Scan struct {
 	StaffNo            string
 	ScannedAt          time.Time
 	Device             string
+	MachineID          *int64
+	MachineName        *string
 }
 
-const scanFrom = ` FROM scan_record sr JOIN label l ON l.id=sr.label_id JOIN batch b ON b.id=sr.batch_id JOIN contract c ON c.id=b.contract_id JOIN project p ON p.id=c.project_id JOIN batch_item bi ON bi.id=l.batch_item_id JOIN job j ON j.id=sr.job_id JOIN app_user u ON u.id=sr.scanned_by`
-const scanSelect = `SELECT sr.id,l.id,l.bar_code,b.id,b.lot_no,p.full_name,bi.piece_no,l.piece_index,bi.piece_area::float8,j.id,j.name,u.display_name,u.staff_no,sr.scanned_at,sr.device` + scanFrom
+const scanFrom = ` FROM scan_record sr JOIN label l ON l.id=sr.label_id JOIN batch b ON b.id=sr.batch_id JOIN contract c ON c.id=b.contract_id JOIN project p ON p.id=c.project_id JOIN batch_item bi ON bi.id=l.batch_item_id JOIN job j ON j.id=sr.job_id JOIN app_user u ON u.id=sr.scanned_by LEFT JOIN machine m ON m.id=sr.machine_id`
+const scanSelect = `SELECT sr.id,l.id,l.bar_code,b.id,b.lot_no,p.full_name,bi.piece_no,l.piece_index,bi.piece_area::float8,j.id,j.name,u.display_name,u.staff_no,sr.scanned_at,sr.device,sr.machine_id,m.name` + scanFrom
 
 type ScanFilter struct {
-	BatchID, JobID, LabelID *int64
-	Begin, End              *time.Time
-	Keyword, Staff          string
+	BatchID, JobID, LabelID, MachineID *int64
+	Begin, End                         *time.Time
+	Keyword, Staff                     string
 	// Newest sorts by scanned_at desc (list screens); default is chronological (label timeline).
 	Newest bool
 }
@@ -195,6 +197,9 @@ func (s *Store) ListScans(ctx context.Context, sc auth.Scope, f ScanFilter, page
 	}
 	if f.LabelID != nil {
 		add(` AND sr.label_id=$%d`, *f.LabelID)
+	}
+	if f.MachineID != nil {
+		add(` AND sr.machine_id=$%d`, *f.MachineID)
 	}
 	if f.Begin != nil {
 		add(` AND sr.scanned_at >= $%d`, *f.Begin)
@@ -268,10 +273,12 @@ type ScanInput struct {
 	UserID                       int64
 	Result                       string
 	DefectJobID                  *int64
+	MachineID                    *int64
 	DefectCategory, DefectReason string
 }
 
 var ErrQcResultRequired = errors.New("qc result required")
+var ErrInvalidMachine = errors.New("invalid machine")
 
 func (s *Store) Scan(ctx context.Context, sc auth.Scope, in ScanInput) (*Scan, *QcRecord, *Label, *Progress, error) {
 	barCode := in.BarCode
@@ -280,9 +287,9 @@ func (s *Store) Scan(ctx context.Context, sc auth.Scope, in ScanInput) (*Scan, *
 		return nil, nil, nil, nil, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	var labelID, batchID int64
+	var labelID, batchID, factoryID int64
 	var cancelled bool
-	err = tx.QueryRow(ctx, `SELECT l.id,b.id,l.cancelled FROM label l JOIN batch b ON b.id=l.batch_id WHERE l.bar_code=$1 AND ($2 OR b.factory_id=ANY($3)) FOR UPDATE OF b`, barCode, sc.All, sc.FactoryIDs).Scan(&labelID, &batchID, &cancelled)
+	err = tx.QueryRow(ctx, `SELECT l.id,b.id,l.factory_id,l.cancelled FROM label l JOIN batch b ON b.id=l.batch_id WHERE l.bar_code=$1 AND ($2 OR b.factory_id=ANY($3)) FOR UPDATE OF b`, barCode, sc.All, sc.FactoryIDs).Scan(&labelID, &batchID, &factoryID, &cancelled)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil, nil, nil, ErrNotFound
 	}
@@ -301,6 +308,17 @@ func (s *Store) Scan(ctx context.Context, sc auth.Scope, in ScanInput) (*Scan, *
 	}
 	if err != nil {
 		return nil, nil, nil, nil, err
+	}
+	if in.MachineID != nil {
+		var machineJob, machineFactory int64
+		var stopped bool
+		err = tx.QueryRow(ctx, `SELECT job_id,factory_id,is_stop FROM machine WHERE id=$1`, *in.MachineID).Scan(&machineJob, &machineFactory, &stopped)
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && (stopped || machineJob != jobID || machineFactory != factoryID)) {
+			return nil, nil, nil, nil, ErrInvalidMachine
+		}
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
 	}
 	if isQc && in.Result != "pass" && in.Result != "fail" {
 		return nil, nil, nil, nil, ErrQcResultRequired
@@ -345,7 +363,7 @@ func (s *Store) Scan(ctx context.Context, sc auth.Scope, in ScanInput) (*Scan, *
 	var scanID *int64
 	if !isQc || in.Result == "pass" {
 		var id int64
-		err = tx.QueryRow(ctx, `INSERT INTO scan_record (label_id,batch_id,job_id,scanned_by,device) VALUES ($1,$2,$3,$4,$5) RETURNING id`, labelID, batchID, jobID, in.UserID, in.Device).Scan(&id)
+		err = tx.QueryRow(ctx, `INSERT INTO scan_record (label_id,batch_id,job_id,scanned_by,device,machine_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, labelID, batchID, jobID, in.UserID, in.Device, in.MachineID).Scan(&id)
 		if err != nil {
 			return nil, nil, nil, nil, mapErr(err)
 		}
