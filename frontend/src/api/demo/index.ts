@@ -88,8 +88,36 @@ function fresh(): DemoDB {
     account.id = nextId++
     for (const note of deliveryNotes) if (note.accountId === oldId) note.accountId = account.id
   }
-  const deliveryPlans: S['DeliveryPlan'][] = deliveryNotes.length ? [{ id: nextId++, planNo: 'WL202601010001', factoryId: deliveryNotes[0]!.factoryId, logisticsCompany: '演示物流', contact: '演示联系人', phone: '13800000000', shippingAddress: '演示发货地', receivingAddress: '演示收货地', carModel: '货车', plateNo: '粤A·DEMO', driver: '演示司机', driverPhone: '13900000000', cost: 100, extraCost: 0, estimatedDepartureDate: '2026-01-02', remark: '', createdAt: deliveryNotes[0]!.createdAt, noteCount: 1, qty: deliveryNotes[0]!.qty, area: deliveryNotes[0]!.area }] : []
-  if (deliveryPlans.length) { deliveryNotes[0]!.planId = deliveryPlans[0]!.id; deliveryNotes[0]!.planNo = deliveryPlans[0]!.planNo }
+  const deliveryPlans: S['DeliveryPlan'][] = deliveryNotes.length
+    ? [
+        {
+          id: nextId++,
+          planNo: 'WL202601010001',
+          factoryId: deliveryNotes[0]!.factoryId,
+          logisticsCompany: '演示物流',
+          contact: '演示联系人',
+          phone: '13800000000',
+          shippingAddress: '演示发货地',
+          receivingAddress: '演示收货地',
+          carModel: '货车',
+          plateNo: '粤A·DEMO',
+          driver: '演示司机',
+          driverPhone: '13900000000',
+          cost: 100,
+          extraCost: 0,
+          estimatedDepartureDate: '2026-01-02',
+          remark: '',
+          createdAt: deliveryNotes[0]!.createdAt,
+          noteCount: 1,
+          qty: deliveryNotes[0]!.qty,
+          area: deliveryNotes[0]!.area,
+        },
+      ]
+    : []
+  if (deliveryPlans.length) {
+    deliveryNotes[0]!.planId = deliveryPlans[0]!.id
+    deliveryNotes[0]!.planNo = deliveryPlans[0]!.planNo
+  }
   const plans = seedPlans(batches, jobs, scans)
   for (const plan of plans) plan.id = nextId++
   const qc = seedQc(labels, scans, jobs)
@@ -1664,25 +1692,63 @@ export async function demoFetch(req: Request): Promise<Response> {
 
   if (route === 'GET /reports/outsource-orders') {
     const q = url.searchParams
-    const page = Number(q.get('page') ?? 1), size = Number(q.get('size') ?? 20)
+    const page = Number(q.get('page') ?? 1),
+      size = Number(q.get('size') ?? 20)
     if (!validPage(page, size) || !validId(q.get('outsourceFactoryId'))) return fail(400, 'invalid_request', '筛选参数不合法')
-    const from = q.get('from'), to = q.get('to')
-    if ((from && Number.isNaN(dateStart(from))) || (to && Number.isNaN(dateStart(to))) || (from && to && from > to)) return fail(400, 'invalid_request', '日期范围无效')
+    const from = q.get('from'),
+      to = q.get('to')
+    if ((from && Number.isNaN(dateStart(from))) || (to && Number.isNaN(dateStart(to))) || (from && to && from > to))
+      return fail(400, 'invalid_request', '日期范围无效')
     const kw = (q.get('keyword') ?? '').trim().toLowerCase()
     const active = new Map(db.labels.filter((l) => !l.cancelled).map((l) => [l.id, l]))
     const progress = (batch: S['Batch'], code: string) => {
       const job = jobs.find((j) => j.code === code)
       const scanned = db.scans.filter((scan) => scan.batchId === batch.id && scan.jobId === job?.id && active.has(scan.labelId))
-      const scannedQty = scanned.length, scannedArea = Number(scanned.reduce((n, scan) => n + (active.get(scan.labelId)?.pieceArea ?? 0), 0).toFixed(4))
-      return { scannedQty, scannedArea, unscannedQty: Math.max(0, batch.itemQty - scannedQty), unscannedArea: Math.max(0, Number((batch.itemArea - scannedArea).toFixed(4))), percent: batch.itemQty ? Math.min(100, scannedQty * 100 / batch.itemQty) : 0 }
+      const scannedQty = scanned.length,
+        scannedArea = Number(scanned.reduce((n, scan) => n + (active.get(scan.labelId)?.pieceArea ?? 0), 0).toFixed(4))
+      return {
+        scannedQty,
+        scannedArea,
+        unscannedQty: Math.max(0, batch.itemQty - scannedQty),
+        unscannedArea: Math.max(0, Number((batch.itemArea - scannedArea).toFixed(4))),
+        percent: batch.itemQty ? Math.min(100, (scannedQty * 100) / batch.itemQty) : 0,
+      }
     }
-    const all = db.batches.filter((b) => b.outsourceFactoryId != null && (inScope(u, b.factoryId) || inScope(u, b.outsourceFactoryId!)))
+    const all = db.batches
+      .filter((b) => b.outsourceFactoryId != null && (inScope(u, b.factoryId) || inScope(u, b.outsourceFactoryId!)))
       .filter((b) => (!from || b.createdAt.slice(0, 10) >= from) && (!to || b.createdAt.slice(0, 10) <= to))
       .filter((b) => !q.get('outsourceFactoryId') || b.outsourceFactoryId === Number(q.get('outsourceFactoryId')))
       .filter((b) => !kw || [b.lotNo, b.projectName, b.customerName, b.clientOrderNo].some((s) => s.toLowerCase().includes(kw)))
-      .map((b) => ({ batchId: b.id, lotNo: b.lotNo, projectName: b.projectName, customerName: b.customerName, clientOrderNo: b.clientOrderNo, createdAt: b.createdAt, thickness: b.thickness, color: b.color, sprayingType: b.sprayingType, outsourceFactoryId: b.outsourceFactoryId!, outsourceFactoryName: b.outsourceFactoryName!, status: b.status, itemQty: b.itemQty, itemArea: b.itemArea, cutting: progress(b, '10'), shipping: progress(b, '20') }))
+      .map((b) => ({
+        batchId: b.id,
+        lotNo: b.lotNo,
+        projectName: b.projectName,
+        customerName: b.customerName,
+        clientOrderNo: b.clientOrderNo,
+        createdAt: b.createdAt,
+        thickness: b.thickness,
+        color: b.color,
+        sprayingType: b.sprayingType,
+        outsourceFactoryId: b.outsourceFactoryId!,
+        outsourceFactoryName: b.outsourceFactoryName!,
+        status: b.status,
+        itemQty: b.itemQty,
+        itemArea: b.itemArea,
+        cutting: progress(b, '10'),
+        shipping: progress(b, '20'),
+      }))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.batchId - a.batchId)
-    return json(200, { items: all.slice((page - 1) * size, page * size), total: all.length, summary: { batches: all.length, plannedQty: all.reduce((n, b) => n + b.itemQty, 0), plannedArea: all.reduce((n, b) => n + b.itemArea, 0), cuttingScannedQty: all.reduce((n, b) => n + b.cutting.scannedQty, 0), shippingScannedQty: all.reduce((n, b) => n + b.shipping.scannedQty, 0) } })
+    return json(200, {
+      items: all.slice((page - 1) * size, page * size),
+      total: all.length,
+      summary: {
+        batches: all.length,
+        plannedQty: all.reduce((n, b) => n + b.itemQty, 0),
+        plannedArea: all.reduce((n, b) => n + b.itemArea, 0),
+        cuttingScannedQty: all.reduce((n, b) => n + b.cutting.scannedQty, 0),
+        shippingScannedQty: all.reduce((n, b) => n + b.shipping.scannedQty, 0),
+      },
+    })
   }
 
   if (route === 'GET /reports/defect-daily') {
@@ -1764,50 +1830,171 @@ export async function demoFetch(req: Request): Promise<Response> {
     return json(200, { jobs: qcJobs, items: rows.slice((page - 1) * size, page * size), total: rows.length, summary })
   }
 
-  if (route === 'GET /delivery-plans' || route === 'POST /delivery-plans' || /^((GET|PUT|DELETE) \/delivery-plans\/\d+|POST \/delivery-plans\/\d+\/confirm)$/.test(route)) {
+  if (
+    route === 'GET /delivery-plans' ||
+    route === 'POST /delivery-plans' ||
+    /^((GET|PUT|DELETE) \/delivery-plans\/\d+|POST \/delivery-plans\/\d+\/confirm)$/.test(route)
+  ) {
     const detail = (p: S['DeliveryPlan']) => ({ ...p, notes: db.deliveryNotes.filter((n) => n.planId === p.id) })
-    const refresh = (p: S['DeliveryPlan']) => { const notes = detail(p).notes; p.noteCount = notes.length; p.qty = notes.reduce((n, x) => n + x.qty, 0); p.area = notes.reduce((n, x) => n + x.area, 0) }
-    if (route === 'GET /delivery-plans') {
-      const q = url.searchParams, page = Number(q.get('page') ?? 1), size = Number(q.get('size') ?? 20)
-      if (!validPage(page, size)) return fail(400, 'invalid_request', 'page/size 参数不合法')
-      const confirmed = q.get('confirmed'), kw = (q.get('keyword') ?? '').toLowerCase()
-      if (confirmed !== null && !['true', 'false'].includes(confirmed)) return fail(400, 'invalid_request', '确认参数不合法')
-      for (const [start, end] of [['createdFrom', 'createdTo'], ['estimatedFrom', 'estimatedTo']] as const) {
-        const a = q.get(start), b = q.get(end)
-        if ((a && Number.isNaN(dateStart(a))) || (b && Number.isNaN(dateStart(b))) || (a && b && a > b)) return fail(400, 'invalid_request', '日期范围无效')
-      }
-      const all = db.deliveryPlans.filter((p) => inScope(u, p.factoryId))
-        .filter((p) => (confirmed === null || (p.confirmedAt != null) === (confirmed === 'true')) && (!q.get('createdFrom') || p.createdAt.slice(0, 10) >= q.get('createdFrom')!) && (!q.get('createdTo') || p.createdAt.slice(0, 10) <= q.get('createdTo')!) && (!q.get('estimatedFrom') || p.estimatedDepartureDate >= q.get('estimatedFrom')!) && (!q.get('estimatedTo') || p.estimatedDepartureDate <= q.get('estimatedTo')!))
-        .filter((p) => !kw || [p.planNo, p.logisticsCompany, p.plateNo, p.driver, ...detail(p).notes.map((n) => n.noteNo)].some((s) => s.toLowerCase().includes(kw)))
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id)
-      return json(200, { items: all.slice((page - 1) * size, page * size), total: all.length, summary: { plans: all.length, confirmed: all.filter((p) => p.confirmedAt != null).length, cost: all.reduce((n, p) => n + p.cost, 0), extraCost: all.reduce((n, p) => n + p.extraCost, 0), qty: all.reduce((n, p) => n + p.qty, 0), area: all.reduce((n, p) => n + p.area, 0) } })
+    const refresh = (p: S['DeliveryPlan']) => {
+      const notes = detail(p).notes
+      p.noteCount = notes.length
+      p.qty = notes.reduce((n, x) => n + x.qty, 0)
+      p.area = notes.reduce((n, x) => n + x.area, 0)
     }
-    const match = /\/(\d+)/.exec(route), id = match ? Number(match[1]) : 0
+    if (route === 'GET /delivery-plans') {
+      const q = url.searchParams,
+        page = Number(q.get('page') ?? 1),
+        size = Number(q.get('size') ?? 20)
+      if (!validPage(page, size)) return fail(400, 'invalid_request', 'page/size 参数不合法')
+      const confirmed = q.get('confirmed'),
+        kw = (q.get('keyword') ?? '').toLowerCase()
+      if (confirmed !== null && !['true', 'false'].includes(confirmed)) return fail(400, 'invalid_request', '确认参数不合法')
+      for (const [start, end] of [
+        ['createdFrom', 'createdTo'],
+        ['estimatedFrom', 'estimatedTo'],
+      ] as const) {
+        const a = q.get(start),
+          b = q.get(end)
+        if ((a && Number.isNaN(dateStart(a))) || (b && Number.isNaN(dateStart(b))) || (a && b && a > b))
+          return fail(400, 'invalid_request', '日期范围无效')
+      }
+      const all = db.deliveryPlans
+        .filter((p) => inScope(u, p.factoryId))
+        .filter(
+          (p) =>
+            (confirmed === null || (p.confirmedAt != null) === (confirmed === 'true')) &&
+            (!q.get('createdFrom') || p.createdAt.slice(0, 10) >= q.get('createdFrom')!) &&
+            (!q.get('createdTo') || p.createdAt.slice(0, 10) <= q.get('createdTo')!) &&
+            (!q.get('estimatedFrom') || p.estimatedDepartureDate >= q.get('estimatedFrom')!) &&
+            (!q.get('estimatedTo') || p.estimatedDepartureDate <= q.get('estimatedTo')!),
+        )
+        .filter(
+          (p) =>
+            !kw ||
+            [p.planNo, p.logisticsCompany, p.plateNo, p.driver, ...detail(p).notes.map((n) => n.noteNo)].some((s) =>
+              s.toLowerCase().includes(kw),
+            ),
+        )
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id)
+      return json(200, {
+        items: all.slice((page - 1) * size, page * size),
+        total: all.length,
+        summary: {
+          plans: all.length,
+          confirmed: all.filter((p) => p.confirmedAt != null).length,
+          cost: all.reduce((n, p) => n + p.cost, 0),
+          extraCost: all.reduce((n, p) => n + p.extraCost, 0),
+          qty: all.reduce((n, p) => n + p.qty, 0),
+          area: all.reduce((n, p) => n + p.area, 0),
+        },
+      })
+    }
+    const match = /\/(\d+)/.exec(route),
+      id = match ? Number(match[1]) : 0
     const plan = db.deliveryPlans.find((p) => p.id === id && inScope(u, p.factoryId))
     if (route === 'POST /delivery-plans' || route.startsWith('PUT /delivery-plans/')) {
       const b = await body(req)
       if (route.startsWith('PUT') && !plan) return fail(404, 'not_found', '计划不存在')
       if (plan?.confirmedAt) return fail(409, 'already_confirmed', '计划已确认')
-      if (!b || !Number.isSafeInteger(b.factoryId) || !inScope(u, Number(b.factoryId)) || !db.factories.some((f) => f.id === b.factoryId) || typeof b.estimatedDepartureDate !== 'string' || Number.isNaN(dateStart(b.estimatedDepartureDate)) || !Array.isArray(b.noteIds) || (b.cost != null && (typeof b.cost !== 'number' || b.cost < 0)) || (b.extraCost != null && (typeof b.extraCost !== 'number' || b.extraCost < 0))) return fail(400, 'invalid_request', '计划字段无效')
+      if (
+        !b ||
+        !Number.isSafeInteger(b.factoryId) ||
+        !inScope(u, Number(b.factoryId)) ||
+        !db.factories.some((f) => f.id === b.factoryId) ||
+        typeof b.estimatedDepartureDate !== 'string' ||
+        Number.isNaN(dateStart(b.estimatedDepartureDate)) ||
+        !Array.isArray(b.noteIds) ||
+        (b.cost != null && (typeof b.cost !== 'number' || b.cost < 0)) ||
+        (b.extraCost != null && (typeof b.extraCost !== 'number' || b.extraCost < 0))
+      )
+        return fail(400, 'invalid_request', '计划字段无效')
       if (new Set(b.noteIds).size !== b.noteIds.length) return fail(400, 'invalid_reference', '发货单号重复')
-      for (const noteId of b.noteIds) { const note = db.deliveryNotes.find((n) => n.id === noteId); if (!note || note.factoryId !== b.factoryId || (note.planId != null && note.planId !== plan?.id)) return fail(400, 'invalid_reference', `发货单 ${note?.noteNo ?? noteId} 不属于该厂区或已关联其他计划`) }
-      const p: S['DeliveryPlan'] = plan ?? { id: db.nextId++, planNo: nextDocNo(db, 'WL'), factoryId: Number(b.factoryId), logisticsCompany: '', contact: '', phone: '', shippingAddress: '', receivingAddress: '', carModel: '', plateNo: '', driver: '', driverPhone: '', cost: 0, extraCost: 0, estimatedDepartureDate: b.estimatedDepartureDate, remark: '', createdAt: new Date().toISOString(), noteCount: 0, qty: 0, area: 0 }
+      for (const noteId of b.noteIds) {
+        const note = db.deliveryNotes.find((n) => n.id === noteId)
+        if (!note || note.factoryId !== b.factoryId || (note.planId != null && note.planId !== plan?.id))
+          return fail(400, 'invalid_reference', `发货单 ${note?.noteNo ?? noteId} 不属于该厂区或已关联其他计划`)
+      }
+      const p: S['DeliveryPlan'] = plan ?? {
+        id: db.nextId++,
+        planNo: nextDocNo(db, 'WL'),
+        factoryId: Number(b.factoryId),
+        logisticsCompany: '',
+        contact: '',
+        phone: '',
+        shippingAddress: '',
+        receivingAddress: '',
+        carModel: '',
+        plateNo: '',
+        driver: '',
+        driverPhone: '',
+        cost: 0,
+        extraCost: 0,
+        estimatedDepartureDate: b.estimatedDepartureDate,
+        remark: '',
+        createdAt: new Date().toISOString(),
+        noteCount: 0,
+        qty: 0,
+        area: 0,
+      }
       if (!plan) db.deliveryPlans.push(p)
-      for (const n of db.deliveryNotes) if (n.planId === p.id) { n.planId = null; n.planNo = null }
-      Object.assign(p, { factoryId: b.factoryId, logisticsCompany: b.logisticsCompany ?? '', contact: b.contact ?? '', phone: b.phone ?? '', shippingAddress: b.shippingAddress ?? '', receivingAddress: b.receivingAddress ?? '', carModel: b.carModel ?? '', plateNo: b.plateNo ?? '', driver: b.driver ?? '', driverPhone: b.driverPhone ?? '', cost: b.cost ?? 0, extraCost: b.extraCost ?? 0, estimatedDepartureDate: b.estimatedDepartureDate, remark: b.remark ?? '' })
-      for (const n of db.deliveryNotes) if (b.noteIds.includes(n.id)) { n.planId = p.id; n.planNo = p.planNo }
-      refresh(p); save(db); return json(plan ? 200 : 201, detail(p))
+      for (const n of db.deliveryNotes)
+        if (n.planId === p.id) {
+          n.planId = null
+          n.planNo = null
+        }
+      Object.assign(p, {
+        factoryId: b.factoryId,
+        logisticsCompany: b.logisticsCompany ?? '',
+        contact: b.contact ?? '',
+        phone: b.phone ?? '',
+        shippingAddress: b.shippingAddress ?? '',
+        receivingAddress: b.receivingAddress ?? '',
+        carModel: b.carModel ?? '',
+        plateNo: b.plateNo ?? '',
+        driver: b.driver ?? '',
+        driverPhone: b.driverPhone ?? '',
+        cost: b.cost ?? 0,
+        extraCost: b.extraCost ?? 0,
+        estimatedDepartureDate: b.estimatedDepartureDate,
+        remark: b.remark ?? '',
+      })
+      for (const n of db.deliveryNotes)
+        if (b.noteIds.includes(n.id)) {
+          n.planId = p.id
+          n.planNo = p.planNo
+        }
+      refresh(p)
+      save(db)
+      return json(plan ? 200 : 201, detail(p))
     }
     if (!plan) return fail(404, 'not_found', '计划不存在')
     if (route.startsWith('GET')) return json(200, detail(plan))
     if (plan.confirmedAt) return fail(409, 'already_confirmed', '计划已确认')
-    if (route.startsWith('DELETE')) { for (const n of detail(plan).notes) { n.planId = null; n.planNo = null }; db.deliveryPlans.splice(db.deliveryPlans.indexOf(plan), 1); save(db); return json(204, null) }
+    if (route.startsWith('DELETE')) {
+      for (const n of detail(plan).notes) {
+        n.planId = null
+        n.planNo = null
+      }
+      db.deliveryPlans.splice(db.deliveryPlans.indexOf(plan), 1)
+      save(db)
+      return json(204, null)
+    }
     const b = await body(req)
-    if (!b || typeof b.departureDate !== 'string' || Number.isNaN(dateStart(b.departureDate))) return fail(400, 'invalid_request', '发车日期不能为空')
+    if (!b || typeof b.departureDate !== 'string' || Number.isNaN(dateStart(b.departureDate)))
+      return fail(400, 'invalid_request', '发车日期不能为空')
     if (!plan.noteCount) return fail(400, 'invalid_request', '至少关联一张发货单')
-    plan.confirmedDepartureDate = b.departureDate; plan.confirmedAt = new Date().toISOString(); plan.confirmedBy = u.displayName
-    for (const n of detail(plan).notes) { n.logisticsCompany ||= plan.logisticsCompany; n.plateNo ||= plan.plateNo; n.driver ||= plan.driver; n.driverPhone ||= plan.driverPhone }
-    save(db); return json(200, detail(plan))
+    plan.confirmedDepartureDate = b.departureDate
+    plan.confirmedAt = new Date().toISOString()
+    plan.confirmedBy = u.displayName
+    for (const n of detail(plan).notes) {
+      n.logisticsCompany ||= plan.logisticsCompany
+      n.plateNo ||= plan.plateNo
+      n.driver ||= plan.driver
+      n.driverPhone ||= plan.driverPhone
+    }
+    save(db)
+    return json(200, detail(plan))
   }
 
   if (route === 'GET /handovers' || route === 'GET /delivery-notes' || route === 'GET /deliver-accounts') {
@@ -1815,7 +2002,11 @@ export async function demoFetch(req: Request): Promise<Response> {
     const size = Number(url.searchParams.get('size') ?? 20)
     if (!validPage(page, size)) return fail(400, 'invalid_request', 'page/size 参数不合法')
     const ids =
-      route === 'GET /deliver-accounts' ? ['customerId'] : route === 'GET /handovers' ? ['batchId', 'jobId'] : ['batchId', 'customerId', 'factoryId']
+      route === 'GET /deliver-accounts'
+        ? ['customerId']
+        : route === 'GET /handovers'
+          ? ['batchId', 'jobId']
+          : ['batchId', 'customerId', 'factoryId']
     if (ids.some((key) => !validId(url.searchParams.get(key)))) return fail(400, 'invalid_request', '筛选参数不合法')
     const kw = (url.searchParams.get('keyword') ?? '').trim().toLowerCase()
     const matches = (values: string[]) => !kw || values.some((value) => value.toLowerCase().includes(kw))
@@ -1844,7 +2035,13 @@ export async function demoFetch(req: Request): Promise<Response> {
       )
         return fail(400, 'invalid_request', '日期范围无效')
       const all = db.deliveryNotes
-        .filter((n) => inScope(u, n.factoryId) && filterId('batchId', n.batchId) && filterId('customerId', n.customerId) && filterId('factoryId', n.factoryId))
+        .filter(
+          (n) =>
+            inScope(u, n.factoryId) &&
+            filterId('batchId', n.batchId) &&
+            filterId('customerId', n.customerId) &&
+            filterId('factoryId', n.factoryId),
+        )
         .filter((n) => accounted === null || n.accounted === (accounted === 'true'))
         .filter((n) => unplanned === null || (n.planId == null) === (unplanned === 'true'))
         .filter((n) => (!begin || n.deliveredAt >= begin) && (!end || n.deliveredAt <= end))
