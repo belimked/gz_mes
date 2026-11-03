@@ -52,7 +52,7 @@ func TestPlanFlow(t *testing.T) {
 	}
 	var week, daily, spray api.Plan
 	cut := jobID["10"]
-	if code := e.do("POST", "/plans", admin, api.PlanCreate{Kind: api.SheetWeek, BatchId: b.Id, StartDate: start, EndDate: end, Workshop: strPtr("一车间")}, &week); code != 201 || week.TargetJobName != "钣金下线" || week.LabelQty != 0 || week.Progress != 0 || !week.Overdue || week.AuditState != "draft" || week.StopState != "normal" {
+	if code := e.do("POST", "/plans", admin, api.PlanCreate{Kind: api.SheetWeek, BatchId: b.Id, StartDate: start, EndDate: end, Workshop: strPtr("钣金一车间")}, &week); code != 201 || week.TargetJobName != "钣金下线" || week.LabelQty != 0 || week.Progress != 0 || !week.Overdue || week.AuditState != "draft" || week.StopState != "normal" {
 		t.Fatalf("week: %d %+v", code, week)
 	}
 	if code := e.do("POST", "/plans", admin, api.PlanCreate{Kind: api.SheetDaily, BatchId: b.Id, StartDate: start, EndDate: start, JobId: &cut}, &daily); code != 201 || daily.TargetJobId != cut || daily.JobName == nil || *daily.JobName != "开料" {
@@ -63,7 +63,7 @@ func TestPlanFlow(t *testing.T) {
 	}
 
 	var page api.PlanPage
-	for _, q := range []string{"kind=sheet_week", "kind=sheet_week&from=2026-01-10&to=2026-01-20", "kind=sheet_week&keyword=PLAN-1", "kind=sheet_week&workshop=%E4%B8%80%E8%BD%A6%E9%97%B4", "kind=sheet_week&auditState=draft&stopState=normal"} {
+	for _, q := range []string{"kind=sheet_week", "kind=sheet_week&from=2026-01-10&to=2026-01-20", "kind=sheet_week&keyword=PLAN-1", "kind=sheet_week&workshop=%E9%92%A3%E9%87%91%E4%B8%80%E8%BD%A6%E9%97%B4", "kind=sheet_week&auditState=draft&stopState=normal"} {
 		if code := e.do("GET", "/plans?"+q, admin, nil, &page); code != 200 || page.Total != 1 || len(page.Items) != 1 || page.Items[0].Id != week.Id || page.Summary.Plans != 1 || page.Summary.Qty != 3 || page.Summary.Area != 5 || page.Summary.Overdue != 1 {
 			t.Fatalf("filter %s: %d %+v", q, code, page)
 		}
@@ -110,8 +110,8 @@ func TestPlanFlow(t *testing.T) {
 	}
 
 	// Edit → audit → locked → unaudit → delete.
-	upd := api.PlanUpdate{StartDate: start, EndDate: planDate(2026, 1, 12), Remark: strPtr("改期"), Workshop: strPtr("二车间")}
-	if code := e.do("PUT", wp, admin, upd, &week); code != 200 || week.Remark != "改期" || week.Workshop != "二车间" || week.EndDate.Day() != 12 {
+	upd := api.PlanUpdate{StartDate: start, EndDate: planDate(2026, 1, 12), Remark: strPtr("改期"), Workshop: strPtr("钣金二车间")}
+	if code := e.do("PUT", wp, admin, upd, &week); code != 200 || week.Remark != "改期" || week.Workshop != "钣金二车间" || week.EndDate.Day() != 12 {
 		t.Fatalf("update: %d %+v", code, week)
 	}
 	upd.EndDate = planDate(2026, 1, 1)

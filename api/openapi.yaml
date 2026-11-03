@@ -699,6 +699,59 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /dicts:
+    get:
+      operationId: listDicts
+      tags: [system]
+      parameters:
+        - { name: kind, in: query, schema: { type: string, enum: [workshop, paint_line, shift] } }
+        - { name: includeStopped, in: query, schema: { type: boolean, default: false } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/DictItem" } }
+        "400": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createDict
+      tags: [system]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DictInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DictItem" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /dicts/{id}:
+    put:
+      operationId: updateDict
+      tags: [system]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DictInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DictItem" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
   /machines:
     get:
       operationId: listMachines
@@ -2099,6 +2152,25 @@ components:
         created: { type: integer, description: "Labels created by this call" }
         total: { type: integer, description: "Labels now existing for the batch (excluding cancelled)" }
 
+    DictInput:
+      type: object
+      required: [kind, name, sort, isStop]
+      properties:
+        kind: { type: string, enum: [workshop, paint_line, shift] }
+        name: { type: string }
+        sort: { type: integer }
+        startTime: { type: string, nullable: true, description: "HH:mm" }
+        endTime: { type: string, nullable: true, description: "HH:mm" }
+        isStop: { type: boolean }
+        remark: { type: string }
+    DictItem:
+      allOf:
+        - { $ref: "#/components/schemas/DictInput" }
+        - type: object
+          required: [id, createdAt]
+          properties:
+            id: { type: integer, format: int64 }
+            createdAt: { type: string, format: date-time }
     MachineInput:
       type: object
       required: [factoryId, jobId, code, name, capacityQty, capacityArea, isStop]

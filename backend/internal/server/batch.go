@@ -152,6 +152,8 @@ func (s *Server) ScheduleBatch(ctx context.Context, req api.ScheduleBatchRequest
 		return api.ScheduleBatch409JSONResponse(apiErr("batch_done", "批次已完工，不能修改")), nil
 	case errors.Is(err, store.ErrBadRef):
 		return api.ScheduleBatch400JSONResponse{ErrorJSONResponse: apiErr("invalid_reference", "外协厂不存在或不是外协类型")}, nil
+	case errors.Is(err, store.ErrInvalidPlan):
+		return api.ScheduleBatch400JSONResponse{ErrorJSONResponse: apiErr("invalid_request", invalidPlanMessage(err))}, nil
 	case err != nil:
 		return nil, err
 	}

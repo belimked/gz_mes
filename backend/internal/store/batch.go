@@ -155,9 +155,9 @@ func (s *Store) ScheduleBatch(ctx context.Context, sc auth.Scope, id int64, in B
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	var status string
+	var status, oldWorkshop string
 	var sheet *time.Time
-	err = tx.QueryRow(ctx, "SELECT status,plan_sheet_start FROM batch WHERE id=$1 AND ($2 OR factory_id=ANY($3)) FOR UPDATE", id, sc.All, sc.FactoryIDs).Scan(&status, &sheet)
+	err = tx.QueryRow(ctx, "SELECT status,plan_sheet_start,workshop FROM batch WHERE id=$1 AND ($2 OR factory_id=ANY($3)) FOR UPDATE", id, sc.All, sc.FactoryIDs).Scan(&status, &sheet, &oldWorkshop)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -194,6 +194,9 @@ func (s *Store) ScheduleBatch(ctx context.Context, sc auth.Scope, id int64, in B
 		add("outsource_factory_id", in.OutsourceFactoryID.Value)
 	}
 	if in.Workshop != nil {
+		if err = CheckDictValue(ctx, tx, "workshop", in.Workshop.Value, oldWorkshop); err != nil {
+			return nil, err
+		}
 		add("workshop", in.Workshop.Value)
 	}
 	if in.Remark != nil {

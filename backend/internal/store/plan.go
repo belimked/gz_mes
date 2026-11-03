@@ -220,6 +220,11 @@ func (s *Store) CreatePlan(ctx context.Context, sc auth.Scope, in PlanCreate) (*
 	if err = validatePlan(ctx, tx, in.Kind, in.StartDate, in.EndDate, in.JobID, in.PaintLine, in.Shift); err != nil {
 		return nil, err
 	}
+	for _, v := range []struct{ kind, value string }{{"workshop", in.Workshop}, {"paint_line", in.PaintLine}, {"shift", in.Shift}} {
+		if err = CheckDictValue(ctx, tx, v.kind, v.value, ""); err != nil {
+			return nil, err
+		}
+	}
 	var factoryID int64
 	var sprayingType string
 	// Locking the batch serializes concurrent creates on the duplicate check.
@@ -263,13 +268,13 @@ type planRow struct {
 	kind, auditState, stopState string
 	batchID                     int64
 	jobID                       *int64
-	paintLine, shift            string
+	paintLine, shift, workshop  string
 }
 
 func lockPlan(ctx context.Context, tx pgx.Tx, sc auth.Scope, id int64) (*planRow, error) {
 	var r planRow
-	err := tx.QueryRow(ctx, `SELECT kind,audit_state,stop_state,batch_id,job_id,paint_line,shift FROM plan WHERE id=$1 AND ($2 OR factory_id=ANY($3)) FOR UPDATE`, id, sc.All, sc.FactoryIDs).
-		Scan(&r.kind, &r.auditState, &r.stopState, &r.batchID, &r.jobID, &r.paintLine, &r.shift)
+	err := tx.QueryRow(ctx, `SELECT kind,audit_state,stop_state,batch_id,job_id,paint_line,shift,workshop FROM plan WHERE id=$1 AND ($2 OR factory_id=ANY($3)) FOR UPDATE`, id, sc.All, sc.FactoryIDs).
+		Scan(&r.kind, &r.auditState, &r.stopState, &r.batchID, &r.jobID, &r.paintLine, &r.shift, &r.workshop)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -301,6 +306,15 @@ func (s *Store) UpdatePlan(ctx context.Context, sc auth.Scope, id int64, in Plan
 	}
 	if err = validatePlan(ctx, tx, r.kind, in.StartDate, in.EndDate, jobID, paintLine, shift); err != nil {
 		return nil, err
+	}
+	workshop := r.workshop
+	if in.Workshop != nil {
+		workshop = *in.Workshop
+	}
+	for _, v := range []struct{ kind, value, old string }{{"workshop", workshop, r.workshop}, {"paint_line", paintLine, r.paintLine}, {"shift", shift, r.shift}} {
+		if err = CheckDictValue(ctx, tx, v.kind, v.value, v.old); err != nil {
+			return nil, err
+		}
 	}
 	if _, err = tx.Exec(ctx, `SELECT 1 FROM batch WHERE id=$1 FOR UPDATE`, r.batchID); err != nil {
 		return nil, err
