@@ -454,6 +454,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/machines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listMachines"];
+        put?: never;
+        post: operations["createMachine"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/machines/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["updateMachine"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/scans": {
         parameters: {
             query?: never;
@@ -929,6 +961,22 @@ export interface paths {
          *     fail rows (in range) whose label has not passed that job yet. Ordered by failedQty desc, lotNo.
          */
         get: operations["getDefectDailyReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/machine-output": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getMachineOutputReport"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1502,6 +1550,60 @@ export interface components {
             /** @description Labels now existing for the batch (excluding cancelled) */
             total: number;
         };
+        MachineInput: {
+            /** Format: int64 */
+            factoryId: number;
+            /** Format: int64 */
+            jobId: number;
+            code: string;
+            name: string;
+            capacityQty: number;
+            capacityArea: number;
+            isStop: boolean;
+            remark?: string;
+        };
+        Machine: components["schemas"]["MachineInput"] & {
+            /** Format: int64 */
+            id: number;
+            factoryName: string;
+            jobName: string;
+            jobSeq: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        MachineOutputRow: {
+            /** Format: int64 */
+            machineId: number;
+            code: string;
+            name: string;
+            factoryName: string;
+            jobName: string;
+            /** Format: int64 */
+            batchId: number | null;
+            lotNo: string | null;
+            projectName: string | null;
+            qty: number;
+            pieceArea: number;
+            sprayingArea: number;
+            days: number;
+            capacityQty: number | null;
+            capacityArea: number | null;
+            qtyLoad: number | null;
+            areaLoad: number | null;
+            loadFactor: number | null;
+        };
+        MachineOutputReport: {
+            items: components["schemas"]["MachineOutputRow"][];
+            /** Format: int64 */
+            total: number;
+            summary: {
+                machines: number;
+                qty: number;
+                pieceArea: number;
+                sprayingArea: number;
+                unspecifiedQty: number;
+            };
+        };
         Scan: {
             /** Format: int64 */
             id: number;
@@ -1529,6 +1631,9 @@ export interface components {
             /** Format: date-time */
             scannedAt: string;
             device: string;
+            /** Format: int64 */
+            machineId?: number | null;
+            machineName?: string | null;
         };
         ScanPage: {
             items: components["schemas"]["Scan"][];
@@ -1553,6 +1658,8 @@ export interface components {
             defectCategory?: string;
             /** @description 不良原因 (fail only) */
             defectReason?: string;
+            /** Format: int64 */
+            machineId?: number;
         };
         /** @enum {string} */
         QcResult: "pass" | "fail";
@@ -3435,6 +3542,86 @@ export interface operations {
             409: components["responses"]["Error"];
         };
     };
+    listMachines: {
+        parameters: {
+            query?: {
+                factoryId?: number;
+                jobId?: number;
+                includeStopped?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Machine"][];
+                };
+            };
+            400: components["responses"]["Error"];
+        };
+    };
+    createMachine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MachineInput"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Machine"];
+                };
+            };
+            400: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    updateMachine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MachineInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Machine"];
+                };
+            };
+            400: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
     listScans: {
         parameters: {
             query?: {
@@ -3442,6 +3629,7 @@ export interface operations {
                 size?: number;
                 batchId?: number;
                 jobId?: number;
+                machineId?: number;
                 beginDate?: string;
                 endDate?: string;
                 /** @description Matches barCode / lotNo / projectName / pieceNo */
@@ -4430,6 +4618,37 @@ export interface operations {
             };
             400: components["responses"]["Error"];
             401: components["responses"]["Error"];
+        };
+    };
+    getMachineOutputReport: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                factoryId?: number;
+                machineId?: number;
+                jobId?: number;
+                keyword?: string;
+                mode?: "summary" | "detail";
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineOutputReport"];
+                };
+            };
+            400: components["responses"]["Error"];
         };
     };
     getStaffOutputReport: {

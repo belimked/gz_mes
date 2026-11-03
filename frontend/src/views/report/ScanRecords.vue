@@ -37,6 +37,7 @@ function emptyFilters() {
     period: 'week' as Period,
     dates: periodRange('week') as string[],
     jobId: undefined as number | undefined,
+    machineId: undefined as number | undefined,
     staff: '',
     keyword: '',
   }
@@ -57,15 +58,20 @@ function onPeriodChange() {
 
 const rows = ref<Row[]>([])
 const jobs = ref<Schemas['Job'][]>([])
+const machines = ref<Schemas['Machine'][]>([])
 const pager = reactive({ current: 1, pageSize: 20, total: 0 })
 const loading = ref(false)
 const exporting = ref(false)
 const jobOptions = computed(() => jobs.value.map((j) => ({ value: j.id, label: `${j.code} ${j.name}` })))
+const machineOptions = computed(() =>
+  machines.value.filter((m) => !filters.jobId || m.jobId === filters.jobId).map((m) => ({ value: m.id, label: `${m.code} ${m.name}` })),
+)
 const pageArea = computed(() => rows.value.reduce((n, r) => n + r.pieceArea, 0))
 
 const columns = [
   { title: '扫描时间', dataIndex: 'scannedAt', width: 160 },
   { title: '岗位', dataIndex: 'jobName', width: 100 },
+  { title: '机台', dataIndex: 'machineName', width: 130 },
   { title: '经办人', dataIndex: 'scannedBy', width: 140 },
   { title: '条码号', dataIndex: 'barCode', width: 150 },
   { title: '工程名称', dataIndex: 'projectName', width: 200, ellipsis: true },
@@ -85,6 +91,7 @@ function fetchPage(page: number, size: number) {
           beginDate: range.value[0],
           endDate: range.value[1],
           jobId: applied.jobId,
+          machineId: applied.machineId,
           staff: applied.staff.trim() || undefined,
           keyword: applied.keyword.trim() || undefined,
           page,
@@ -129,6 +136,7 @@ async function exportCsv() {
       [
         { title: '扫描时间', value: (r) => dayjs(r.scannedAt).format('YYYY-MM-DD HH:mm:ss') },
         { title: '岗位', value: (r) => r.jobName },
+        { title: '机台', value: (r) => r.machineName ?? '' },
         { title: '经办人', value: (r) => r.scannedBy },
         { title: '工号', value: (r) => r.staffNo },
         { title: '条码号', value: (r) => r.barCode },
@@ -161,10 +169,12 @@ onMounted(() => {
     filters.keyword = kw
     filters.period = 'all'
   }
+  if (typeof route.query.machineId === 'string' && Number.isInteger(Number(route.query.machineId)))
+    filters.machineId = Number(route.query.machineId)
   search()
   void (async () => {
     try {
-      jobs.value = await call(client.GET('/jobs'))
+      ;[jobs.value, machines.value] = await Promise.all([call(client.GET('/jobs')), call(client.GET('/machines'))])
     } catch (e) {
       message.error(errorMessage(e))
     }
@@ -193,6 +203,15 @@ onMounted(() => {
         >
         <label v-if="filters.period === 'custom'">日期范围<a-range-picker v-model:value="filters.dates" value-format="YYYY-MM-DD" /></label>
         <label>岗位<a-select v-model:value="filters.jobId" allow-clear placeholder="全部岗位" :options="jobOptions" /></label>
+        <label
+          >机台<a-select
+            v-model:value="filters.machineId"
+            allow-clear
+            show-search
+            option-filter-prop="label"
+            placeholder="全部机台"
+            :options="machineOptions"
+        /></label>
         <label>经办人<a-input v-model:value="filters.staff" placeholder="姓名 / 工号" allow-clear @press-enter="search" /></label>
         <label
           >快速查询<a-input v-model:value="filters.keyword" placeholder="条码 / 批次 / 工程 / 编号" allow-clear @press-enter="search"
@@ -239,7 +258,8 @@ onMounted(() => {
       >
         <template #emptyText><a-empty description="该时段没有扫描记录" /></template>
         <template #bodyCell="{ column, record }">
-          <template v-if="column.dataIndex === 'scannedAt'">{{ dayjs(record.scannedAt).format('YYYY-MM-DD HH:mm:ss') }}</template>
+          <template v-if="column.dataIndex === 'machineName'">{{ record.machineName || '—' }}</template>
+          <template v-else-if="column.dataIndex === 'scannedAt'">{{ dayjs(record.scannedAt).format('YYYY-MM-DD HH:mm:ss') }}</template>
           <template v-else-if="column.dataIndex === 'jobName'">
             <a-tag color="blue">{{ record.jobName }}</a-tag>
           </template>

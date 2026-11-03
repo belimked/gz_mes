@@ -8,6 +8,8 @@ import StatusTag from '@/components/StatusTag.vue'
 
 type History = { time: string; barCode: string; job: string; success: boolean; result: string }
 const jobs = ref<Schemas['Job'][]>([])
+const machines = ref<Schemas['Machine'][]>([])
+const machineId = ref<number>()
 const jobCode = ref(localStorage.getItem('gz-scan-job') || '')
 const barCode = ref('')
 const input = ref<{ focus: () => void }>()
@@ -17,6 +19,15 @@ const result = ref<Schemas['ScanResult']>()
 const history = ref<History[]>([])
 let timer: ReturnType<typeof setTimeout> | undefined
 const currentJob = computed(() => jobs.value.find((j) => j.code === jobCode.value))
+const jobMachines = computed(() => machines.value.filter((m) => m.jobId === currentJob.value?.id))
+function selectMachine(id: number | undefined) {
+  machineId.value = id
+  if (currentJob.value) {
+    const key = `gz-scan-machine-${currentJob.value.id}`
+    if (id) localStorage.setItem(key, String(id))
+    else localStorage.removeItem(key)
+  }
+}
 const qcResult = ref<Schemas['QcResult']>('pass')
 const defectJobId = ref<number>()
 const defectCategory = ref('')
@@ -27,6 +38,9 @@ const defectJobOptions = computed(() =>
 )
 function selectJob(code: string) {
   jobCode.value = code
+  const job = jobs.value.find((j) => j.code === code)
+  const stored = Number(localStorage.getItem(`gz-scan-machine-${job?.id}`))
+  machineId.value = machines.value.some((m) => m.id === stored && m.jobId === job?.id) ? stored : undefined
   localStorage.setItem('gz-scan-job', code)
   qcResult.value = 'pass'
   void nextTick(() => input.value?.focus())
@@ -51,6 +65,7 @@ async function scan() {
           barCode: code,
           jobCode: jobCode.value,
           device: 'web',
+          machineId: machineId.value,
           ...(isQc ? { result: qcResult.value } : {}),
           ...(failed
             ? {
@@ -92,8 +107,9 @@ async function scan() {
 onMounted(async () => {
   input.value?.focus()
   try {
-    jobs.value = await call(client.GET('/jobs'))
+    ;[jobs.value, machines.value] = await Promise.all([call(client.GET('/jobs')), call(client.GET('/machines'))])
     if (!jobs.value.some((j) => j.code === jobCode.value) && jobs.value[0]) selectJob(jobs.value[0].code)
+    else selectJob(jobCode.value)
   } catch (e) {
     message.error(errorMessage(e))
   }
@@ -115,6 +131,19 @@ onUnmounted(() => {
         :options="jobs.map((j) => ({ value: j.code, label: `${j.code}-${j.name}` }))"
         @change="selectJob"
       />
+      <template v-if="jobMachines.length"
+        ><label class="input-label">机台（可选）</label
+        ><a-select
+          :value="machineId"
+          allow-clear
+          size="large"
+          show-search
+          option-filter-prop="label"
+          style="width: 100%"
+          :options="jobMachines.map((m) => ({ value: m.id, label: `${m.code} ${m.name}` }))"
+          data-testid="scan-machine"
+          @change="selectMachine"
+      /></template>
       <template v-if="currentJob?.isQc">
         <label class="input-label">判定结果</label>
         <a-radio-group v-model:value="qcResult" size="large" button-style="solid" class="verdict" data-testid="qc-result">

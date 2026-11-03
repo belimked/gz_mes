@@ -16,6 +16,27 @@ beforeEach(() => {
 })
 
 describe('demo api', () => {
+  it('manages machines and reports output with factory isolation', async () => {
+    const admin = await login('admin', 'admin123')
+    const wx = await login('waixie', 'demo123')
+    const jobs = await call(api.GET('/jobs', admin))
+    const input = { factoryId: 1, jobId: jobs[0]!.id, code: 'NEW-M', name: '新机台', capacityQty: 10, capacityArea: 5, isStop: false }
+    const created = await call(api.POST('/machines', { ...admin, body: input }))
+    expect(created.code).toBe('NEW-M')
+    expect((await api.POST('/machines', { ...admin, body: input })).response.status).toBe(409)
+    expect((await api.POST('/machines', { ...wx, body: input })).response.status).toBe(400)
+    expect(await call(api.GET('/machines', wx))).toEqual([])
+    const today = new Date().toISOString().slice(0, 10)
+    const report = await call(api.GET('/reports/machine-output', { ...admin, params: { query: { from: today, to: today } } }))
+    expect(report.items.some((r) => r.machineId === created.id && r.qty === 0)).toBe(true)
+    const detail = await call(
+      api.GET('/reports/machine-output', { ...admin, params: { query: { mode: 'detail', from: '2026-01-01', to: today } } }),
+    )
+    expect(detail.items.every((r) => r.batchId != null && r.capacityQty == null)).toBe(true)
+    expect(
+      (await api.GET('/reports/machine-output', { ...admin, params: { query: { from: today, to: '2020-01-01' } } })).response.status,
+    ).toBe(400)
+  })
   it('reports outsource orders with factory scope and scan progress', async () => {
     const admin = await login('admin', 'admin123')
     const wx = await login('waixie', 'demo123')

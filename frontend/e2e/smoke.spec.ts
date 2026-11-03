@@ -48,10 +48,10 @@ test('scan records page lists seeded scans and filters by keyword', async ({ pag
   await expect(page).toHaveURL(/\/report\/scans/)
   const table = page.getByTestId('scan-table')
   await expect(table.locator('tbody tr.ant-table-row')).not.toHaveCount(0)
-  const barCode = (await table.locator('tbody tr.ant-table-row').first().locator('td').nth(3).innerText()).trim()
+  const barCode = (await table.locator('tbody tr.ant-table-row').first().locator('td').nth(4).innerText()).trim()
   await page.getByPlaceholder('条码 / 批次 / 工程 / 编号').fill(barCode)
   await page.getByRole('button', { name: /查\s*询/ }).click()
-  const codeCells = table.locator('tbody tr.ant-table-row td:nth-child(4)')
+  const codeCells = table.locator('tbody tr.ant-table-row td:nth-child(5)')
   await expect(codeCells.filter({ hasNotText: barCode })).toHaveCount(0)
   await expect(codeCells).not.toHaveCount(0)
   await expect(codeCells).not.toHaveCount(20)
@@ -118,6 +118,29 @@ test('outsource orders and delivery plans pages', async ({ page }) => {
   await expect(page.locator('tbody tr.ant-table-row')).not.toHaveCount(0)
   await page.getByRole('button', { name: '新建计划' }).click()
   await expect(page.getByText('选择未挂计划的发货单')).toBeVisible()
+})
+
+test('machine output summary and detail switch on an empty database', async ({ page }) => {
+  await login(page)
+  await page.getByTestId('side-menu').getByText('生产报表').click()
+  await page.getByTestId('side-menu').getByText('机台产量').click()
+  await expect(page).toHaveURL(/\/report\/machine-output/)
+  await expect(page.getByTestId('machine-output-table')).toBeVisible()
+  await page.getByTestId('machine-mode').getByText('明细').click()
+  await expect(page.getByTestId('machine-output-table').locator('thead')).toContainText('批次')
+})
+
+test('create a machine in an own factory', async ({ page }) => {
+  needsSeed()
+  await login(page)
+  await page.getByTestId('side-menu').getByText('系统管理').click()
+  await page.getByTestId('side-menu').getByText('机台管理').click()
+  await page.getByTestId('machine-new').click()
+  const code = `E2E-M-${Date.now()}`
+  await page.getByTestId('machine-code').fill(code)
+  await page.getByTestId('machine-name').fill('端到端机台')
+  await page.getByRole('button', { name: /确\s*定|OK/ }).click()
+  await expect(page.getByTestId('machine-table')).toContainText(code)
 })
 
 test('wrong password shows an error', async ({ page }) => {

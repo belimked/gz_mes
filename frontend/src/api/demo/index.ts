@@ -29,7 +29,7 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 17
+  version: 18
   factories: S['Factory'][]
   users: DemoUser[]
   nextId: number
@@ -48,6 +48,7 @@ interface DemoDB {
   batchItems: S['BatchItem'][]
   labels: S['Label'][]
   scans: S['Scan'][]
+  machines: S['Machine'][]
   qc: DemoQc[]
   plans: DemoPlan[]
 }
@@ -71,6 +72,33 @@ function fresh(): DemoDB {
   const batchItems = seedBatchItems(batches)
   const labels = seedLabels(batches, batchItems)
   const scans = seedScans(batches, labels, jobs)
+  const machines: S['Machine'][] = [10, 15, 35].flatMap((code) => {
+    const job = jobs.find((j) => j.code === String(code))!
+    return [1, 2].map((n) => ({
+      id: code * 10 + n,
+      factoryId: 1,
+      factoryName: seedFactories[0]!.name,
+      jobId: job.id,
+      jobName: job.name,
+      jobSeq: job.seq,
+      code: `M${code}-${n}`,
+      name: `${job.name}机台${n}`,
+      capacityQty: 100,
+      capacityArea: 100,
+      isStop: false,
+      remark: '',
+      createdAt: '2026-01-01T00:00:00Z',
+    }))
+  })
+  for (const scan of scans) {
+    const label = labels.find((l) => l.id === scan.labelId)
+    const choices = machines.filter((m) => m.jobId === scan.jobId && m.factoryId === label?.factoryId)
+    if (choices.length && scan.id % 7 !== 0) {
+      const machine = choices[scan.id % choices.length]!
+      scan.machineId = machine.id
+      scan.machineName = machine.name
+    }
+  }
   const { handovers, handoverLabels } = seedHandovers(batches, labels, scans, jobs)
   const { notes: deliveryNotes, noteLabels: deliveryNoteLabels } = seedDeliveryNotes(batches, labels, contracts)
   let nextId =
@@ -123,7 +151,7 @@ function fresh(): DemoDB {
   const qc = seedQc(labels, scans, jobs)
   for (const row of qc) row.id = nextId++
   return {
-    version: 17,
+    version: 18,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds] })),
     nextId,
@@ -142,6 +170,7 @@ function fresh(): DemoDB {
     batchItems,
     labels,
     scans,
+    machines,
     qc,
     plans,
   }
@@ -152,12 +181,12 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 17) return parsed
+      if (parsed?.version === 18) return parsed
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 17) memory = fresh()
+  if (memory?.version !== 18) memory = fresh()
   return memory
 }
 
@@ -1446,13 +1475,67 @@ export async function demoFetch(req: Request): Promise<Response> {
     }
   }
 
+  if (route === 'GET /machines') {
+    const factoryId = url.searchParams.get('factoryId')
+    const jobId = url.searchParams.get('jobId')
+    if (!validId(factoryId) || !validId(jobId)) return fail(400, 'invalid_request', '筛选参数无效')
+    if (factoryId !== null && !db.factories.some((f) => f.id === Number(factoryId) && f.kind === 'own' && inScope(u, f.id)))
+      return fail(400, 'invalid_factory', '厂区必须是授权的自有厂区')
+    return json(
+      200,
+      db.machines
+        .filter(
+          (m) =>
+            inScope(u, m.factoryId) &&
+            (factoryId === null || m.factoryId === Number(factoryId)) &&
+            (jobId === null || m.jobId === Number(jobId)) &&
+            (url.searchParams.get('includeStopped') === 'true' || !m.isStop),
+        )
+        .sort((a, b) => a.factoryName.localeCompare(b.factoryName) || a.jobSeq - b.jobSeq || a.code.localeCompare(b.code)),
+    )
+  }
+  const machineUpdate = /^PUT \/machines\/(\d+)$/.exec(route)
+  if (route === 'POST /machines' || machineUpdate) {
+    const b = await body(req)
+    const factoryId = Number(b?.factoryId),
+      jobId = Number(b?.jobId)
+    const factory = db.factories.find((f) => f.id === factoryId && f.kind === 'own' && inScope(u, f.id))
+    const job = jobs.find((j) => j.id === jobId)
+    if (!factory || !job || !str(b?.code).trim() || !str(b?.name).trim() || Number(b?.capacityQty) < 0 || Number(b?.capacityArea) < 0)
+      return fail(400, 'invalid_request', '只能选择授权的自有厂区及有效工序')
+    const id = machineUpdate ? Number(machineUpdate[1]) : db.nextId++
+    const old = machineUpdate ? db.machines.find((m) => m.id === id && inScope(u, m.factoryId)) : undefined
+    if (machineUpdate && !old) return fail(404, 'not_found', '机台不存在')
+    if (db.machines.some((m) => m.id !== id && m.factoryId === factoryId && m.code === str(b?.code).trim()))
+      return fail(409, 'duplicate_code', '机台编码已存在')
+    const machine: S['Machine'] = {
+      id,
+      factoryId,
+      factoryName: factory.name,
+      jobId,
+      jobName: job.name,
+      jobSeq: job.seq,
+      code: str(b?.code).trim(),
+      name: str(b?.name).trim(),
+      capacityQty: Number(b?.capacityQty),
+      capacityArea: Number(b?.capacityArea),
+      isStop: Boolean(b?.isStop),
+      remark: str(b?.remark),
+      createdAt: old?.createdAt ?? new Date().toISOString(),
+    }
+    if (old) Object.assign(old, machine)
+    else db.machines.push(machine)
+    save(db)
+    return json(old ? 200 : 201, machine)
+  }
   if (route === 'GET /scans') {
     const page = Number(url.searchParams.get('page') ?? 1)
     const size = Number(url.searchParams.get('size') ?? 20)
     if (!validPage(page, size)) return fail(400, 'invalid_request', 'page/size 参数不合法')
     const batchId = url.searchParams.get('batchId')
     const jobId = url.searchParams.get('jobId')
-    if (!validId(batchId) || !validId(jobId)) return fail(400, 'invalid_request', '批次/工序参数不合法')
+    const machineId = url.searchParams.get('machineId')
+    if (!validId(batchId) || !validId(jobId) || !validId(machineId)) return fail(400, 'invalid_request', '批次/工序参数不合法')
     const beginDate = url.searchParams.get('beginDate')
     const endDate = url.searchParams.get('endDate')
     const begin = beginDate !== null ? dateStart(beginDate) : null
@@ -1466,6 +1549,7 @@ export async function demoFetch(req: Request): Promise<Response> {
       .filter((scan) => scopedBatches.has(scan.batchId))
       .filter((scan) => batchId === null || scan.batchId === Number(batchId))
       .filter((scan) => jobId === null || scan.jobId === Number(jobId))
+      .filter((scan) => machineId === null || scan.machineId === Number(machineId))
       .filter((scan) => begin === null || Date.parse(scan.scannedAt) >= begin)
       .filter((scan) => end === null || Date.parse(scan.scannedAt) < end)
       .filter((scan) => !kw || [scan.barCode, scan.lotNo, scan.projectName, scan.pieceNo].some((s) => s.toLowerCase().includes(kw)))
@@ -1488,6 +1572,9 @@ export async function demoFetch(req: Request): Promise<Response> {
     const job = jobs.find((x) => x.code === str(b.jobCode))
     if (!job) return fail(400, 'invalid_job', '工序代码不存在')
     if (label.cancelled) return fail(409, 'label_cancelled', '标签已作废')
+    const machine = b.machineId == null ? undefined : db.machines.find((m) => m.id === Number(b.machineId))
+    if (b.machineId != null && (!machine || machine.isStop || machine.jobId !== job.id || machine.factoryId !== label.factoryId))
+      return fail(400, 'invalid_machine', '机台不存在、已停用或与标签厂区／当前工序不匹配')
     if (db.scans.some((scan) => scan.labelId === label.id && scan.jobId === job.id))
       return fail(409, 'already_scanned', '该标签在此工序已扫描')
     const result = b.result
@@ -1540,6 +1627,8 @@ export async function demoFetch(req: Request): Promise<Response> {
       staffNo: u.staffNo,
       scannedAt,
       device: str(b.device),
+      machineId: machine?.id ?? null,
+      machineName: machine?.name ?? null,
     }
     db.scans.push(scan)
     label.lastJobId = job.id
@@ -2489,6 +2578,104 @@ export async function demoFetch(req: Request): Promise<Response> {
     } satisfies S['BatchJobReport'])
   }
 
+  if (route === 'GET /reports/machine-output') {
+    const from = url.searchParams.get('from') ?? new Date().toISOString().slice(0, 10)
+    const to = url.searchParams.get('to') ?? new Date().toISOString().slice(0, 10)
+    const page = Number(url.searchParams.get('page') ?? 1),
+      size = Number(url.searchParams.get('size') ?? 20)
+    const mode = url.searchParams.get('mode') ?? 'summary'
+    if (
+      from > to ||
+      Number.isNaN(dateStart(from)) ||
+      Number.isNaN(dateStart(to)) ||
+      !validPage(page, size) ||
+      !['summary', 'detail'].includes(mode)
+    )
+      return fail(400, 'invalid_request', '日期范围无效')
+    const days = Math.round((dateStart(to) - dateStart(from)) / 86400000) + 1
+    const factoryId = url.searchParams.get('factoryId'),
+      machineId = url.searchParams.get('machineId'),
+      jobId = url.searchParams.get('jobId')
+    const kw = (url.searchParams.get('keyword') ?? '').toLowerCase()
+    const machines = db.machines.filter(
+      (m) =>
+        inScope(u, m.factoryId) &&
+        !m.isStop &&
+        (factoryId === null || m.factoryId === Number(factoryId)) &&
+        (machineId === null || m.id === Number(machineId)) &&
+        (jobId === null || m.jobId === Number(jobId)),
+    )
+    const scans = db.scans.filter(
+      (s) => s.scannedAt.slice(0, 10) >= from && s.scannedAt.slice(0, 10) <= to && !db.labels.find((l) => l.id === s.labelId)?.cancelled,
+    )
+    const rows: S['MachineOutputRow'][] = []
+    for (const m of machines) {
+      const matched = scans.filter((s) => s.machineId === m.id)
+      const batches = mode === 'detail' ? [...new Set(matched.map((s) => s.batchId))] : [null]
+      for (const batchId of batches) {
+        const group = matched.filter((s) => batchId === null || s.batchId === batchId)
+        const first = group[0]
+        if (
+          kw &&
+          ![m.code, m.name, ...(mode === 'detail' && first ? [first.lotNo, first.projectName] : [])].some((s) =>
+            s.toLowerCase().includes(kw),
+          )
+        )
+          continue
+        const pieceArea = group.reduce((n, s) => n + s.pieceArea, 0)
+        const sprayingArea = group.reduce(
+          (n, s) => n + (db.batchItems.find((i) => i.id === db.labels.find((l) => l.id === s.labelId)?.batchItemId)?.sprayingArea ?? 0),
+          0,
+        )
+        const capacityQty = mode === 'detail' ? null : m.capacityQty * days,
+          capacityArea = mode === 'detail' ? null : m.capacityArea * days
+        const qtyLoad = capacityQty ? (group.length * 100) / capacityQty : null,
+          areaLoad = capacityArea ? (pieceArea * 100) / capacityArea : null
+        rows.push({
+          machineId: m.id,
+          code: m.code,
+          name: m.name,
+          factoryName: m.factoryName,
+          jobName: m.jobName,
+          batchId,
+          lotNo: first?.lotNo ?? null,
+          projectName: first?.projectName ?? null,
+          qty: group.length,
+          pieceArea,
+          sprayingArea,
+          days,
+          capacityQty,
+          capacityArea,
+          qtyLoad,
+          areaLoad,
+          loadFactor: areaLoad ?? qtyLoad,
+        })
+      }
+    }
+    rows.sort((a, b) =>
+      mode === 'detail'
+        ? a.code.localeCompare(b.code) || (a.lotNo ?? '').localeCompare(b.lotNo ?? '')
+        : (machines.find((m) => m.id === a.machineId)?.jobSeq ?? 0) - (machines.find((m) => m.id === b.machineId)?.jobSeq ?? 0) ||
+          a.code.localeCompare(b.code),
+    )
+    return json(200, {
+      items: rows.slice((page - 1) * size, page * size),
+      total: rows.length,
+      summary: {
+        machines: new Set(rows.map((r) => r.machineId)).size,
+        qty: rows.reduce((n, r) => n + r.qty, 0),
+        pieceArea: rows.reduce((n, r) => n + r.pieceArea, 0),
+        sprayingArea: rows.reduce((n, r) => n + r.sprayingArea, 0),
+        unspecifiedQty: scans.filter(
+          (s) =>
+            s.machineId == null &&
+            inScope(u, db.labels.find((l) => l.id === s.labelId)?.factoryId ?? -1) &&
+            (factoryId === null || db.labels.find((l) => l.id === s.labelId)?.factoryId === Number(factoryId)) &&
+            (jobId === null || s.jobId === Number(jobId)),
+        ).length,
+      },
+    })
+  }
   if (route === 'GET /reports/staff-output') {
     const q = url.searchParams
     const page = Number(q.get('page') ?? 1)
