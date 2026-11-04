@@ -33,6 +33,16 @@ function openGenerate() {
   generateOpen.value = true
 }
 const generating = ref(false)
+const action = ref<'cancel' | 'reprint'>('cancel')
+const actionRow = ref<Label>()
+const reason = ref('')
+const actionOpen = ref(false)
+function openAction(row: Label, kind: 'cancel' | 'reprint') {
+  actionRow.value = row
+  action.value = kind
+  reason.value = ''
+  actionOpen.value = true
+}
 const columns = [
   { title: '条码', dataIndex: 'barCode', width: 165 },
   { title: '批次号', dataIndex: 'lotNo', width: 150 },
@@ -46,7 +56,7 @@ const columns = [
   { title: '最近工序', dataIndex: 'lastJobName', width: 110 },
   { title: '最近扫描时间', dataIndex: 'lastScannedAt', width: 165 },
   { title: '状态', dataIndex: 'cancelled', width: 90 },
-  { title: '操作', key: 'action', width: 130, fixed: 'right' as const },
+  { title: '操作', key: 'action', width: 170, fixed: 'right' as const },
 ]
 async function load() {
   loading.value = true
@@ -96,11 +106,23 @@ async function openDetail(row: Label) {
     detailLoading.value = false
   }
 }
-async function cancel(row: Label) {
+async function submitAction() {
+  const row = actionRow.value
+  if (!row || (action.value === 'reprint' && !reason.value.trim())) {
+    message.warning('请填写重打原因')
+    return
+  }
   try {
-    await call(client.POST('/labels/{barCode}/cancel', { params: { path: { barCode: row.barCode } } }))
-    message.success('标签已作废')
+    if (action.value === 'cancel')
+      await call(client.POST('/labels/{barCode}/cancel', { params: { path: { barCode: row.barCode } }, body: { reason: reason.value } }))
+    else
+      await call(
+        client.POST('/labels/{barCode}/reprint', { params: { path: { barCode: row.barCode } }, body: { reason: reason.value.trim() } }),
+      )
+    message.success(action.value === 'cancel' ? '标签已作废' : '已记录重打')
+    actionOpen.value = false
     await load()
+    if (selected.value?.id === row.id) await openDetail(row)
   } catch (e) {
     message.error(errorMessage(e))
   }
@@ -198,9 +220,12 @@ onMounted(async () => {
             ><StatusTag :tone="record.cancelled ? 'error' : 'success'" :label="record.cancelled ? '作废' : '正常'"
           /></template>
           <template v-else-if="column.key === 'action'"
-            ><a-popconfirm v-if="!record.cancelled && !record.lastJobId" title="确认作废此标签？" @confirm="cancel(record)"
-              ><a>作废</a></a-popconfirm
-            ><a-divider v-if="!record.cancelled && !record.lastJobId" type="vertical" /><a @click="openDetail(record)">详情</a></template
+            ><a v-if="!record.cancelled && !record.lastJobId" @click="openAction(record, 'cancel')">作废</a
+            ><a-divider v-if="!record.cancelled && !record.lastJobId" type="vertical" /><a
+              v-if="!record.cancelled"
+              @click="openAction(record, 'reprint')"
+              >重打</a
+            ><a-divider v-if="!record.cancelled" type="vertical" /><a @click="openDetail(record)">详情</a></template
           >
         </template>
       </a-table>
@@ -226,6 +251,13 @@ onMounted(async () => {
               selected.lastScannedAt ? dayjs(selected.lastScannedAt).format('YYYY-MM-DD HH:mm:ss') : '—'
             }}</a-descriptions-item>
           </a-descriptions>
+          <h3>操作日志</h3>
+          <a-timeline
+            ><a-timeline-item v-for="log in selected.logs" :key="log.id"
+              >{{ { generate: '生成', cancel: '作废', reprint: '重打' }[log.opType] }} · {{ log.operatorName }} ·
+              {{ dayjs(log.createdAt).format('YYYY-MM-DD HH:mm:ss') }} {{ log.reason }}</a-timeline-item
+            ></a-timeline
+          >
           <h3>扫描历史</h3>
           <a-empty v-if="!selected.scans.length" description="暂无扫描记录" /><a-timeline v-else
             ><a-timeline-item v-for="scan in selected.scans" :key="scan.id"
@@ -235,6 +267,9 @@ onMounted(async () => {
         ></a-spin
       >
     </a-drawer>
+    <a-modal v-model:open="actionOpen" :title="action === 'cancel' ? '作废标签' : '重打标签'" @ok="submitAction"
+      ><a-input v-model:value="reason" :maxlength="200" :placeholder="action === 'cancel' ? '作废原因（可选）' : '重打原因（必填）'"
+    /></a-modal>
     <a-modal
       v-model:open="generateOpen"
       title="生成标签"

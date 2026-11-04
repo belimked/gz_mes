@@ -76,6 +76,12 @@ const children: RouteRecordRaw[] = [
     meta: { title: '标签管理', group: '生产管理' },
   },
   {
+    path: 'production/label-logs',
+    name: 'label-logs',
+    component: () => import('@/views/production/LabelLogs.vue'),
+    meta: { title: '标签日志', group: '生产管理' },
+  },
+  {
     path: 'production/scan',
     name: 'scan',
     component: () => import('@/views/production/Scan.vue'),
@@ -178,6 +184,12 @@ const children: RouteRecordRaw[] = [
     name: 'report-production-balance',
     component: () => import('@/views/report/ProductionBalance.vue'),
     meta: { title: '生产平衡表', group: '生产报表' },
+  },
+  {
+    path: 'system/audit-logs',
+    name: 'audit-logs',
+    component: () => import('@/views/system/AuditLogs.vue'),
+    meta: { title: '操作日志', group: '系统管理' },
   },
   {
     path: 'system/factories',

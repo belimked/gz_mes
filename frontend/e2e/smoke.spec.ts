@@ -15,6 +15,17 @@ async function login(page: Page, u = user, p = password) {
   await page.getByTestId('login-submit').click()
 }
 
+test('label and audit logs pages render', async ({ page }) => {
+  await login(page)
+  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
+  await page.goto('/production/label-logs')
+  await expect(page.getByRole('heading', { name: '标签日志' })).toBeVisible()
+  await expect(page.locator('table')).toBeVisible()
+  await page.goto('/system/audit-logs')
+  await expect(page.getByRole('heading', { name: '操作日志' })).toBeVisible()
+  await expect(page.locator('table')).toBeVisible()
+})
+
 test('role CRUD and user assignment', async ({ page }) => {
   await login(page)
   await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
@@ -22,7 +33,10 @@ test('role CRUD and user assignment', async ({ page }) => {
   await page.getByTestId('role-new').click()
   await page.getByTestId('role-code').fill('e2e-role')
   await page.getByTestId('role-name').fill('测试角色')
-  await page.locator('.ant-modal').getByRole('button', { name: /确\s*定|OK/ }).click()
+  await page
+    .locator('.ant-modal')
+    .getByRole('button', { name: /确\s*定|OK/ })
+    .click()
   await expect(page.getByTestId('role-table')).toContainText('测试角色')
   await page.goto('/system/users')
   await page.getByTestId('user-table').getByText('编辑').first().click()

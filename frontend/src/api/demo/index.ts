@@ -32,7 +32,7 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 24
+  version: 25
   factories: S['Factory'][]
   users: DemoUser[]
   roles: S['Role'][]
@@ -51,6 +51,9 @@ interface DemoDB {
   batchValuations: DemoBatchValuation[]
   batchItems: S['BatchItem'][]
   labels: S['Label'][]
+  labelLogs: S['LabelLog'][]
+  auditLogs: S['AuditLog'][]
+  seedLogCount: number
   scans: S['Scan'][]
   machines: S['Machine'][]
   dicts: S['DictItem'][]
@@ -166,8 +169,9 @@ function fresh(): DemoDB {
   for (const plan of plans) plan.id = nextId++
   const qc = seedQc(labels, scans, jobs)
   for (const row of qc) row.id = nextId++
+  nextId += labels.length
   return {
-    version: 24,
+    version: 25,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds], roleIds: [] })),
     roles: [],
@@ -186,6 +190,30 @@ function fresh(): DemoDB {
     batchValuations: seedBatchValuations(batches),
     batchItems,
     labels,
+    labelLogs: labels.map((l, i) => ({
+      id: nextId + i,
+      labelId: l.id,
+      opType: 'generate',
+      reason: '',
+      operatorName: '演示管理员',
+      staffNo: '0001',
+      createdAt: l.createdAt,
+      barCode: l.barCode,
+      factoryId: l.factoryId,
+      batchId: l.batchId,
+      lotNo: l.lotNo,
+      projectName: l.projectName,
+      pieceNo: l.pieceNo,
+      pieceIndex: l.pieceIndex,
+      qty: l.qty,
+      drawingNo: l.drawingNo,
+      pattern: l.pattern,
+      thickness: l.thickness,
+      color: l.color,
+      pieceArea: l.pieceArea,
+    })),
+    auditLogs: [],
+    seedLogCount: labels.length,
     scans,
     machines,
     dicts: [
@@ -218,18 +246,26 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 24) return parsed
+      if (parsed?.version === 25) {
+        const original = fresh()
+        parsed.labelLogs.unshift(...original.labelLogs.slice(0, parsed.seedLogCount))
+        return parsed
+      }
     } catch {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 24) memory = fresh()
+  if (memory?.version !== 25) memory = fresh()
   return memory
 }
 
 function save(db: DemoDB) {
   memory = db
-  storage()?.setItem(KEY, JSON.stringify(db))
+  try {
+    storage()?.setItem(KEY, JSON.stringify({ ...db, labelLogs: db.labelLogs.slice(db.seedLogCount) }))
+  } catch {
+    /* storage may be disabled; keep the in-memory copy */
+  }
 }
 
 /** Restores the original demo dataset. */
@@ -516,7 +552,68 @@ function duplicatePlan(db: DemoDB, candidate: DemoPlan) {
   )
 }
 
+function labelLog(db: DemoDB, l: S['Label'], u: DemoUser, opType: S['LabelLog']['opType'], reason: string): S['LabelLog'] {
+  return {
+    id: db.nextId++,
+    labelId: l.id,
+    opType,
+    reason,
+    operatorName: u.displayName,
+    staffNo: u.staffNo,
+    createdAt: new Date().toISOString(),
+    barCode: l.barCode,
+    factoryId: l.factoryId,
+    batchId: l.batchId,
+    lotNo: l.lotNo,
+    projectName: l.projectName,
+    pieceNo: l.pieceNo,
+    pieceIndex: l.pieceIndex,
+    qty: l.qty,
+    drawingNo: l.drawingNo,
+    pattern: l.pattern,
+    thickness: l.thickness,
+    color: l.color,
+    pieceArea: l.pieceArea,
+  }
+}
+
 export async function demoFetch(req: Request): Promise<Response> {
+  const start = Date.now()
+  const loginBody =
+    req.method === 'POST' && new URL(req.url).pathname.endsWith('/auth/login')
+      ? req
+          .clone()
+          .json()
+          .catch(() => ({}))
+      : null
+  const response = await dispatch(req)
+  const path = new URL(req.url).pathname.replace(/^.*?\/api/, '')
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !(req.method === 'POST' && path === '/scans')) {
+    const db = load()
+    const submitted = path === '/auth/login' ? ((await loginBody) as { username?: string }) : null
+    const u = path === '/auth/login' ? db.users.find((x) => x.username === submitted?.username) : principal(req, db)
+    if (u || path === '/auth/login') {
+      const route = path.replace(/\/labels\/[^/]+\/(cancel|reprint)$/, '/labels/{barCode}/$1').replace(/\/(\d+)(?=\/|$)/g, '/{id}')
+      db.auditLogs.push({
+        id: db.nextId++,
+        userId: u?.id ?? null,
+        username: submitted?.username ?? u?.username ?? '',
+        displayName: u?.displayName ?? '',
+        method: req.method,
+        route,
+        path,
+        status: response.status,
+        durationMs: Date.now() - start,
+        ip: '',
+        createdAt: new Date().toISOString(),
+      })
+      save(db)
+    }
+  }
+  return response
+}
+
+async function dispatch(req: Request): Promise<Response> {
   if (import.meta.env.MODE !== 'test') await new Promise((r) => setTimeout(r, 120))
   const url = new URL(req.url)
   const at = url.pathname.indexOf('/api/')
@@ -632,7 +729,11 @@ export async function demoFetch(req: Request): Promise<Response> {
     route === 'GET /menus' ||
     route === 'GET /users' ||
     route === 'POST /users' ||
-    userRoute || route === 'GET /roles' || route === 'POST /roles' || /^PUT \/roles\/\d+$/.test(route) || /^DELETE \/roles\/\d+$/.test(route)
+    userRoute ||
+    route === 'GET /roles' ||
+    route === 'POST /roles' ||
+    /^PUT \/roles\/\d+$/.test(route) ||
+    /^DELETE \/roles\/\d+$/.test(route)
   ) {
     if (!u.isAdmin) return fail(403, 'forbidden', '仅管理员可操作')
   }
@@ -663,16 +764,32 @@ export async function demoFetch(req: Request): Promise<Response> {
   if (route === 'GET /menus') return json(200, menuTree(u, db))
 
   const roleRoute = /^(PUT|DELETE) \/roles\/(\d+)$/.exec(route)
-  if (route === 'GET /roles') return json(200, db.roles.map((r) => ({ ...r, userCount: users.filter((x) => x.roleIds.includes(r.id)).length })))
+  if (route === 'GET /roles')
+    return json(
+      200,
+      db.roles.map((r) => ({ ...r, userCount: users.filter((x) => x.roleIds.includes(r.id)).length })),
+    )
   if (route === 'POST /roles' || roleRoute?.[1] === 'PUT') {
     const b = await body(req)
-    const code = str(b?.code).trim(), name = str(b?.name).trim()
-    if (!code || code.length > 50 || code.startsWith('user:') || !name || name.length > 50) return fail(400, 'invalid_request', '角色编码或名称无效')
+    const code = str(b?.code).trim(),
+      name = str(b?.name).trim()
+    if (!code || code.length > 50 || code.startsWith('user:') || !name || name.length > 50)
+      return fail(400, 'invalid_request', '角色编码或名称无效')
     const old = roleRoute ? db.roles.find((r) => r.id === Number(roleRoute[2])) : undefined
     if (roleRoute && !old) return fail(404, 'not_found', '角色不存在')
-    if (!validIds(b?.menuIds) || !b.menuIds.every((id: number) => menus.some((m) => m.id === id))) return fail(400, 'invalid_reference', '菜单不存在')
+    if (!validIds(b?.menuIds) || !b.menuIds.every((id: number) => menus.some((m) => m.id === id)))
+      return fail(400, 'invalid_reference', '菜单不存在')
     if (db.roles.some((r) => r.id !== old?.id && r.code === code)) return fail(409, 'duplicate_code', '角色编码已存在')
-    const value: S['Role'] = { id: old?.id ?? db.nextId++, code, name, remark: str(b?.remark), isStop: b?.isStop === true, menuIds: [...new Set(b.menuIds as number[])], userCount: old?.userCount ?? 0, createdAt: old?.createdAt ?? new Date().toISOString() }
+    const value: S['Role'] = {
+      id: old?.id ?? db.nextId++,
+      code,
+      name,
+      remark: str(b?.remark),
+      isStop: b?.isStop === true,
+      menuIds: [...new Set(b.menuIds as number[])],
+      userCount: old?.userCount ?? 0,
+      createdAt: old?.createdAt ?? new Date().toISOString(),
+    }
     if (old) Object.assign(old, value)
     else db.roles.push(value)
     save(db)
@@ -683,7 +800,9 @@ export async function demoFetch(req: Request): Promise<Response> {
     if (index < 0) return fail(404, 'not_found', '角色不存在')
     const count = users.filter((x) => x.roleIds.includes(Number(roleRoute[2]))).length
     if (count) return fail(409, 'role_occupied', `角色仍分配给 ${count} 个用户，请先移除或改为停用`)
-    db.roles.splice(index, 1); save(db); return new Response(null, { status: 204 })
+    db.roles.splice(index, 1)
+    save(db)
+    return new Response(null, { status: 204 })
   }
 
   if (route === 'GET /users') {
@@ -720,7 +839,11 @@ export async function demoFetch(req: Request): Promise<Response> {
     const factoryIds = (b.factoryIds ?? []) as number[]
     const menuIds = (b.menuIds ?? []) as number[]
     if (!isAdmin && !factoryIds.length) return fail(400, 'invalid_request', '非管理员用户至少需要一个厂区')
-    if (!validReferences(db, factoryIds, menuIds) || !(b.roleIds ?? []).every((id: number) => db.roles.some((r) => r.id === id && !r.isStop))) return fail(400, 'invalid_reference', '厂区、菜单或角色不存在或已停用')
+    if (
+      !validReferences(db, factoryIds, menuIds) ||
+      !(b.roleIds ?? []).every((id: number) => db.roles.some((r) => r.id === id && !r.isStop))
+    )
+      return fail(400, 'invalid_reference', '厂区、菜单或角色不存在或已停用')
     if (users.some((x) => x.username === username)) return fail(409, 'duplicate_code', '用户名已存在')
     const created: DemoUser = {
       id: Math.max(0, ...users.map((x) => x.id)) + 1,
@@ -766,7 +889,11 @@ export async function demoFetch(req: Request): Promise<Response> {
         return fail(400, 'invalid_request', '用户参数不合法')
       if (target.id === u.id && (!b.enabled || !b.isAdmin)) return fail(409, 'self_lock', '不能停用自己或取消自己的管理员权限')
       if (!b.isAdmin && !b.factoryIds.length) return fail(400, 'invalid_request', '非管理员用户至少需要一个厂区')
-      if (!validReferences(db, b.factoryIds, b.menuIds) || (b.roleIds ?? target.roleIds).some((id: number) => !db.roles.some((r) => r.id === id && (!r.isStop || target.roleIds.includes(id))))) return fail(400, 'invalid_reference', '厂区、菜单或角色不存在或已停用')
+      if (
+        !validReferences(db, b.factoryIds, b.menuIds) ||
+        (b.roleIds ?? target.roleIds).some((id: number) => !db.roles.some((r) => r.id === id && (!r.isStop || target.roleIds.includes(id))))
+      )
+        return fail(400, 'invalid_reference', '厂区、菜单或角色不存在或已停用')
       target.displayName = str(b.displayName)
       target.staffNo = str(b.staffNo)
       target.enabled = b.enabled
@@ -1561,6 +1688,8 @@ export async function demoFetch(req: Request): Promise<Response> {
           lastScannedAt: null,
           createdAt: new Date().toISOString(),
         })
+        const label = db.labels[db.labels.length - 1]!
+        db.labelLogs.push(labelLog(db, label, u, 'generate', ''))
         created++
       }
     }
@@ -1574,6 +1703,58 @@ export async function demoFetch(req: Request): Promise<Response> {
     return batch ? json(200, progress(db, batch)) : fail(404, 'not_found', '批次不存在')
   }
 
+  if (route === 'GET /audit-logs') {
+    if (!u.isAdmin) return fail(403, 'forbidden', '仅管理员可操作')
+    const page = Number(url.searchParams.get('page') ?? 1),
+      size = Number(url.searchParams.get('size') ?? 20)
+    if (!validPage(page, size)) return fail(400, 'invalid_request', '分页参数无效')
+    const kw = (url.searchParams.get('keyword') ?? '').toLowerCase(),
+      method = url.searchParams.get('method'),
+      result = url.searchParams.get('result')
+    const all = db.auditLogs
+      .filter(
+        (a) =>
+          (!kw || [a.username, a.displayName, a.path].some((s) => s.toLowerCase().includes(kw))) &&
+          (!method || a.method === method) &&
+          (!result || (result === 'ok' ? a.status < 400 : a.status >= 400)) &&
+          (!url.searchParams.get('from') || a.createdAt.slice(0, 10) >= url.searchParams.get('from')!) &&
+          (!url.searchParams.get('to') || a.createdAt.slice(0, 10) <= url.searchParams.get('to')!),
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id)
+    return json(200, { items: all.slice((page - 1) * size, page * size), total: all.length })
+  }
+  if (route === 'GET /label-logs') {
+    const page = Number(url.searchParams.get('page') ?? 1),
+      size = Number(url.searchParams.get('size') ?? 20)
+    if (!validPage(page, size)) return fail(400, 'invalid_request', '分页参数无效')
+    const kw = (url.searchParams.get('keyword') ?? '').toLowerCase(),
+      operator = (url.searchParams.get('operator') ?? '').toLowerCase()
+    const all = db.labelLogs
+      .filter(
+        (l) =>
+          inScope(u, l.factoryId) &&
+          (!url.searchParams.get('opType') || l.opType === url.searchParams.get('opType')) &&
+          (!url.searchParams.get('batchId') || l.batchId === Number(url.searchParams.get('batchId'))) &&
+          (!kw || [l.barCode, l.lotNo, l.projectName, l.pieceNo, l.drawingNo].some((s) => s.toLowerCase().includes(kw))) &&
+          (!operator ||
+            [l.operatorName, l.staffNo, db.users.find((x) => x.displayName === l.operatorName)?.username ?? ''].some((s) =>
+              s.toLowerCase().includes(operator),
+            )) &&
+          (!url.searchParams.get('from') || l.createdAt.slice(0, 10) >= url.searchParams.get('from')!) &&
+          (!url.searchParams.get('to') || l.createdAt.slice(0, 10) <= url.searchParams.get('to')!),
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id)
+    return json(200, {
+      items: all.slice((page - 1) * size, page * size),
+      total: all.length,
+      totals: {
+        generateQty: all.filter((l) => l.opType === 'generate').length,
+        cancelQty: all.filter((l) => l.opType === 'cancel').length,
+        reprintQty: all.filter((l) => l.opType === 'reprint').length,
+        area: all.reduce((n, l) => n + l.pieceArea, 0),
+      },
+    })
+  }
   if (route === 'GET /labels') {
     const page = Number(url.searchParams.get('page') ?? 1)
     const size = Number(url.searchParams.get('size') ?? 20)
@@ -1592,7 +1773,7 @@ export async function demoFetch(req: Request): Promise<Response> {
     return json(200, { items: all.slice((page - 1) * size, page * size), total: all.length })
   }
 
-  const labelRoute = /^(GET|POST) \/labels\/([^/]+?)(\/cancel)?$/.exec(route)
+  const labelRoute = /^(GET|POST) \/labels\/([^/]+?)(\/(cancel|reprint))?$/.exec(route)
   if (labelRoute) {
     const label = db.labels.find((x) => x.barCode === decodeURIComponent(labelRoute[2]!) && inScope(u, x.factoryId))
     if (!label) return fail(404, 'not_found', '标签不存在')
@@ -1600,12 +1781,22 @@ export async function demoFetch(req: Request): Promise<Response> {
       const scans = db.scans
         .filter((scan) => scan.labelId === label.id)
         .sort((a, b) => a.scannedAt.localeCompare(b.scannedAt) || a.id - b.id)
-      return json(200, { ...label, scans })
+      return json(200, {
+        ...label,
+        scans,
+        logs: db.labelLogs.filter((x) => x.labelId === label.id).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id - b.id),
+      })
     }
     if (labelRoute[1] === 'POST' && labelRoute[3]) {
-      if (label.cancelled) return fail(409, 'already_cancelled', '标签已作废')
-      if (db.scans.some((scan) => scan.labelId === label.id)) return fail(409, 'has_scans', '标签已有扫描记录，不能作废')
-      label.cancelled = true
+      const b = await body(req)
+      const reason = str(b?.reason).trim()
+      if (labelRoute[3] === '/reprint' && (!reason || reason.length > 200)) return fail(400, 'invalid_request', '请填写重打原因')
+      if (label.cancelled) return fail(409, labelRoute[3] === '/reprint' ? 'label_cancelled' : 'already_cancelled', '标签已作废')
+      if (labelRoute[3] === '/cancel') {
+        if (db.scans.some((scan) => scan.labelId === label.id)) return fail(409, 'has_scans', '标签已有扫描记录，不能作废')
+        label.cancelled = true
+      }
+      db.labelLogs.push(labelLog(db, label, u, labelRoute[3] === '/cancel' ? 'cancel' : 'reprint', reason))
       save(db)
       return json(200, label)
     }

@@ -27,6 +27,26 @@ beforeEach(() => {
 })
 
 describe('demo api', () => {
+  it('records label events and audits mutations but not reads', async () => {
+    const admin = await login('admin', 'admin123')
+    const seeded = await call(api.GET('/label-logs', { ...admin }))
+    expect(seeded.total).toBeGreaterThan(0)
+    const label = seeded.items.find((x) => x.factoryId === 1)!
+    const path = { barCode: label.barCode }
+    expect((await api.POST('/labels/{barCode}/reprint', { ...admin, params: { path }, body: { reason: '' } })).response.status).toBe(400)
+    await call(api.POST('/labels/{barCode}/reprint', { ...admin, params: { path }, body: { reason: '补印' } }))
+    const detail = await call(api.GET('/labels/{barCode}', { ...admin, params: { path } }))
+    expect(detail.logs.some((x) => x.opType === 'reprint' && x.reason === '补印')).toBe(true)
+    const events = await call(api.GET('/label-logs', { ...admin, params: { query: { opType: 'reprint', keyword: label.barCode } } }))
+    expect(events.total).toBe(1)
+    expect(events.totals.reprintQty).toBe(1)
+    const guest = await login('waixie', 'demo123')
+    expect((await call(api.GET('/label-logs', { ...guest, params: { query: { keyword: label.barCode } } }))).total).toBe(0)
+    expect((await api.GET('/audit-logs', guest)).response.status).toBe(403)
+    const audit = await call(api.GET('/audit-logs', { ...admin, params: { query: { result: 'fail' } } }))
+    expect(audit.items.some((x) => x.path.includes('/reprint') && x.status === 400)).toBe(true)
+    expect(audit.items.every((x) => x.method !== 'GET')).toBe(true)
+  })
   it('manages roles, user assignments and stopped menu grants', async () => {
     const admin = await login('admin', 'admin123')
     const guest = await login('waixie', 'demo123')
@@ -38,7 +58,15 @@ describe('demo api', () => {
     const users = await call(api.GET('/users', { ...admin }))
     const person = users.items.find((u) => u.username === 'waixie')!
     const path = { id: person.id }
-    const body = { displayName: person.displayName, staffNo: person.staffNo ?? '', enabled: true, isAdmin: false, factoryIds: person.factoryIds, menuIds: person.menuIds, roleIds: [role.id] }
+    const body = {
+      displayName: person.displayName,
+      staffNo: person.staffNo ?? '',
+      enabled: true,
+      isAdmin: false,
+      factoryIds: person.factoryIds,
+      menuIds: person.menuIds,
+      roleIds: [role.id],
+    }
     await call(api.PUT('/users/{id}', { ...admin, params: { path }, body }))
     expect((await api.DELETE('/roles/{id}', { ...admin, params: { path: { id: role.id } } })).response.status).toBe(409)
     const unchanged = await call(api.PUT('/users/{id}', { ...admin, params: { path }, body: { ...body, roleIds: undefined } }))

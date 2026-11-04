@@ -536,6 +536,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/label-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listLabelLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAuditLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/labels/{barCode}/reprint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reprintLabel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/labels/{barCode}/cancel": {
         parameters: {
             query?: never;
@@ -2016,7 +2064,71 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        LabelLog: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            labelId: number;
+            /** @enum {string} */
+            opType: "generate" | "cancel" | "reprint";
+            reason: string;
+            operatorName: string;
+            staffNo: string;
+            /** Format: date-time */
+            createdAt: string;
+            barCode: string;
+            /** Format: int64 */
+            factoryId: number;
+            /** Format: int64 */
+            batchId: number;
+            lotNo: string;
+            projectName: string;
+            pieceNo: string;
+            pieceIndex: number;
+            qty: number;
+            drawingNo: string;
+            pattern: string;
+            thickness: number;
+            color: string;
+            pieceArea: number;
+        };
+        LabelLogPage: {
+            items: components["schemas"]["LabelLog"][];
+            /** Format: int64 */
+            total: number;
+            totals: {
+                /** Format: int64 */
+                generateQty: number;
+                /** Format: int64 */
+                cancelQty: number;
+                /** Format: int64 */
+                reprintQty: number;
+                area: number;
+            };
+        };
+        AuditLog: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            userId: number | null;
+            username: string;
+            displayName: string;
+            method: string;
+            route: string;
+            path: string;
+            status: number;
+            durationMs: number;
+            ip: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AuditLogPage: {
+            items: components["schemas"]["AuditLog"][];
+            /** Format: int64 */
+            total: number;
+        };
         LabelDetail: components["schemas"]["Label"] & {
+            logs: components["schemas"]["LabelLog"][];
             scans: components["schemas"]["Scan"][];
         };
         ScanRequest: {
@@ -4131,6 +4243,97 @@ export interface operations {
             404: components["responses"]["Error"];
         };
     };
+    listLabelLogs: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                from?: string;
+                to?: string;
+                opType?: "generate" | "cancel" | "reprint";
+                batchId?: number;
+                keyword?: string;
+                operator?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelLogPage"];
+                };
+            };
+            400: components["responses"]["Error"];
+        };
+    };
+    listAuditLogs: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                from?: string;
+                to?: string;
+                keyword?: string;
+                method?: "POST" | "PUT" | "PATCH" | "DELETE";
+                result?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditLogPage"];
+                };
+            };
+            400: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    reprintLabel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                barCode: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Label"];
+                };
+            };
+            400: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
     cancelLabel: {
         parameters: {
             query?: never;
@@ -4140,7 +4343,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    reason?: string;
+                };
+            };
+        };
         responses: {
             /** @description OK */
             200: {
