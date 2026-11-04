@@ -59,10 +59,10 @@ func (s *Store) GenerateLabels(ctx context.Context, sc auth.Scope, batchID, user
 		return 0, 0, ErrNoItems
 	}
 	// ON CONFLICT only on the item/index key: barcode collisions must not be silently ignored.
-	tag, err := tx.Exec(ctx, `INSERT INTO label (bar_code,factory_id,batch_id,batch_item_id,piece_index,created_by)
+	tag, err := tx.Exec(ctx, `WITH ins AS (INSERT INTO label (bar_code,factory_id,batch_id,batch_item_id,piece_index,created_by)
  SELECT lpad((b.id%10000)::text,4,'0') || lpad(bi.seq::text,3,'0') || lpad(g.i::text,3,'0') || lpad(((b.id/10000)%1000)::text,3,'0'), b.factory_id,b.id,bi.id,g.i,$2
  FROM batch b JOIN batch_item bi ON bi.batch_id=b.id CROSS JOIN LATERAL generate_series(1,bi.qty) AS g(i)
- WHERE b.id=$1 ON CONFLICT (batch_item_id,piece_index) DO NOTHING`, batchID, userID)
+ WHERE b.id=$1 ON CONFLICT (batch_item_id,piece_index) DO NOTHING RETURNING id) INSERT INTO label_log(label_id,op_type,operator_id) SELECT id,'generate',$2 FROM ins`, batchID, userID)
 	if err != nil {
 		return 0, 0, mapErr(err)
 	}
@@ -122,7 +122,7 @@ func (s *Store) GetLabel(ctx context.Context, sc auth.Scope, barCode string) (*L
 	scans, _, err := s.ListScans(ctx, sc, ScanFilter{LabelID: &l.ID}, 1, 1000000)
 	return &l, scans, err
 }
-func (s *Store) CancelLabel(ctx context.Context, sc auth.Scope, barCode string) (*Label, error) {
+func (s *Store) CancelLabel(ctx context.Context, sc auth.Scope, barCode string, userID int64, reason string) (*Label, error) {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -148,6 +148,9 @@ func (s *Store) CancelLabel(ctx context.Context, sc auth.Scope, barCode string) 
 		return nil, ErrHasScans
 	}
 	if _, err = tx.Exec(ctx, `UPDATE label SET cancelled=true WHERE id=$1`, id); err != nil {
+		return nil, err
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO label_log(label_id,op_type,reason,operator_id) VALUES($1,'cancel',$2,$3)`, id, reason, userID); err != nil {
 		return nil, err
 	}
 	if err = tx.Commit(ctx); err != nil {

@@ -749,6 +749,73 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /label-logs:
+    get:
+      operationId: listLabelLogs
+      tags: [production]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: opType, in: query, schema: { type: string, enum: [generate, cancel, reprint] } }
+        - { name: batchId, in: query, schema: { type: integer, format: int64 } }
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: operator, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LabelLogPage" }
+        "400": { $ref: "#/components/responses/Error" }
+
+  /audit-logs:
+    get:
+      operationId: listAuditLogs
+      tags: [system]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: method, in: query, schema: { type: string, enum: [POST, PUT, PATCH, DELETE] } }
+        - { name: result, in: query, schema: { type: string, pattern: '^(ok|fail)$' } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditLogPage" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /labels/{barCode}/reprint:
+    post:
+      operationId: reprintLabel
+      tags: [production]
+      parameters:
+        - { name: barCode, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 1, maxLength: 200 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Label" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
   /labels/{barCode}/cancel:
     post:
       operationId: cancelLabel
@@ -756,6 +823,13 @@ paths:
       description: Voids a label (e.g. misprint). Not allowed once it has scans (409).
       parameters:
         - { name: barCode, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string, maxLength: 200 }
       responses:
         "200":
           description: OK
@@ -2497,12 +2571,73 @@ components:
           items: { $ref: "#/components/schemas/Scan" }
         total: { type: integer, format: int64 }
 
+    LabelLog:
+      type: object
+      required: [id, labelId, opType, reason, operatorName, staffNo, createdAt, barCode, factoryId, batchId, lotNo, projectName, pieceNo, pieceIndex, qty, drawingNo, pattern, thickness, color, pieceArea]
+      properties:
+        id: { type: integer, format: int64 }
+        labelId: { type: integer, format: int64 }
+        opType: { type: string, enum: [generate, cancel, reprint] }
+        reason: { type: string }
+        operatorName: { type: string }
+        staffNo: { type: string }
+        createdAt: { type: string, format: date-time }
+        barCode: { type: string }
+        factoryId: { type: integer, format: int64 }
+        batchId: { type: integer, format: int64 }
+        lotNo: { type: string }
+        projectName: { type: string }
+        pieceNo: { type: string }
+        pieceIndex: { type: integer }
+        qty: { type: integer }
+        drawingNo: { type: string }
+        pattern: { type: string }
+        thickness: { type: number }
+        color: { type: string }
+        pieceArea: { type: number }
+    LabelLogPage:
+      type: object
+      required: [items, total, totals]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/LabelLog" } }
+        total: { type: integer, format: int64 }
+        totals:
+          type: object
+          required: [generateQty, cancelQty, reprintQty, area]
+          properties:
+            generateQty: { type: integer, format: int64 }
+            cancelQty: { type: integer, format: int64 }
+            reprintQty: { type: integer, format: int64 }
+            area: { type: number }
+    AuditLog:
+      type: object
+      required: [id, userId, username, displayName, method, route, path, status, durationMs, ip, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        userId: { type: integer, format: int64, nullable: true }
+        username: { type: string }
+        displayName: { type: string }
+        method: { type: string }
+        route: { type: string }
+        path: { type: string }
+        status: { type: integer }
+        durationMs: { type: integer }
+        ip: { type: string }
+        createdAt: { type: string, format: date-time }
+    AuditLogPage:
+      type: object
+      required: [items, total]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/AuditLog" } }
+        total: { type: integer, format: int64 }
+
     LabelDetail:
       allOf:
         - $ref: "#/components/schemas/Label"
         - type: object
-          required: [scans]
+          required: [scans, logs]
           properties:
+            logs: { type: array, items: { $ref: "#/components/schemas/LabelLog" } }
             scans:
               type: array
               items: { $ref: "#/components/schemas/Scan" }

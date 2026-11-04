@@ -83,14 +83,26 @@ func (s *Server) GetLabel(ctx context.Context, req api.GetLabelRequestObject) (a
 	if err != nil {
 		return nil, err
 	}
-	out := api.LabelDetail{Id: l.ID, BarCode: l.BarCode, FactoryId: l.FactoryID, BatchId: l.BatchID, LotNo: l.LotNo, ProjectName: l.ProjectName, BatchItemId: l.BatchItemID, PieceNo: l.PieceNo, PieceIndex: l.PieceIndex, Qty: l.Qty, DrawingNo: l.DrawingNo, Pattern: l.Pattern, Thickness: l.Thickness, Color: l.Color, PieceArea: l.PieceArea, Cancelled: l.Cancelled, LastJobId: l.LastJobID, LastJobName: l.LastJobName, LastScannedAt: l.LastScannedAt, CreatedAt: l.CreatedAt, Scans: make([]api.Scan, 0, len(scans))}
+	logs, _, _, err := s.store.ListLabelLogs(ctx, auth.FromContext(ctx).Scope, store.LabelLogFilter{LabelID: &l.ID}, 1, 1000000)
+	if err != nil {
+		return nil, err
+	}
+	out := api.LabelDetail{Logs: make([]api.LabelLog, 0, len(logs)), Id: l.ID, BarCode: l.BarCode, FactoryId: l.FactoryID, BatchId: l.BatchID, LotNo: l.LotNo, ProjectName: l.ProjectName, BatchItemId: l.BatchItemID, PieceNo: l.PieceNo, PieceIndex: l.PieceIndex, Qty: l.Qty, DrawingNo: l.DrawingNo, Pattern: l.Pattern, Thickness: l.Thickness, Color: l.Color, PieceArea: l.PieceArea, Cancelled: l.Cancelled, LastJobId: l.LastJobID, LastJobName: l.LastJobName, LastScannedAt: l.LastScannedAt, CreatedAt: l.CreatedAt, Scans: make([]api.Scan, 0, len(scans))}
 	for _, v := range scans {
 		out.Scans = append(out.Scans, toAPIScan(v))
+	}
+	for _, v := range logs {
+		out.Logs = append(out.Logs, toAPILabelLog(v))
 	}
 	return api.GetLabel200JSONResponse(out), nil
 }
 func (s *Server) CancelLabel(ctx context.Context, req api.CancelLabelRequestObject) (api.CancelLabelResponseObject, error) {
-	l, err := s.store.CancelLabel(ctx, auth.FromContext(ctx).Scope, req.BarCode)
+	p := auth.FromContext(ctx)
+	reason := ""
+	if req.Body != nil && req.Body.Reason != nil {
+		reason = strings.TrimSpace(*req.Body.Reason)
+	}
+	l, err := s.store.CancelLabel(ctx, p.Scope, req.BarCode, p.UserID, reason)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		return api.CancelLabel404JSONResponse(apiErr("not_found", "标签不存在")), nil

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -85,6 +86,8 @@ func (s *Server) Handler() (http.Handler, error) {
 }
 
 // publicOps are reachable without a token (method + path relative to /api).
+var auditExcluded = map[string]bool{"POST /scans": true}
+
 var publicOps = map[string]bool{
 	"GET /health":      true,
 	"POST /auth/login": true,
@@ -117,6 +120,37 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 			return
 		}
 		r = r.WithContext(auth.WithPrincipal(r.Context(), p))
+		if r.Method != "GET" && r.Method != "HEAD" && r.Method != "OPTIONS" && !auditExcluded[r.Method+" "+r.URL.Path] {
+			start := time.Now()
+			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+			defer func() {
+				route := strings.TrimPrefix(chi.RouteContext(r.Context()).RoutePattern(), "/api")
+				if route == "" {
+					route = r.URL.Path
+				}
+				if r.Method == "POST" && strings.HasPrefix(r.URL.Path, "/batches/") && strings.HasSuffix(r.URL.Path, "/drawings") {
+					route = "/batches/{id}/drawings"
+				}
+				ip := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-For"), ",")[0])
+				if ip == "" {
+					ip = r.Header.Get("X-Real-IP")
+				}
+				if ip == "" {
+					ip, _, _ = net.SplitHostPort(r.RemoteAddr)
+				}
+				status := ww.Status()
+				if status == 0 {
+					status = 200
+				}
+				id := p.UserID
+				ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
+				defer cancel()
+				if err := s.store.WriteAudit(ctx, store.AuditLog{UserID: &id, Username: p.Username, DisplayName: p.DisplayName, Method: r.Method, Route: route, Path: r.URL.Path, Status: status, DurationMs: int(time.Since(start).Milliseconds()), IP: ip}); err != nil {
+					slog.Error("write audit", "err", err)
+				}
+			}()
+			w = ww
+		}
 		if r.Method == "POST" && strings.HasPrefix(r.URL.Path, "/batches/") && strings.HasSuffix(r.URL.Path, "/drawings") {
 			s.rawUpload(w, r)
 			return
@@ -165,6 +199,16 @@ func (s *Server) ListFactories(ctx context.Context, _ api.ListFactoriesRequestOb
 // Login implements POST /auth/login.
 func (s *Server) Login(ctx context.Context, req api.LoginRequestObject) (api.LoginResponseObject, error) {
 	bad := api.Login401JSONResponse{ErrorJSONResponse: apiErr("invalid_credentials", "用户名或密码错误")}
+	start := time.Now()
+	entry := store.AuditLog{Username: req.Body.Username, Method: "POST", Route: "/auth/login", Path: "/auth/login", Status: 401}
+	defer func() {
+		entry.DurationMs = int(time.Since(start).Milliseconds())
+		writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if err := s.store.WriteAudit(writeCtx, entry); err != nil {
+			slog.Error("write login audit", "err", err)
+		}
+	}()
 	u, err := s.store.UserByUsername(ctx, req.Body.Username)
 	if errors.Is(err, store.ErrNotFound) {
 		return bad, nil
@@ -172,6 +216,9 @@ func (s *Server) Login(ctx context.Context, req api.LoginRequestObject) (api.Log
 	if err != nil {
 		return nil, err
 	}
+	id := u.ID
+	entry.UserID = &id
+	entry.DisplayName = u.DisplayName
 	if !u.Enabled || !auth.CheckPassword(u.PasswordHash, req.Body.Password) {
 		return bad, nil
 	}
@@ -179,6 +226,7 @@ func (s *Server) Login(ctx context.Context, req api.LoginRequestObject) (api.Log
 	if err != nil {
 		return nil, err
 	}
+	entry.Status = 200
 	return api.Login200JSONResponse{Token: tok, User: toAPIUser(u.ID, u.Username, u.DisplayName, u.StaffNo, u.IsAdmin)}, nil
 }
 
