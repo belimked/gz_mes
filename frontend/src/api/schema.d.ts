@@ -1065,6 +1065,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Current stock from active label scans (20 without 40 for semi; 40 without 60 for finished). Period counts are zero without a date range; bounds are inclusive UTC dates. hasStock=false includes every item with active labels. */
+        get: operations["listInventory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/project-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Project aggregates of scoped batches created in the UTC date range. status=not_done includes pending, scheduled and in_production; done includes only projects whose every matched batch is done. Project status is done if all batches done, in_production if any batch in production, otherwise pending. */
+        get: operations["projectSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/batch-jobs": {
         parameters: {
             query?: never;
@@ -2845,6 +2879,71 @@ export interface components {
             urgency?: components["schemas"]["Urgency"];
             /** @default  */
             remark: string;
+        };
+        InventoryRow: {
+            /** Format: int64 */
+            batchItemId: number;
+            /** Format: int64 */
+            batchId: number;
+            lotNo: string;
+            projectName: string;
+            clientOrderNo: string;
+            /** Format: date */
+            orderDate: string;
+            /** Format: double */
+            thickness: number;
+            color: string;
+            pieceNo: string;
+            seq: number;
+            drawingNo: string;
+            planQty: number;
+            /** Format: double */
+            pieceArea: number;
+            /** Format: double */
+            planArea: number;
+            inQty: number;
+            outQty: number;
+            stockQty: number;
+            /** Format: double */
+            stockArea: number;
+        };
+        InventoryReport: {
+            items: components["schemas"]["InventoryRow"][];
+            total: number;
+            totals: {
+                stockQty: number;
+                /** Format: double */
+                stockArea: number;
+                inQty: number;
+                outQty: number;
+            };
+        };
+        ProjectSummaryRow: {
+            /** Format: int64 */
+            projectId: number;
+            projectCode: string;
+            projectName: string;
+            customerName: string;
+            batchCount: number;
+            planQty: number;
+            /** Format: double */
+            planArea: number;
+            labelQty: number;
+            status: components["schemas"]["BatchStatus"];
+            cells: components["schemas"]["JobCell"][];
+        };
+        ProjectSummaryReport: {
+            jobs: components["schemas"]["Job"][];
+            items: components["schemas"]["ProjectSummaryRow"][];
+            total: number;
+            summary: {
+                batchCount: number;
+                planQty: number;
+                /** Format: double */
+                planArea: number;
+                labelQty: number;
+                cells: components["schemas"]["JobCell"][];
+            };
         };
         JobCell: {
             /** Format: int64 */
@@ -5396,6 +5495,64 @@ export interface operations {
             };
             404: components["responses"]["Error"];
             409: components["responses"]["Error"];
+        };
+    };
+    listInventory: {
+        parameters: {
+            query: {
+                kind: string;
+                from?: string;
+                to?: string;
+                keyword?: string;
+                batchId?: number;
+                hasStock?: boolean;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryReport"];
+                };
+            };
+            400: components["responses"]["Error"];
+        };
+    };
+    projectSummary: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                keyword?: string;
+                status?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSummaryReport"];
+                };
+            };
+            400: components["responses"]["Error"];
         };
     };
     getBatchJobReport: {

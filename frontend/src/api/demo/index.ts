@@ -4,6 +4,7 @@ import type { components } from '../schema'
 import { dailyBoard } from './board'
 import { drawingRoute, seedDrawings } from './drawing'
 import { workshopReport } from './workshop'
+import { inventoryReport } from './inventory'
 import {
   factories as seedFactories,
   jobs,
@@ -32,7 +33,7 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 25
+  version: 26
   factories: S['Factory'][]
   users: DemoUser[]
   roles: S['Role'][]
@@ -120,6 +121,17 @@ function fresh(): DemoDB {
   }
   const { handovers, handoverLabels } = seedHandovers(batches, labels, scans, jobs)
   const { notes: deliveryNotes, noteLabels: deliveryNoteLabels } = seedDeliveryNotes(batches, labels, contracts)
+  // Seed delivery notes correspond to the final job scan, just like notes created via the API.
+  const shipped = jobs.find((j) => j.code === '60')!
+  let shippedScanId = Math.max(0, ...scans.map((s) => s.id)) + 1
+  for (const link of deliveryNoteLabels) {
+    const label = labels.find((l) => l.id === link.labelId)!
+    const note = deliveryNotes.find((n) => n.id === link.noteId)!
+    scans.push({ id: shippedScanId++, labelId: label.id, barCode: label.barCode,
+      batchId: label.batchId, lotNo: label.lotNo, projectName: label.projectName, pieceNo: label.pieceNo,
+      pieceIndex: label.pieceIndex, pieceArea: label.pieceArea, jobId: shipped.id, jobName: shipped.name,
+      scannedBy: note.createdBy, staffNo: scans.find((s) => s.labelId === label.id)?.staffNo ?? 'DEMO', scannedAt: `${note.deliveredAt}T12:00:00.000Z`, device: '' })
+  }
   let nextId =
     Math.max(
       ...[...projects, ...customers, ...contracts, ...batches, ...batchItems, ...labels, ...scans, ...handovers].map((item) => item.id),
@@ -171,7 +183,7 @@ function fresh(): DemoDB {
   for (const row of qc) row.id = nextId++
   nextId += labels.length
   return {
-    version: 25,
+    version: 26,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds], roleIds: [] })),
     roles: [],
@@ -246,7 +258,7 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 25) {
+      if (parsed?.version === 26) {
         const original = fresh()
         parsed.labelLogs.unshift(...original.labelLogs.slice(0, parsed.seedLogCount))
         return parsed
@@ -255,7 +267,7 @@ function load(): DemoDB {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 25) memory = fresh()
+  if (memory?.version !== 26) memory = fresh()
   return memory
 }
 
@@ -2794,6 +2806,9 @@ async function dispatch(req: Request): Promise<Response> {
       return json(200, items)
     }
   }
+
+  if (route === 'GET /inventory' || route === 'GET /reports/project-summary')
+    return inventoryReport(db, url.searchParams, (id) => inScope(u, id), route === 'GET /inventory')
 
   if (route === 'GET /reports/batch-jobs') {
     const q = url.searchParams

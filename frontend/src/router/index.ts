@@ -118,6 +118,18 @@ const children: RouteRecordRaw[] = [
     meta: { title: '发货对账查询', group: '财务管理' },
   },
   {
+    path: 'inventory/semi', name: 'inventory-semi', component: () => import('@/views/inventory/Inventory.vue'),
+    props: { kind: 'semi' }, meta: { title: '半成品库存', group: '库存管理' },
+  },
+  {
+    path: 'inventory/finished', name: 'inventory-finished', component: () => import('@/views/inventory/Inventory.vue'),
+    props: { kind: 'finished' }, meta: { title: '成品库存', group: '库存管理' },
+  },
+  {
+    path: 'report/project-summary', name: 'report-project-summary', component: () => import('@/views/report/ProjectSummary.vue'),
+    meta: { title: '项目汇总', group: '生产报表' },
+  },
+  {
     path: 'report/batch-daily',
     name: 'report-batch-daily',
     component: () => import('@/views/report/BatchDaily.vue'),

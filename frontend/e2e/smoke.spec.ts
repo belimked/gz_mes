@@ -15,6 +15,20 @@ async function login(page: Page, u = user, p = password) {
   await page.getByTestId('login-submit').click()
 }
 
+test('project summary and inventory pages render', async ({ page }) => {
+  await login(page)
+  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
+  await page.goto('/report/project-summary')
+  await expect(page.getByRole('heading', { name: '项目汇总' })).toBeVisible()
+  await expect(page.getByTestId('project-summary-totals')).toBeVisible()
+  await page.goto('/inventory/semi')
+  await expect(page.getByRole('heading', { name: '半成品库存' })).toBeVisible()
+  await expect(page.getByTestId('inventory-totals')).toBeVisible()
+  await page.goto('/inventory/finished')
+  await expect(page.getByRole('heading', { name: '成品库存' })).toBeVisible()
+  await expect(page.locator('table')).toBeVisible()
+})
+
 test('label and audit logs pages render', async ({ page }) => {
   await login(page)
   await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)

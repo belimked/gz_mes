@@ -27,6 +27,28 @@ beforeEach(() => {
 })
 
 describe('demo api', () => {
+  it('derives both inventories and project summary from active scans with scope and date filters', async () => {
+    const admin = await login('admin', 'admin123')
+    const guest = await login('waixie', 'demo123')
+    const semi = await call(api.GET('/inventory', { ...admin, params: { query: { kind: 'semi' } } }))
+    const finished = await call(api.GET('/inventory', { ...admin, params: { query: { kind: 'finished' } } }))
+    expect(semi.totals.stockQty).toBeGreaterThan(0)
+    expect(finished.totals.stockQty).toBeGreaterThan(0)
+    const empty = await call(api.GET('/inventory', { ...admin, params: { query: { kind: 'semi', from: '2000-01-01', to: '2000-01-02' } } }))
+    expect(empty.totals.inQty).toBe(0)
+    expect(empty.totals.stockQty).toBe(semi.totals.stockQty)
+    const all = await call(api.GET('/inventory', { ...admin, params: { query: { kind: 'semi', hasStock: false } } }))
+    expect(all.total).toBeGreaterThanOrEqual(semi.total)
+    const own = semi.items.find((r) => r.batchId === 9 || r.batchId === 10) ?? semi.items[0]!
+    const hidden = await call(api.GET('/inventory', { ...guest, params: { query: { kind: 'semi', batchId: own.batchId } } }))
+    if (own.batchId && !(await call(api.GET('/batches', { ...guest, params: { query: { keyword: own.lotNo } } }))).total) expect(hidden.total).toBe(0)
+    const projects = await call(api.GET('/reports/project-summary', { ...admin }))
+    expect(projects.total).toBeGreaterThan(0)
+    expect(projects.summary.labelQty).toBeGreaterThan(0)
+    expect(projects.items.some((r) => r.cells.some((c) => c.qty > 0))).toBe(true)
+    const done = await call(api.GET('/reports/project-summary', { ...admin, params: { query: { status: 'done' } } }))
+    expect(done.items.every((r) => r.status === 'done')).toBe(true)
+  })
   it('records label events and audits mutations but not reads', async () => {
     const admin = await login('admin', 'admin123')
     const seeded = await call(api.GET('/label-logs', { ...admin }))
