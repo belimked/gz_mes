@@ -1688,6 +1688,32 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
 
+  /boards/work-orders:
+    get:
+      operationId: workOrderBoard
+      tags: [board]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 50 } }
+        - { name: status, in: query, schema: { type: string, enum: [pending, scheduled, in_production] } }
+        - { name: keyword, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkOrderBoard' }
+        "400": { $ref: '#/components/responses/Error' }
+  /boards/cockpit:
+    get:
+      operationId: cockpitBoard
+      tags: [board]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CockpitBoard' }
   /boards/spray-daily:
     get:
       operationId: getSprayDailyBoard
@@ -2502,6 +2528,129 @@ components:
             dayDoneArea: { type: number }
             doneCount: { type: integer }
             byJob: { type: array, items: { $ref: "#/components/schemas/SheetJobSummary" } }
+    BoardMetric:
+      type: object
+      required: [qty, area]
+      properties:
+        qty: { type: integer }
+        area: { type: number }
+    BoardDailyMetric:
+      allOf:
+        - { $ref: '#/components/schemas/BoardMetric' }
+        - type: object
+          required: [date]
+          properties:
+            date: { type: string, format: date }
+    BoardJobOutput:
+      type: object
+      required: [jobId, code, name, qty, area]
+      properties:
+        jobId: { type: integer, format: int64 }
+        code: { type: string }
+        name: { type: string }
+        qty: { type: integer }
+        area: { type: number }
+    WorkOrderJob:
+      type: object
+      required: [jobId, code, name, qty, pct]
+      properties:
+        jobId: { type: integer, format: int64 }
+        code: { type: string }
+        name: { type: string }
+        qty: { type: integer }
+        pct: { type: integer }
+    WorkOrderRow:
+      type: object
+      required: [batchId, lotNo, projectName, customerName, workshop, urgency, orderDate, requiredDate, planCutDate, itemQty, itemArea, labelQty, status, overdue, printState, jobs]
+      properties:
+        batchId: { type: integer, format: int64 }
+        lotNo: { type: string }
+        projectName: { type: string }
+        customerName: { type: string }
+        workshop: { type: string }
+        urgency: { type: string, enum: [normal, urgent] }
+        orderDate: { type: string, format: date }
+        requiredDate: { type: string, format: date, nullable: true }
+        planCutDate: { type: string, format: date, nullable: true }
+        itemQty: { type: integer }
+        itemArea: { type: number }
+        labelQty: { type: integer }
+        status: { $ref: '#/components/schemas/BatchStatus' }
+        overdue: { type: boolean }
+        printState: { type: string, enum: [none, partial, all] }
+        jobs: { type: array, items: { $ref: '#/components/schemas/WorkOrderJob' } }
+    WorkOrderBoard:
+      type: object
+      required: [items, total, jobs]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/WorkOrderRow' } }
+        total: { type: integer }
+        jobs: { type: array, items: { $ref: '#/components/schemas/Job' } }
+    CockpitBoard:
+      type: object
+      required: [kpi, weeklySheet, weeklySpray, weeklyShipment, jobOutput, machineCapacity, sheetDaily, workshopBacklog, projects]
+      properties:
+        kpi:
+          type: object
+          required: [inProductionBatches, openBatches, overdueBatches, todayScanQty, todayScanArea, todayShipQty, todayShipArea, semiStockQty, semiStockArea, finishedStockQty, finishedStockArea]
+          properties:
+            inProductionBatches: { type: integer }
+            openBatches: { type: integer }
+            overdueBatches: { type: integer }
+            todayScanQty: { type: integer }
+            todayScanArea: { type: number }
+            todayShipQty: { type: integer }
+            todayShipArea: { type: number }
+            semiStockQty: { type: integer }
+            semiStockArea: { type: number }
+            finishedStockQty: { type: integer }
+            finishedStockArea: { type: number }
+        weeklySheet: { type: array, items: { $ref: '#/components/schemas/BoardDailyMetric' } }
+        weeklySpray: { type: array, items: { $ref: '#/components/schemas/BoardDailyMetric' } }
+        weeklyShipment: { type: array, items: { $ref: '#/components/schemas/BoardDailyMetric' } }
+        jobOutput: { type: array, items: { $ref: '#/components/schemas/BoardJobOutput' } }
+        machineCapacity:
+          type: array
+          items:
+            type: object
+            required: [machineId, name, qty, area]
+            properties:
+              machineId: { type: integer, format: int64 }
+              name: { type: string }
+              qty: { type: integer }
+              area: { type: number }
+        sheetDaily:
+          type: object
+          required: [allQty, allArea, doneQty, doneArea, qtyRate, areaRate]
+          properties:
+            allQty: { type: integer }
+            allArea: { type: number }
+            doneQty: { type: integer }
+            doneArea: { type: number }
+            qtyRate: { type: number }
+            areaRate: { type: number }
+        workshopBacklog:
+          type: array
+          items:
+            type: object
+            required: [workshop, noScanQty, noScanArea]
+            properties:
+              workshop: { type: string }
+              noScanQty: { type: integer }
+              noScanArea: { type: number }
+        projects:
+          type: array
+          items:
+            type: object
+            required: [projectName, lotNos, planQty, planArea, finishQty, finishArea, pct]
+            properties:
+              projectName: { type: string }
+              lotNos: { type: string }
+              planQty: { type: integer }
+              planArea: { type: number }
+              finishQty: { type: integer }
+              finishArea: { type: number }
+              pct: { type: integer }
     WorkshopOutputRow:
       type: object
       required: [period, batchCount, batchArea, scheduledCount, scheduledArea, sheetQty, sheetArea, sheetOwnArea, sheetOutsourceArea, sprayQty, sprayArea, deliveredQty, deliveredArea, workshopSheetArea]

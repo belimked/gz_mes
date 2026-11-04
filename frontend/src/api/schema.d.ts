@@ -1182,6 +1182,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/boards/work-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["workOrderBoard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/boards/cockpit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["cockpitBoard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/boards/spray-daily": {
         parameters: {
             query?: never;
@@ -1999,6 +2031,107 @@ export interface components {
                 doneCount: number;
                 byJob: components["schemas"]["SheetJobSummary"][];
             };
+        };
+        BoardMetric: {
+            qty: number;
+            area: number;
+        };
+        BoardDailyMetric: components["schemas"]["BoardMetric"] & {
+            /** Format: date */
+            date: string;
+        };
+        BoardJobOutput: {
+            /** Format: int64 */
+            jobId: number;
+            code: string;
+            name: string;
+            qty: number;
+            area: number;
+        };
+        WorkOrderJob: {
+            /** Format: int64 */
+            jobId: number;
+            code: string;
+            name: string;
+            qty: number;
+            pct: number;
+        };
+        WorkOrderRow: {
+            /** Format: int64 */
+            batchId: number;
+            lotNo: string;
+            projectName: string;
+            customerName: string;
+            workshop: string;
+            /** @enum {string} */
+            urgency: "normal" | "urgent";
+            /** Format: date */
+            orderDate: string;
+            /** Format: date */
+            requiredDate: string | null;
+            /** Format: date */
+            planCutDate: string | null;
+            itemQty: number;
+            itemArea: number;
+            labelQty: number;
+            status: components["schemas"]["BatchStatus"];
+            overdue: boolean;
+            /** @enum {string} */
+            printState: "none" | "partial" | "all";
+            jobs: components["schemas"]["WorkOrderJob"][];
+        };
+        WorkOrderBoard: {
+            items: components["schemas"]["WorkOrderRow"][];
+            total: number;
+            jobs: components["schemas"]["Job"][];
+        };
+        CockpitBoard: {
+            kpi: {
+                inProductionBatches: number;
+                openBatches: number;
+                overdueBatches: number;
+                todayScanQty: number;
+                todayScanArea: number;
+                todayShipQty: number;
+                todayShipArea: number;
+                semiStockQty: number;
+                semiStockArea: number;
+                finishedStockQty: number;
+                finishedStockArea: number;
+            };
+            weeklySheet: components["schemas"]["BoardDailyMetric"][];
+            weeklySpray: components["schemas"]["BoardDailyMetric"][];
+            weeklyShipment: components["schemas"]["BoardDailyMetric"][];
+            jobOutput: components["schemas"]["BoardJobOutput"][];
+            machineCapacity: {
+                /** Format: int64 */
+                machineId: number;
+                name: string;
+                qty: number;
+                area: number;
+            }[];
+            sheetDaily: {
+                allQty: number;
+                allArea: number;
+                doneQty: number;
+                doneArea: number;
+                qtyRate: number;
+                areaRate: number;
+            };
+            workshopBacklog: {
+                workshop: string;
+                noScanQty: number;
+                noScanArea: number;
+            }[];
+            projects: {
+                projectName: string;
+                lotNos: string;
+                planQty: number;
+                planArea: number;
+                finishQty: number;
+                finishArea: number;
+                pct: number;
+            }[];
         };
         WorkshopOutputRow: {
             period: string;
@@ -5679,6 +5812,52 @@ export interface operations {
             };
             400: components["responses"]["Error"];
             401: components["responses"]["Error"];
+        };
+    };
+    workOrderBoard: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                status?: "pending" | "scheduled" | "in_production";
+                keyword?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkOrderBoard"];
+                };
+            };
+            400: components["responses"]["Error"];
+        };
+    };
+    cockpitBoard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CockpitBoard"];
+                };
+            };
         };
     };
     getSprayDailyBoard: {
