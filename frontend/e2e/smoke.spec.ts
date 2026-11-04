@@ -95,6 +95,19 @@ test('drawing list and drawer upload', async ({ page }) => {
   await expect(page.getByText('e2e.pdf')).toBeVisible()
 })
 
+test('work-order board and cockpit render without console errors', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  await login(page)
+  await page.goto('/board/work-orders')
+  await expect(page.getByRole('heading', { name: '工单执行看板' })).toBeVisible()
+  await expect(page.locator('.board table')).toBeVisible()
+  await page.goto('/board/cockpit?fullscreen=1')
+  await expect(page.getByRole('heading', { name: '办公室驾驶舱' })).toBeVisible()
+  await expect(page.getByText('近七日钣金下线 · 20')).toBeVisible()
+  expect(errors).toEqual([])
+})
+
 test('both daily boards render KPI, table and empty state on an empty database', async ({ page }) => {
   await login(page)
   await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)

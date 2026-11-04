@@ -1,7 +1,7 @@
 // In-browser implementation of the API for the public demo build.
 // Behaviour mirrors the Go backend (validation, factory isolation, error codes).
 import type { components } from '../schema'
-import { dailyBoard } from './board'
+import { dailyBoard, workOrderBoard, cockpitBoard } from './board'
 import { drawingRoute, seedDrawings } from './drawing'
 import { workshopReport } from './workshop'
 import { inventoryReport } from './inventory'
@@ -33,7 +33,7 @@ import {
 type S = components['schemas']
 
 interface DemoDB {
-  version: 26
+  version: 27
   factories: S['Factory'][]
   users: DemoUser[]
   roles: S['Role'][]
@@ -183,7 +183,7 @@ function fresh(): DemoDB {
   for (const row of qc) row.id = nextId++
   nextId += labels.length
   return {
-    version: 26,
+    version: 27,
     factories: seedFactories.map((f) => ({ ...f })),
     users: seedUsers.map((u) => ({ ...u, factoryIds: [...u.factoryIds], menuIds: [...u.menuIds], roleIds: [] })),
     roles: [],
@@ -258,7 +258,7 @@ function load(): DemoDB {
   if (ls) {
     try {
       const parsed = JSON.parse(ls.getItem(KEY) ?? 'null') as DemoDB | null
-      if (parsed?.version === 26) {
+      if (parsed?.version === 27) {
         const original = fresh()
         parsed.labelLogs.unshift(...original.labelLogs.slice(0, parsed.seedLogCount))
         return parsed
@@ -267,7 +267,7 @@ function load(): DemoDB {
       // fall through to a fresh dataset
     }
   }
-  if (memory?.version !== 26) memory = fresh()
+  if (memory?.version !== 27) memory = fresh()
   return memory
 }
 
@@ -721,6 +721,12 @@ async function dispatch(req: Request): Promise<Response> {
       menus: menuTree(u, db),
     })
   }
+
+  if (route === 'GET /boards/work-orders') {
+    const result = workOrderBoard(db, url.searchParams, (id) => inScope(u, id))
+    return json(result.status, result.body)
+  }
+  if (route === 'GET /boards/cockpit') return json(200, cockpitBoard(db, (id) => inScope(u, id)))
 
   if (route === 'GET /boards/spray-daily' || route === 'GET /boards/sheet-daily') {
     const result = dailyBoard(db, url.searchParams, route.endsWith('spray-daily') ? 'spray_daily' : 'sheet_daily', (id) => inScope(u, id))

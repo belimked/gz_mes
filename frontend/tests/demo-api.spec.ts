@@ -27,6 +27,27 @@ beforeEach(() => {
 })
 
 describe('demo api', () => {
+  it('serves scoped work-order pages and seven-day cockpit trends', async () => {
+    const admin = await login('admin', 'admin123')
+    const guest = await login('waixie', 'demo123')
+    const board = await call(api.GET('/boards/work-orders', { ...admin, params: { query: { size: 2 } } }))
+    expect(board.items).toHaveLength(Math.min(2, board.total))
+    expect(board.jobs).toHaveLength(11)
+    expect(board.items.every((r) => r.jobs.length === 11 && r.status !== 'done')).toBe(true)
+    const filtered = await call(api.GET('/boards/work-orders', { ...admin, params: { query: { status: 'pending' } } }))
+    expect(filtered.items.every((r) => r.status === 'pending')).toBe(true)
+    expect((await api.GET('/boards/work-orders', { ...admin, params: { query: { size: 51 } } })).response.status).toBe(400)
+    const cockpit = await call(api.GET('/boards/cockpit', admin))
+    expect(cockpit.weeklySheet).toHaveLength(7)
+    expect(cockpit.weeklySpray).toHaveLength(7)
+    expect(cockpit.weeklyShipment).toHaveLength(7)
+    expect(cockpit.jobOutput).toHaveLength(11)
+    const scoped = await call(api.GET('/boards/work-orders', guest))
+    const guestBatches = await call(api.GET('/batches', { ...guest }))
+    expect(scoped.items.every((r) => guestBatches.items.some((b) => b.id === r.batchId))).toBe(true)
+    const scopedCockpit = await call(api.GET('/boards/cockpit', guest))
+    expect(scopedCockpit.kpi.openBatches).toBeLessThanOrEqual(cockpit.kpi.openBatches)
+  })
   it('derives both inventories and project summary from active scans with scope and date filters', async () => {
     const admin = await login('admin', 'admin123')
     const guest = await login('waixie', 'demo123')

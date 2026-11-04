@@ -9,6 +9,18 @@ const children: RouteRecordRaw[] = [
     meta: { title: '图纸查询', group: '图纸管理' },
   },
   {
+    path: 'board/work-orders',
+    name: 'board-work-orders',
+    component: () => import('@/views/board/WorkOrderBoard.vue'),
+    meta: { title: '工单执行看板', group: '看板管理' },
+  },
+  {
+    path: 'board/cockpit',
+    name: 'board-cockpit',
+    component: () => import('@/views/board/CockpitBoard.vue'),
+    meta: { title: '办公室驾驶舱', group: '看板管理' },
+  },
+  {
     path: 'board/spray-daily',
     name: 'board-spray-daily',
     component: () => import('@/views/board/SprayDailyBoard.vue'),

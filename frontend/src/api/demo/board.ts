@@ -1,4 +1,5 @@
 import type { components } from '../schema'
+export { workOrderBoard, cockpitBoard } from './board_more'
 import { jobs, type DemoPlan } from './data'
 
 type S = components['schemas']

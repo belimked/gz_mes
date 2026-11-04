@@ -13,6 +13,7 @@ const props = defineProps<{
   chartPlanned: number[]
   chartDone: number[]
   refreshed: string
+  custom?: boolean
 }>()
 const emit = defineEmits<{ refresh: [date: string, filter: string] }>()
 const route = useRoute()
@@ -103,12 +104,14 @@ onUnmounted(() => {
       </div>
       <div class="controls">
         <strong>{{ clock.toLocaleString('zh-CN', { hour12: false }) }}</strong>
-        <input v-model="date" type="date" aria-label="看板日期" />
-        <input v-model="filter" :placeholder="filterLabel" :aria-label="filterLabel" />
+        <input v-if="!custom" v-model="date" type="date" aria-label="看板日期" />
+        <input v-if="!custom" v-model="filter" :placeholder="filterLabel" :aria-label="filterLabel" />
         <button @click="toggleFullscreen">{{ fullscreen ? '退出全屏' : '全屏' }}</button>
       </div>
     </header>
     <div class="refresh">最后刷新：{{ refreshed || '—' }}</div>
+    <slot v-if="custom" />
+    <template v-else>
     <div class="kpis">
       <article v-for="k in kpis" :key="k.label" class="kpi">
         <span>{{ k.label }}</span
@@ -135,6 +138,7 @@ onUnmounted(() => {
         <div v-if="!visible.length" class="empty">当日暂无已审核计划</div>
       </div>
     </div>
+    </template>
   </section>
 </template>
 <style scoped>
