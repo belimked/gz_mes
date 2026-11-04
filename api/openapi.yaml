@@ -1552,6 +1552,40 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /inventory:
+    get:
+      operationId: listInventory
+      tags: [report]
+      description: Current stock from active label scans (20 without 40 for semi; 40 without 60 for finished). Period counts are zero without a date range; bounds are inclusive UTC dates. hasStock=false includes every item with active labels.
+      parameters:
+        - { name: kind, in: query, required: true, schema: { type: string, pattern: '^(semi|finished)$' } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: batchId, in: query, schema: { type: integer, format: int64 } }
+        - { name: hasStock, in: query, schema: { type: boolean, default: true } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryReport' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /reports/project-summary:
+    get:
+      operationId: projectSummary
+      tags: [report]
+      description: Project aggregates of scoped batches created in the UTC date range. status=not_done includes pending, scheduled and in_production; done includes only projects whose every matched batch is done. Project status is done if all batches done, in_production if any batch in production, otherwise pending.
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string, pattern: '^(all|not_done|done)$', default: all } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ProjectSummaryReport' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+
   /reports/batch-jobs:
     get:
       operationId: getBatchJobReport
@@ -3306,6 +3340,73 @@ components:
         sprayType: { type: string, maxLength: 50, default: "" }
         urgency: { $ref: "#/components/schemas/Urgency" }
         remark: { type: string, maxLength: 500, default: "" }
+
+    InventoryRow:
+      type: object
+      required: [batchItemId, batchId, lotNo, projectName, clientOrderNo, orderDate, thickness, color, pieceNo, seq, drawingNo, planQty, pieceArea, planArea, inQty, outQty, stockQty, stockArea]
+      properties:
+        batchItemId: { type: integer, format: int64 }
+        batchId: { type: integer, format: int64 }
+        lotNo: { type: string }
+        projectName: { type: string }
+        clientOrderNo: { type: string }
+        orderDate: { type: string, format: date }
+        thickness: { type: number, format: double }
+        color: { type: string }
+        pieceNo: { type: string }
+        seq: { type: integer }
+        drawingNo: { type: string }
+        planQty: { type: integer }
+        pieceArea: { type: number, format: double }
+        planArea: { type: number, format: double }
+        inQty: { type: integer }
+        outQty: { type: integer }
+        stockQty: { type: integer }
+        stockArea: { type: number, format: double }
+    InventoryReport:
+      type: object
+      required: [items, total, totals]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/InventoryRow' } }
+        total: { type: integer }
+        totals:
+          type: object
+          required: [stockQty, stockArea, inQty, outQty]
+          properties:
+            stockQty: { type: integer }
+            stockArea: { type: number, format: double }
+            inQty: { type: integer }
+            outQty: { type: integer }
+    ProjectSummaryRow:
+      type: object
+      required: [projectId, projectCode, projectName, customerName, batchCount, planQty, planArea, labelQty, status, cells]
+      properties:
+        projectId: { type: integer, format: int64 }
+        projectCode: { type: string }
+        projectName: { type: string }
+        customerName: { type: string }
+        batchCount: { type: integer }
+        planQty: { type: integer }
+        planArea: { type: number, format: double }
+        labelQty: { type: integer }
+        status: { $ref: '#/components/schemas/BatchStatus' }
+        cells: { type: array, items: { $ref: '#/components/schemas/JobCell' } }
+    ProjectSummaryReport:
+      type: object
+      required: [jobs, items, total, summary]
+      properties:
+        jobs: { type: array, items: { $ref: '#/components/schemas/Job' } }
+        items: { type: array, items: { $ref: '#/components/schemas/ProjectSummaryRow' } }
+        total: { type: integer }
+        summary:
+          type: object
+          required: [batchCount, planQty, planArea, labelQty, cells]
+          properties:
+            batchCount: { type: integer }
+            planQty: { type: integer }
+            planArea: { type: number, format: double }
+            labelQty: { type: integer }
+            cells: { type: array, items: { $ref: '#/components/schemas/JobCell' } }
 
     JobCell:
       type: object
