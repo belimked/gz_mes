@@ -11,6 +11,7 @@ import PageCard from '@/components/PageCard.vue'
 import TableToolbar from '@/components/TableToolbar.vue'
 import CodeText from '@/components/CodeText.vue'
 import StatusTag from '@/components/StatusTag.vue'
+import PlanWizard from './planAssist/PlanWizard.vue'
 
 type Plan = Schemas['Plan']
 type PlanKind = Schemas['PlanKind']
@@ -263,6 +264,7 @@ type FormState = {
   remark: string
 }
 const formOpen = ref(false)
+const wizardOpen = ref(false)
 const formRef = ref<FormInstance>()
 const editing = ref<Plan>()
 const saving = ref(false)
@@ -360,8 +362,22 @@ onMounted(() => {
         <h1>{{ titles[kind][0] }}</h1>
         <span>{{ titles[kind][1] }}</span>
       </div>
-      <a-button type="primary" data-testid="plan-new" @click="openCreate">新建计划</a-button>
+      <div class="heading-actions">
+        <a-button data-testid="plan-new" @click="openCreate">新建计划</a-button>
+        <a-button type="primary" data-testid="plan-wizard-open" @click="wizardOpen = true">排产助手新建</a-button>
+      </div>
     </div>
+    <PlanWizard
+      v-model:open="wizardOpen"
+      :kind="kind"
+      :title="titles[kind][0]"
+      :batches="batches"
+      :workshops="WORKSHOPS"
+      :jobs="jobOptions"
+      :paint-lines="PAINT_LINES"
+      :shifts="SHIFTS"
+      @created="load"
+    />
     <PageCard>
       <div class="filters">
         <label
@@ -583,6 +599,10 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.heading-actions {
+  display: flex;
+  gap: 8px;
 }
 .heading h1 {
   margin: 0 0 4px;
