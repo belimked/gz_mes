@@ -279,6 +279,28 @@ export function freeCapacity(kind: PlanKind, dates: [string, string]) {
   return { days, total: days * CAPACITY_PER_DAY[kind], free: Math.round(days * CAPACITY_PER_DAY[kind] * (1 - used)) }
 }
 
+/** 某产线某天的产能与已占用（㎡），模拟；周日负荷较低。 */
+export function lineDay(kind: PlanKind, line: string, day: string) {
+  const cap = Math.round(CAPACITY_PER_DAY[kind] * between(`cap-${kind}-${line}`, 0.7, 1.3))
+  const base = between(`load-${kind}-${line}-${day}`, 0.15, 0.95)
+  const used = Math.round(cap * (dayjs(day).day() === 0 ? base * 0.3 : base))
+  return { cap, used }
+}
+
+/** 产线在日期范围内的总产能 / 已占用 / 剩余（㎡）。 */
+export function lineLoad(kind: PlanKind, line: string, dates: [string, string]) {
+  let total = 0
+  let used = 0
+  let days = 0
+  for (let d = dayjs(dates[0]); !d.isAfter(dayjs(dates[1])) && days < 90; d = d.add(1, 'day')) {
+    const x = lineDay(kind, line, d.format('YYYY-MM-DD'))
+    total += x.cap
+    used += x.used
+    days++
+  }
+  return { days, total, used, free: total - used }
+}
+
 export type Limit = 'need' | 'stock' | 'capacity'
 export const LIMIT_TEXT: Record<Limit, string> = { need: '按剩余需求', stock: '受可用库存限制', capacity: '受产能限制' }
 

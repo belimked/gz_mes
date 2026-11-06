@@ -10,7 +10,8 @@ import EChart from '@/components/EChart.vue'
 import {
   FACTORS,
   LIMIT_TEXT,
-  freeCapacity,
+  lineDay,
+  lineLoad,
   overlaps,
   rankCandidates,
   suggestDates,
@@ -68,6 +69,18 @@ const fields = ref({
   remark: '',
 })
 const saving = ref(false)
+const isSpray = computed(() => props.kind === 'spray_daily')
+/** 可选产线：钣金计划用车间字典，喷涂计划用喷涂线字典；字典为空时给演示值。 */
+const lineOptions = computed(() => {
+  const opts = (isSpray.value ? props.paintLines : props.workshops).map((o) => String(o.value))
+  if (opts.length) return opts
+  return isSpray.value ? ['喷涂一线', '喷涂二线', '喷涂三线'] : ['钣金一车间', '钣金二车间']
+})
+const currentLine = computed(() => (isSpray.value ? fields.value.paintLine : fields.value.workshop) ?? '')
+function setLine(l: string) {
+  if (isSpray.value) fields.value.paintLine = l
+  else fields.value.workshop = l
+}
 
 watch(
   () => props.open,
@@ -143,7 +156,11 @@ function pickCandidate(c: Candidate) {
   dates.value = suggestDates(c)
   selected.value = {}
   fields.value.urgency = c.batch.urgency
-  fields.value.workshop = c.batch.workshop || undefined
+  const d = dates.value
+  const best = [...lineOptions.value].sort((a, b) => lineLoad(props.kind, b, d).free - lineLoad(props.kind, a, d).free)[0]
+  setLine(!isSpray.value && lineOptions.value.includes(c.batch.workshop) ? c.batch.workshop : (best ?? ''))
+  if (isSpray.value && !fields.value.shift) fields.value.shift = props.shifts[0] ? String(props.shifts[0].value) : undefined
+  if (props.kind === 'sheet_daily' && !fields.value.jobId) fields.value.jobId = props.jobs[0] ? Number(props.jobs[0].value) : undefined
 }
 function onRankClick(p: { dataIndex: number }) {
   const c = candidates.value[p.dataIndex]
@@ -151,7 +168,9 @@ function onRankClick(p: { dataIndex: number }) {
 }
 
 // ---------- ② 材料 ----------
-const capacity = computed(() => (dates.value[0] ? freeCapacity(props.kind, dates.value) : { days: 0, total: 0, free: 0 }))
+const capacity = computed(() =>
+  dates.value[0] && currentLine.value ? lineLoad(props.kind, currentLine.value, dates.value) : { days: 0, total: 0, used: 0, free: 0 },
+)
 const materials = computed(() => picked.value?.materials ?? [])
 
 function pct(v: number, m: Material) {
@@ -218,17 +237,21 @@ function qtyWarn(m: Material) {
   if (!s) return ''
   if (s.qty > Math.max(0, m.available)) return '超过可用库存'
   if (s.qty > m.remaining) return '超过剩余需求'
-  if (s.qty / m.perArea > capacity.value.free) return '超过产线剩余产能'
+  if (eqArea(m) > capacity.value.free) return '超过产线剩余产能'
   return ''
 }
-const plannedArea = computed(() => {
-  const main = materials.value[0]
-  const s = main && selected.value[main.code]
-  return s && main ? Math.round((s.qty / main.perArea) * 10) / 10 : 0
-})
-
-// ---------- ③ 确认 ----------
+// ---------- ③ 组装计划 ----------
 const chosen = computed(() => materials.value.filter((m) => selected.value[m.code]))
+/** 某材料数量能支撑的产品面积：按该材料在本批次需求中的占比折算。 */
+function eqArea(m: Material) {
+  const qty = selected.value[m.code]?.qty ?? 0
+  return m.need > 0 ? (qty / m.need) * (picked.value?.area ?? 0) : 0
+}
+/** 计划面积：各所选材料折算成产品面积，取最小值（木桶效应）。 */
+const plannedArea = computed(() => {
+  const eq = chosen.value.map(eqArea)
+  return eq.length ? Math.round(Math.min(...eq) * 10) / 10 : 0
+})
 const warnings = computed(() => {
   const c = picked.value
   if (!c) return []
@@ -240,10 +263,323 @@ const warnings = computed(() => {
     w.push(`计划结束 ${md(dates.value[1])} 晚于交期 ${md(c.batch.requiredDate)}`)
   for (const m of chosen.value) if (qtyWarn(m)) w.push(`${m.name}：${qtyWarn(m)}`)
   if (plannedArea.value > capacity.value.free) w.push(`计划面积 ${plannedArea.value}㎡ 超过所选日期剩余产能 ${capacity.value.free}㎡`)
+  else if (currentLine.value && planDays.value.length) {
+    const perDay = plannedArea.value / planDays.value.length
+    const tight = planDays.value.filter((d) => {
+      const x = lineDay(props.kind, currentLine.value, d)
+      return perDay > x.cap - x.used
+    })
+    if (tight.length) w.push(`${tight.map((d) => md(d)).join('、')} 当天空闲产能不足（每天约 ${perDay.toFixed(1)}㎡），建议换日期或换线`)
+  }
   return w
 })
 
 const canNext = computed(() => (step.value === 0 ? !!picked.value : step.value === 1 ? chosen.value.length > 0 : true))
+
+const WEEK = ['日', '一', '二', '三', '四', '五', '六']
+const PLAN_BLUE = '#2563eb'
+
+/** 材料饼图：每种材料一个饼，本计划拿走的那一块「切出来」。 */
+const PIE_ROW = 150
+const pieCols = computed(() => (chosen.value.length <= 1 ? 1 : 2))
+const pieHeight = computed(() => Math.ceil(Math.max(1, chosen.value.length) / pieCols.value) * PIE_ROW + 30)
+const pieOption = computed<EChartsOption>(() => {
+  const ms = chosen.value
+  const cols = pieCols.value
+  const pos = (i: number) => ({ x: ((i % cols) + 0.5) / cols, y: 30 + Math.floor(i / cols) * PIE_ROW })
+  return {
+    legend: { top: 0, itemWidth: 10, itemHeight: 10, data: ['本计划', '缺口', '剩余可用', '他单已预定'] },
+    tooltip: { trigger: 'item', formatter: '{a}<br/>{b}：{c}（{d}%）' },
+    title: ms.map((m, i) => ({
+      text: m.name.length > 14 ? `${m.name.slice(0, 14)}…` : m.name,
+      subtext: `本计划 ${selected.value[m.code]?.qty}${m.unit}`,
+      left: `${pos(i).x * 100}%`,
+      top: pos(i).y + 2,
+      textAlign: 'center',
+      itemGap: 2,
+      textStyle: { fontSize: 12, fontWeight: 600 },
+      subtextStyle: { fontSize: 11, color: PLAN_BLUE },
+    })),
+    series: ms.map((m, i) => {
+      const qty = selected.value[m.code]?.qty ?? 0
+      const avail = Math.max(0, m.available)
+      const fromStock = Math.min(qty, avail)
+      const unit = m.unit
+      return {
+        name: `${m.name}（${unit}）`,
+        type: 'pie',
+        radius: 40,
+        center: [`${pos(i).x * 100}%`, pos(i).y + 92],
+        selectedMode: 'multiple',
+        selectedOffset: 14,
+        label: { show: false },
+        data: [
+          { name: '本计划', value: Math.round(fromStock * 10) / 10, selected: true, itemStyle: { color: PLAN_BLUE } },
+          { name: '缺口', value: Math.round(Math.max(0, qty - avail) * 10) / 10, selected: true, itemStyle: { color: '#ef4444' } },
+          { name: '剩余可用', value: Math.round((avail - fromStock) * 10) / 10, itemStyle: { color: '#cbd5e1' } },
+          { name: '他单已预定', value: m.reserved, itemStyle: { color: '#fcd34d' } },
+        ],
+      }
+    }),
+  } as EChartsOption
+})
+
+/** 产线负荷图：全部产线在所选日期内的已占用 / 本计划 / 剩余，点击选线。 */
+const lineStats = computed(() =>
+  lineOptions.value.map((l) => {
+    const s = dates.value[0] ? lineLoad(props.kind, l, dates.value) : { days: 0, total: 0, used: 0, free: 0 }
+    const mine = l === currentLine.value ? plannedArea.value : 0
+    return { line: l, ...s, mine: Math.min(mine, s.free), over: Math.max(0, mine - s.free), rest: Math.max(0, s.free - mine) }
+  }),
+)
+const lineOption = computed<EChartsOption>(() => {
+  const st = lineStats.value
+  const bar = (name: string, color: string, get: (x: (typeof st)[number]) => number) => ({
+    name,
+    type: 'bar',
+    stack: 'load',
+    barWidth: 20,
+    cursor: 'pointer',
+    itemStyle: { color },
+    data: st.map((x) => ({ value: Math.round(get(x)), itemStyle: { opacity: x.line === currentLine.value ? 1 : 0.55 } })),
+  })
+  return {
+    grid: { left: 8, right: 16, top: 30, bottom: 4, containLabel: true },
+    legend: { top: 0, itemWidth: 10, itemHeight: 10 },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (p: unknown) => {
+        const x = st[(p as { dataIndex: number }[])[0]?.dataIndex ?? 0]
+        if (!x) return ''
+        return `<b>${x.line}</b>（${x.days} 天）<br/>产能 ${x.total}㎡ · 已占用 ${x.used}㎡<br/>剩余 <b>${x.free}</b>㎡${x.line === currentLine.value ? '' : '<br/><i>点击选用这条线</i>'}`
+      },
+    },
+    xAxis: { type: 'value', name: '㎡', splitLine: { lineStyle: { type: 'dashed' } } },
+    yAxis: {
+      type: 'category',
+      inverse: true,
+      data: st.map((x) => x.line),
+      axisLabel: {
+        formatter: (v: string) => (v === currentLine.value ? `{on|▶ ${v}}` : v),
+        rich: { on: { color: PLAN_BLUE, fontWeight: 'bold' } },
+      },
+    },
+    series: [
+      bar('已占用', '#94a3b8', (x) => x.used),
+      bar('本计划', PLAN_BLUE, (x) => x.mine),
+      bar('超出产能', '#ef4444', (x) => x.over),
+      bar('剩余', '#bbf7d0', (x) => x.rest),
+    ],
+  } as EChartsOption
+})
+function onLineClick(p: { dataIndex: number }) {
+  const x = lineStats.value[p.dataIndex]
+  if (x) setLine(x.line)
+}
+
+/** 日历：6 周，颜色为所选产线当天的空闲比例；蓝框为计划日期，红框交期，灰框已有计划。 */
+const pickingEnd = ref(false)
+const calDays = computed(() => {
+  const today = dayjs().startOf('day')
+  const start = today.subtract((today.day() + 6) % 7, 'day')
+  return Array.from({ length: 42 }, (_, i) => start.add(i, 'day').format('YYYY-MM-DD'))
+})
+const inRange = (d: string, a: string, b: string) => d >= a && d <= b
+const calOption = computed<EChartsOption>(() => {
+  const days = calDays.value
+  const today = dayjs().format('YYYY-MM-DD')
+  const line = currentLine.value
+  const due = picked.value?.batch.requiredDate ?? ''
+  const existing = picked.value?.existing ?? []
+  const heat = days.map((d) => {
+    if (d < today || !line) return [d, -1]
+    const x = lineDay(props.kind, line, d)
+    return [d, Math.round(((x.cap - x.used) / x.cap) * 100) / 100]
+  })
+  const frame = (list: string[], color: string, type: 'solid' | 'dashed' = 'solid') => ({
+    type: 'scatter',
+    coordinateSystem: 'calendar',
+    symbol: 'rect',
+    symbolSize: [42, 24],
+    silent: true,
+    itemStyle: { color: 'transparent', borderColor: color, borderWidth: 2, borderType: type },
+    data: list.map((d) => [d, 1]),
+    z: 5,
+  })
+  return {
+    tooltip: {
+      formatter: (p: unknown) => {
+        const v = (p as { value: [string, number] }).value
+        const d = v[0]
+        const tags = [
+          inRange(d, dates.value[0], dates.value[1]) ? '本计划' : '',
+          d === due ? '交期' : '',
+          existing.some((e) => inRange(d, e.start, e.end)) ? '已有计划' : '',
+        ].filter(Boolean)
+        if (d < today) return `${d}（已过）`
+        const x = lineDay(props.kind, line, d)
+        return `${d} 周${WEEK[dayjs(d).day()]}<br/>${line}：空闲 <b>${x.cap - x.used}</b> / ${x.cap}㎡${tags.length ? `<br/>${tags.join(' · ')}` : ''}`
+      },
+    },
+    visualMap: {
+      type: 'piecewise',
+      seriesIndex: 0,
+      orient: 'horizontal',
+      top: 0,
+      left: 'center',
+      itemWidth: 12,
+      itemHeight: 10,
+      textStyle: { fontSize: 11 },
+      pieces: [
+        { min: 0.5, label: '空闲', color: '#86efac' },
+        { min: 0.25, max: 0.5, label: '偏紧', color: '#fde68a' },
+        { min: 0, max: 0.25, label: '快满', color: '#fca5a5' },
+        { max: -0.5, label: '已过', color: '#f1f5f9' },
+      ],
+    },
+    calendar: {
+      orient: 'horizontal',
+      range: [days[0] as string, days[days.length - 1] as string],
+      cellSize: [46, 28],
+      left: 34,
+      top: 58,
+      dayLabel: { firstDay: 1, nameMap: 'ZH', fontSize: 11 },
+      monthLabel: { nameMap: 'ZH', fontSize: 11 },
+      yearLabel: { show: false },
+      splitLine: { show: false },
+      itemStyle: { borderColor: '#fff', borderWidth: 2 },
+    },
+    series: [
+      {
+        type: 'heatmap',
+        coordinateSystem: 'calendar',
+        cursor: 'pointer',
+        data: heat,
+        label: {
+          show: true,
+          fontSize: 11,
+          color: '#334155',
+          formatter: (p: { value: [string, number] }) => String(dayjs(p.value[0]).date()),
+        },
+      },
+      frame(
+        existing.flatMap((e) => days.filter((d) => inRange(d, e.start, e.end))),
+        '#64748b',
+        'dashed',
+      ),
+      frame(due && days.includes(due) ? [due] : [], '#dc2626'),
+      frame(dates.value[0] ? days.filter((d) => inRange(d, dates.value[0], dates.value[1])) : [], PLAN_BLUE),
+    ],
+  } as EChartsOption
+})
+function onCalClick(p: { seriesType?: string; value?: unknown }) {
+  if (p.seriesType !== 'heatmap' || !Array.isArray(p.value)) return
+  const d = String(p.value[0])
+  if (d < dayjs().format('YYYY-MM-DD')) return
+  if (pickingEnd.value && d >= dates.value[0]) {
+    dates.value = [dates.value[0], d]
+    pickingEnd.value = false
+    return
+  }
+  const est = picked.value?.estDays ?? 1
+  dates.value = [
+    d,
+    dayjs(d)
+      .add(est - 1, 'day')
+      .format('YYYY-MM-DD'),
+  ]
+  pickingEnd.value = true
+}
+
+/** 计划图：材料 → 计划 → 产线 → 每天，宽度为折算面积。 */
+const planDays = computed(() => {
+  if (!dates.value[0]) return []
+  const out: string[] = []
+  for (let d = dayjs(dates.value[0]); !d.isAfter(dayjs(dates.value[1])) && out.length < 31; d = d.add(1, 'day'))
+    out.push(d.format('YYYY-MM-DD'))
+  return out
+})
+const sankeyOption = computed<EChartsOption>(() => {
+  const c = picked.value
+  const area = plannedArea.value
+  if (!c || !area || !currentLine.value) return {}
+  const planNode = `计划 ${c.batch.lotNo}`
+  const lineNode = currentLine.value
+  const eqs = chosen.value.map(eqArea)
+  const eqSum = eqs.reduce((a, b) => a + b, 0) || 1
+  const perDay = Math.round((area / Math.max(1, planDays.value.length)) * 10) / 10
+  const dayNodes = planDays.value.map((d) => {
+    const x = lineDay(props.kind, lineNode, d)
+    return { d, name: `${dayjs(d).format('MM-DD')} 周${WEEK[dayjs(d).day()]}`, free: x.cap - x.used, over: perDay > x.cap - x.used }
+  })
+  const matColors = ['#0ea5e9', '#6366f1', '#14b8a6', '#a855f7']
+  return {
+    tooltip: {
+      trigger: 'item',
+      formatter: (p: unknown) => {
+        const q = p as { dataType: string; name: string; data: { source?: string; target?: string; value?: number; tip?: string } }
+        if (q.data.tip) return q.data.tip
+        if (q.dataType === 'edge') return `${q.data.source} → ${q.data.target}<br/>约 ${q.data.value}㎡`
+        return q.name
+      },
+    },
+    series: [
+      {
+        type: 'sankey',
+        left: 8,
+        right: 110,
+        top: 24,
+        bottom: 10,
+        nodeWidth: 14,
+        nodeGap: 8,
+        layoutIterations: 0,
+        draggable: false,
+        emphasis: { focus: 'adjacency' },
+        label: { fontSize: 12, color: '#1e293b' },
+        lineStyle: { color: 'gradient', opacity: 0.35, curveness: 0.5 },
+        data: [
+          ...chosen.value.map((m, i) => ({
+            name: m.name,
+            depth: 0,
+            itemStyle: { color: matColors[i % matColors.length] },
+            tip: `${m.name}<br/>本计划 ${selected.value[m.code]?.qty}${m.unit}`,
+          })),
+          {
+            name: planNode,
+            depth: 1,
+            itemStyle: { color: PLAN_BLUE },
+            label: { position: 'top', fontWeight: 'bold' },
+            tip: `${planNode}<br/>${c.batch.projectName}<br/>约 ${area}㎡`,
+          },
+          {
+            name: lineNode,
+            depth: 2,
+            itemStyle: { color: '#0f766e' },
+            label: { position: 'top', fontWeight: 'bold' },
+            tip: `${lineNode}<br/>剩余产能 ${capacity.value.free}㎡`,
+          },
+          ...dayNodes.map((x) => ({
+            name: x.name,
+            depth: 3,
+            itemStyle: { color: x.over ? '#ef4444' : '#22c55e' },
+            label: { color: x.over ? '#dc2626' : '#1e293b' },
+            tip: `${x.d}<br/>安排 ${perDay}㎡ · 当天空闲 ${x.free}㎡${x.over ? '<br/><b style="color:#dc2626">超出当天产能</b>' : ''}`,
+          })),
+        ],
+        links: [
+          ...chosen.value.map((m, i) => ({
+            source: m.name,
+            target: planNode,
+            value: Math.round(((area * (eqs[i] ?? 0)) / eqSum) * 10) / 10,
+          })),
+          { source: planNode, target: lineNode, value: area },
+          ...dayNodes.map((x) => ({ source: lineNode, target: x.name, value: perDay })),
+        ],
+      },
+    ],
+  } as EChartsOption
+})
 
 async function save() {
   const c = picked.value
@@ -292,7 +628,7 @@ async function save() {
     data-testid="plan-wizard"
     @cancel="emit('update:open', false)"
   >
-    <a-steps :current="step" size="small" class="steps" :items="[{ title: '选择批次' }, { title: '选择材料' }, { title: '确认计划' }]" />
+    <a-steps :current="step" size="small" class="steps" :items="[{ title: '选择批次' }, { title: '选择材料' }, { title: '组装计划' }]" />
     <a-alert
       type="info"
       show-icon
@@ -406,59 +742,76 @@ async function save() {
       </table>
     </section>
 
-    <!-- ③ 确认 -->
-    <section v-if="step === 2 && picked" class="confirm">
-      <a-form layout="vertical" class="form">
-        <a-form-item label="批次">{{ picked.batch.lotNo }} · {{ picked.batch.projectName }}</a-form-item>
-        <a-form-item label="计划起止"><a-range-picker v-model:value="dates" value-format="YYYY-MM-DD" :allow-clear="false" /></a-form-item>
-        <a-form-item v-if="kind !== 'spray_daily'" label="车间"
-          ><a-select v-model:value="fields.workshop" allow-clear :options="workshops"
-        /></a-form-item>
-        <a-form-item v-if="kind === 'sheet_daily'" label="工序" required
-          ><a-select v-model:value="fields.jobId" :options="jobs"
-        /></a-form-item>
-        <template v-if="kind === 'spray_daily'">
-          <a-form-item label="喷涂线" required><a-select v-model:value="fields.paintLine" :options="paintLines" /></a-form-item>
-          <a-form-item label="班次" required><a-select v-model:value="fields.shift" :options="shifts" /></a-form-item>
-        </template>
-        <a-form-item label="紧急度">
+    <!-- ③ 组装计划：材料饼图 + 产线 + 日历 → 计划图 -->
+    <section v-if="step === 2 && picked" class="compose" data-testid="wizard-compose">
+      <div class="panel">
+        <h4><span class="no">1</span>材料 · 从库存里切出本计划的一块</h4>
+        <EChart :option="pieOption" :height="pieHeight" />
+      </div>
+      <div class="panel">
+        <h4>
+          <span class="no">2</span>{{ isSpray ? '喷涂线' : '车间' }} · 点击柱子选一条线
+          <span class="muted">（所选日期内负荷）</span>
+        </h4>
+        <EChart :option="lineOption" :height="Math.max(110, lineStats.length * 34 + 44)" data-testid="wizard-lines" @click="onLineClick" />
+        <div class="chips">
+          <template v-if="isSpray">
+            <span class="muted">班次</span>
+            <a-radio-group v-model:value="fields.shift" size="small" button-style="solid">
+              <a-radio-button v-for="s in shifts" :key="s.value" :value="s.value">{{ s.label }}</a-radio-button>
+            </a-radio-group>
+          </template>
+          <template v-if="kind === 'sheet_daily'">
+            <span class="muted">工序</span>
+            <a-radio-group v-model:value="fields.jobId" size="small" button-style="solid">
+              <a-radio-button v-for="j in jobs.slice(0, 4)" :key="j.value" :value="j.value">{{ j.label }}</a-radio-button>
+            </a-radio-group>
+          </template>
+        </div>
+      </div>
+      <div class="panel">
+        <h4><span class="no">3</span>日期 · {{ pickingEnd ? '再点一天作为结束日（或点比开始更早的一天重选）' : '点击一天作为开始日' }}</h4>
+        <EChart :option="calOption" :height="270" data-testid="wizard-calendar" @click="onCalClick" />
+        <div class="cal-legend muted">
+          <span><i class="box plan" />本计划</span><span><i class="box due" />交期 {{ md(picked.batch.requiredDate) }}</span
+          ><span><i class="box exist" />已有计划</span><span>颜色：{{ currentLine }} 当天空闲产能</span>
+        </div>
+      </div>
+
+      <div class="panel result">
+        <h4><span class="no done">=</span>新生产计划</h4>
+        <div class="plan-head">
+          <b>{{ picked.batch.lotNo }}</b> · {{ picked.batch.projectName }}
+          <div class="muted">
+            {{ currentLine || '未选产线' }}<template v-if="isSpray && fields.shift"> · {{ fields.shift }}</template> · {{ md(dates[0]) }} ~
+            {{ md(dates[1]) }}（{{ planDays.length }} 天）· 约 <b>{{ plannedArea }}</b
+            >㎡
+          </div>
+        </div>
+        <EChart
+          v-if="plannedArea && currentLine"
+          :option="sankeyOption"
+          :height="Math.max(220, Math.max(chosen.length, planDays.length) * 30 + 30)"
+          data-testid="wizard-sankey"
+        />
+        <a-empty v-else description="选择材料和产线后生成计划图" />
+        <a-alert v-if="warnings.length" type="warning" show-icon message="请注意" class="gap">
+          <template #description
+            ><div v-for="w in warnings" :key="w">· {{ w }}</div></template
+          >
+        </a-alert>
+        <a-alert v-else type="success" show-icon message="材料、产能、交期、回款均无风险" class="gap" />
+        <div class="extra">
           <a-radio-group
             v-model:value="fields.urgency"
+            size="small"
             :options="[
               { value: 'normal', label: '普通' },
               { value: 'urgent', label: '加急' },
             ]"
           />
-        </a-form-item>
-        <a-form-item label="备注"><a-textarea v-model:value="fields.remark" :rows="2" :maxlength="300" /></a-form-item>
-      </a-form>
-      <div>
-        <h4>本计划将预定</h4>
-        <table class="mat">
-          <thead>
-            <tr>
-              <th>材料</th>
-              <th>预定</th>
-              <th>预定后可用</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="m in chosen" :key="m.code">
-              <td>{{ m.name }}</td>
-              <td>{{ selected[m.code]?.qty }}{{ m.unit }}</td>
-              <td :class="{ danger: m.available - (selected[m.code]?.qty ?? 0) < 0 }">
-                {{ (m.available - (selected[m.code]?.qty ?? 0)).toFixed(1) }}{{ m.unit }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <p class="muted">折合计划面积约 {{ plannedArea }}㎡ · 产能余 {{ capacity.free }}㎡</p>
-        <a-alert v-if="warnings.length" type="warning" show-icon message="请注意">
-          <template #description
-            ><div v-for="w in warnings" :key="w">· {{ w }}</div></template
-          >
-        </a-alert>
-        <a-alert v-else type="success" show-icon message="材料、产能、交期、回款均无风险" />
+          <a-input v-model:value="fields.remark" size="small" :maxlength="300" placeholder="备注（选填）" />
+        </div>
       </div>
     </section>
 
@@ -466,7 +819,9 @@ async function save() {
       <a-button v-if="step > 0" @click="step--">上一步</a-button>
       <a-button @click="emit('update:open', false)">取消</a-button>
       <a-button v-if="step < 2" type="primary" :disabled="!canNext" data-testid="wizard-next" @click="step++">下一步</a-button>
-      <a-button v-else type="primary" :loading="saving" data-testid="wizard-save" @click="save">保存计划</a-button>
+      <a-button v-else type="primary" :loading="saving" :disabled="!plannedArea || !currentLine" data-testid="wizard-save" @click="save"
+        >确认生成计划</a-button
+      >
     </div>
   </a-modal>
 </template>
@@ -565,16 +920,86 @@ async function save() {
 .mat tbody tr.on {
   background: #eff6ff;
 }
-.confirm {
+.compose {
   display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 24px;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
-.confirm h4 {
-  margin: 0 0 8px;
+.panel {
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  min-width: 0;
 }
-.form :deep(.ant-form-item) {
-  margin-bottom: 10px;
+.panel h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.no {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  font-size: 11px;
+}
+.no.done {
+  background: #2563eb;
+  color: #fff;
+}
+.result {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  border-color: #bfdbfe;
+  background: #f8fbff;
+}
+.plan-head {
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.box {
+  display: inline-block;
+  width: 12px;
+  height: 9px;
+  margin-right: 4px;
+  border: 2px solid;
+  vertical-align: middle;
+}
+.box.plan {
+  border-color: #2563eb;
+}
+.box.due {
+  border-color: #dc2626;
+}
+.box.exist {
+  border-color: #64748b;
+  border-style: dashed;
+}
+.gap {
+  margin-top: 8px;
+}
+.extra {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
 }
 .muted {
   color: var(--gz-muted);
