@@ -7,6 +7,7 @@ import dayjs from 'dayjs'
 import type { EChartsOption } from 'echarts'
 import { call, client, errorMessage, type Schemas } from '@/api/client'
 import EChart from '@/components/EChart.vue'
+import MaterialPie from './MaterialPie.vue'
 import {
   FACTORS,
   LIMIT_TEXT,
@@ -278,51 +279,6 @@ const canNext = computed(() => (step.value === 0 ? !!picked.value : step.value =
 
 const WEEK = ['日', '一', '二', '三', '四', '五', '六']
 const PLAN_BLUE = '#2563eb'
-
-/** 材料饼图：每种材料一个饼，本计划拿走的那一块「切出来」。 */
-const PIE_ROW = 150
-const pieCols = computed(() => (chosen.value.length <= 1 ? 1 : 2))
-const pieHeight = computed(() => Math.ceil(Math.max(1, chosen.value.length) / pieCols.value) * PIE_ROW + 30)
-const pieOption = computed<EChartsOption>(() => {
-  const ms = chosen.value
-  const cols = pieCols.value
-  const pos = (i: number) => ({ x: ((i % cols) + 0.5) / cols, y: 30 + Math.floor(i / cols) * PIE_ROW })
-  return {
-    legend: { top: 0, itemWidth: 10, itemHeight: 10, data: ['本计划', '缺口', '剩余可用', '他单已预定'] },
-    tooltip: { trigger: 'item', formatter: '{a}<br/>{b}：{c}（{d}%）' },
-    title: ms.map((m, i) => ({
-      text: m.name.length > 14 ? `${m.name.slice(0, 14)}…` : m.name,
-      subtext: `本计划 ${selected.value[m.code]?.qty}${m.unit}`,
-      left: `${pos(i).x * 100}%`,
-      top: pos(i).y + 2,
-      textAlign: 'center',
-      itemGap: 2,
-      textStyle: { fontSize: 12, fontWeight: 600 },
-      subtextStyle: { fontSize: 11, color: PLAN_BLUE },
-    })),
-    series: ms.map((m, i) => {
-      const qty = selected.value[m.code]?.qty ?? 0
-      const avail = Math.max(0, m.available)
-      const fromStock = Math.min(qty, avail)
-      const unit = m.unit
-      return {
-        name: `${m.name}（${unit}）`,
-        type: 'pie',
-        radius: 40,
-        center: [`${pos(i).x * 100}%`, pos(i).y + 92],
-        selectedMode: 'multiple',
-        selectedOffset: 14,
-        label: { show: false },
-        data: [
-          { name: '本计划', value: Math.round(fromStock * 10) / 10, selected: true, itemStyle: { color: PLAN_BLUE } },
-          { name: '缺口', value: Math.round(Math.max(0, qty - avail) * 10) / 10, selected: true, itemStyle: { color: '#ef4444' } },
-          { name: '剩余可用', value: Math.round((avail - fromStock) * 10) / 10, itemStyle: { color: '#cbd5e1' } },
-          { name: '他单已预定', value: m.reserved, itemStyle: { color: '#fcd34d' } },
-        ],
-      }
-    }),
-  } as EChartsOption
-})
 
 /** 产线负荷图：全部产线在所选日期内的已占用 / 本计划 / 剩余，点击选线。 */
 const lineStats = computed(() =>
@@ -746,7 +702,16 @@ async function save() {
     <section v-if="step === 2 && picked" class="compose" data-testid="wizard-compose">
       <div class="panel">
         <h4><span class="no">1</span>材料 · 从库存里切出本计划的一块</h4>
-        <EChart :option="pieOption" :height="pieHeight" />
+        <div class="pie-legend muted">
+          <span><i style="background: #2563eb" />本计划（拖动圆点或输入）</span><span><i style="background: #cbd5e1" />剩余可用</span
+          ><span><i style="background: #fcd34d" />他单已预定</span><span><i class="ring" />缺口</span
+          ><span><i class="tick" />剩余需求</span>
+        </div>
+        <div class="pies">
+          <template v-for="m in chosen" :key="m.code">
+            <MaterialPie v-if="selected[m.code]" v-model="selected[m.code]!.qty" :material="m" :hint="qtyWarn(m)" />
+          </template>
+        </div>
       </div>
       <div class="panel">
         <h4>
@@ -967,6 +932,35 @@ async function save() {
   align-items: center;
   gap: 8px;
   margin-top: 4px;
+}
+.pies {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px 8px;
+  padding: 4px 0;
+}
+.pie-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 6px;
+}
+.pie-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+.pie-legend i.ring {
+  height: 0;
+  border-top: 3px solid #ef4444;
+}
+.pie-legend i.tick {
+  width: 0;
+  border-left: 2px dashed #0f172a;
+  border-radius: 0;
 }
 .cal-legend {
   display: flex;
