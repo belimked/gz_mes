@@ -62,7 +62,8 @@ describe('demo api', () => {
     expect(all.total).toBeGreaterThanOrEqual(semi.total)
     const own = semi.items.find((r) => r.batchId === 9 || r.batchId === 10) ?? semi.items[0]!
     const hidden = await call(api.GET('/inventory', { ...guest, params: { query: { kind: 'semi', batchId: own.batchId } } }))
-    if (own.batchId && !(await call(api.GET('/batches', { ...guest, params: { query: { keyword: own.lotNo } } }))).total) expect(hidden.total).toBe(0)
+    if (own.batchId && !(await call(api.GET('/batches', { ...guest, params: { query: { keyword: own.lotNo } } }))).total)
+      expect(hidden.total).toBe(0)
     const projects = await call(api.GET('/reports/project-summary', { ...admin }))
     expect(projects.total).toBeGreaterThan(0)
     expect(projects.summary.labelQty).toBeGreaterThan(0)
@@ -278,7 +279,12 @@ describe('demo api', () => {
     expect(admin.menus.length).toBeGreaterThan(1)
     const wx = await call(api.GET('/auth/me', await login('waixie', 'demo123')))
     expect(wx.menus.map((m) => m.title)).toEqual(['看板管理', '销售管理', '排程管理'])
-    expect(wx.menus[0]?.children?.map((c) => c.path)).toEqual(['/board/spray-daily', '/board/sheet-daily'])
+    expect(wx.menus[0]?.children?.map((c) => c.path)).toEqual([
+      '/board/spray-daily',
+      '/board/sheet-daily',
+      '/board/work-orders',
+      '/board/cockpit',
+    ])
     expect(wx.menus[1]?.children?.map((c) => c.path)).toEqual(['/sale/projects', '/sale/contracts'])
     expect(wx.menus[2]?.children?.map((c) => c.path)).toEqual([
       '/scheduling/sheet-week',
