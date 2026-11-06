@@ -99,6 +99,7 @@ test('work-order board and cockpit render without console errors', async ({ page
   const errors: string[] = []
   page.on('pageerror', (e) => errors.push(e.message))
   await login(page)
+  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
   await page.goto('/board/work-orders')
   await expect(page.getByRole('heading', { name: '工单执行看板' })).toBeVisible()
   await expect(page.locator('.board table')).toBeVisible()
