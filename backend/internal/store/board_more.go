@@ -328,5 +328,31 @@ func (s *Store) Cockpit(ctx context.Context, sc auth.Scope, today time.Time) (Co
 	}
 	err = rows.Err()
 	rows.Close()
+	out.ensureSlices()
 	return out, err
+}
+
+// ensureSlices keeps empty lists as [] instead of null in JSON, so the page can read .length on an empty database.
+func (c *Cockpit) ensureSlices() {
+	if c.WeeklySheet == nil {
+		c.WeeklySheet = []BoardDay{}
+	}
+	if c.WeeklySpray == nil {
+		c.WeeklySpray = []BoardDay{}
+	}
+	if c.WeeklyShipment == nil {
+		c.WeeklyShipment = []BoardDay{}
+	}
+	if c.JobOutput == nil {
+		c.JobOutput = []BoardJob{}
+	}
+	if c.MachineCapacity == nil {
+		c.MachineCapacity = []BoardMachine{}
+	}
+	if c.WorkshopBacklog == nil {
+		c.WorkshopBacklog = []BoardBacklog{}
+	}
+	if c.Projects == nil {
+		c.Projects = []BoardProject{}
+	}
 }
